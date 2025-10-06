@@ -1,7 +1,7 @@
 <template>
   <div>
     <h1>Hello World!</h1>
-    <p>Vue is working! 🎉</p>
+    <p>hello im lebron james 🎉</p>
   </div>
 </template>
 
