@@ -1,11 +1,35 @@
-<script setup></script>
-
 <template>
-  <h1>You did it!</h1>
-  <p>
-    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
-    documentation
-  </p>
+  <div id="app">
+    <nav>
+      <RouterLink to="/">Home</RouterLink> | 
+      <RouterLink to="/about">About</RouterLink>
+    </nav>
+    <RouterView />
+  </div>
 </template>
 
-<style scoped></style>
+<script setup>
+</script>
+
+<style>
+#app {
+  font-family: Arial, sans-serif;
+}
+
+nav {
+  padding: 20px;
+  text-align: center;
+  background: #f0f0f0;
+}
+
+nav a {
+  padding: 10px 20px;
+  text-decoration: none;
+  color: #42b983;
+  font-weight: bold;
+}
+
+nav a:hover {
+  text-decoration: underline;
+}
+</style>
