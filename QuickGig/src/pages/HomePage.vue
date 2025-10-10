@@ -1,21 +1,5 @@
 <template>
   <div id="app">
-    <nav class="navbar">
-      <div class="container">
-        <div class="nav-content">
-          <div class="logo">
-            <span class="logo-text">QuickGig</span>
-          </div>
-          <div class="nav-links">
-            <a href="#" class="nav-link">Services</a>
-            <a href="#" class="nav-link">Sign up / Log in</a>
-            <a href="#" class="nav-button">Become a Helper</a>
-          </div>
-        </div>
-      </div>
-    </nav>
-
-
     <section class="hero">
       <div class="hero-background"></div>
       <div class="container">
@@ -37,7 +21,6 @@
         </div>
       </div>
     </section>
-
 
     <section class="community-section">
       <div class="container">
@@ -64,14 +47,12 @@
         </div>
       </div>
     </section>
-
-
   </div>
 </template>
 
 <script>
 export default {
-  name: 'App',
+  name: 'HomePage',
   data() {
     return {
       searchQuery: '',
@@ -105,17 +86,11 @@ export default {
 };
 </script>
 
-<style>
+<style scoped>
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
@@ -123,72 +98,11 @@ body {
   min-height: 100vh;
 }
 
-
-.navbar {
-  background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  padding: 1rem 0;
-}
-
 .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 2rem;
 }
-
-.nav-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #1a7f64;
-}
-
-.logo-text {
-  font-size: 1.5rem;
-}
-
-.nav-links {
-  display: flex;
-  gap: 2rem;
-  align-items: center;
-}
-
-.nav-link {
-  text-decoration: none;
-  color: #333;
-  font-weight: 500;
-  transition: color 0.3s;
-}
-
-.nav-link:hover {
-  color: #1a7f64;
-}
-
-.nav-button {
-  background: #1a7f64;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  text-decoration: none;
-  font-weight: 600;
-  transition: background 0.3s;
-}
-
-.nav-button:hover {
-  background: #156d56;
-}
-
 
 .hero {
   position: relative;
@@ -254,7 +168,6 @@ body {
 .search-button:hover {
   background: #156d56;
 }
-
 
 .community-section {
   padding: 5rem 0;
@@ -339,7 +252,6 @@ body {
   display: block;
 }
 
-
 @media (max-width: 968px) {
   .community-content {
     grid-template-columns: 1fr;
@@ -363,15 +275,6 @@ body {
 @media (max-width: 768px) {
   .container {
     padding: 0 1rem;
-  }
-
-  .nav-links {
-    gap: 1rem;
-  }
-
-  .nav-button {
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
   }
 
   .hero-title {
@@ -402,11 +305,6 @@ body {
 @media (max-width: 480px) {
   .hero-title {
     font-size: 1.5rem;
-  }
-
-  .nav-links {
-    flex-direction: column;
-    gap: 0.5rem;
   }
 
   .community-title {

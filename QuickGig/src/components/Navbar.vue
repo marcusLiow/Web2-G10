@@ -1,102 +1,111 @@
 <template>
   <nav class="navbar">
-    <div class="nav-container">
-      <RouterLink to="/" class="logo">
-        <span class="logo-text">QuickGig</span>
-      </RouterLink>
-      <div class="nav-links">
-        <RouterLink to="/browse" class="nav-link">Browse Jobs</RouterLink>
-        <RouterLink to="/request" class="nav-link">Request</RouterLink>
-        <RouterLink to="/signup" class="nav-link signup-btn">Sign Up</RouterLink>
+    <div class="container">
+      <div class="nav-content">
+        <div class="logo">
+          <span class="logo-text">QuickGig</span>
+        </div>
+        <div class="nav-links">
+          <a href="#" class="nav-link">Services</a>
+          <a href="#" class="nav-link">Sign up / Log in</a>
+          <a href="#" class="nav-button">Become a Helper</a>
+        </div>
       </div>
     </div>
   </nav>
 </template>
 
-<script setup>
+<script>
+export default {
+  name: 'Navbar'
+};
 </script>
 
 <style scoped>
 .navbar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 1rem 2rem;
+  background: white;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 1rem 0;
 }
 
-.nav-container {
+.container {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.nav-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
 .logo {
-  text-decoration: none;
-  transition: transform 0.2s ease;
-}
-
-.logo:hover {
-  transform: scale(1.05);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #1a7f64;
 }
 
 .logo-text {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: white;
-  letter-spacing: 0.5px;
+  font-size: 1.5rem;
 }
 
 .nav-links {
   display: flex;
-  gap: 1.5rem;
+  gap: 2rem;
   align-items: center;
 }
 
 .nav-link {
-  color: white;
   text-decoration: none;
+  color: #333;
   font-weight: 500;
-  font-size: 1rem;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  transition: all 0.3s ease;
+  transition: color 0.3s;
 }
 
 .nav-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: translateY(-2px);
+  color: #1a7f64;
 }
 
-.signup-btn {
-  background: white;
-  color: #667eea;
+.nav-button {
+  background: #1a7f64;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  text-decoration: none;
   font-weight: 600;
-  padding: 0.6rem 1.5rem;
+  transition: background 0.3s;
 }
 
-.signup-btn:hover {
-  background: #f8f9fa;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.nav-button:hover {
+  background: #156d56;
 }
 
 @media (max-width: 768px) {
-  .navbar {
-    padding: 1rem;
+  .container {
+    padding: 0 1rem;
   }
-  
+
   .nav-links {
     gap: 1rem;
   }
-  
-  .nav-link {
+
+  .nav-button {
+    padding: 0.5rem 1rem;
     font-size: 0.9rem;
-    padding: 0.4rem 0.8rem;
   }
-  
-  .logo-text {
-    font-size: 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .nav-links {
+    flex-direction: column;
+    gap: 0.5rem;
   }
 }
 </style>
