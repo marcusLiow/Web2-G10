@@ -1,5 +1,5 @@
 {
-  "name": "quickgig",
+  "name": "vue-project",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@popperjs/core": "^2.11.8",
+    "bootstrap": "^5.3.8",
+    "chart.js": "^4.5.0",
     "vue": "^3.5.22",
+    "vue-chartjs": "^5.3.2",
+    "vue-google-charts": "^1.1.0",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
