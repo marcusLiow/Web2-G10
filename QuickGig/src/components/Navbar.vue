@@ -6,9 +6,9 @@
           <span class="logo-text">QuickGig</span>
         </div>
         <div class="nav-links">
-          <a href="#" class="nav-link">Services</a>
-          <a href="#" class="nav-link">Sign up / Log in</a>
-          <a href="#" class="nav-button">Become a Helper</a>
+          <a href="#" class="nav-link">Browse Jobs</a>
+          <a href="#" class="nav-link">Browse Helpers</a>
+          <a href="#" class="nav-button">Log In</a>
         </div>
       </div>
     </div>
@@ -23,7 +23,7 @@ export default {
 
 <style scoped>
 .navbar {
-  background: white;
+  background: #2563EB;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   position: sticky;
   top: 0;
@@ -49,7 +49,7 @@ export default {
   gap: 0.5rem;
   font-size: 1.5rem;
   font-weight: bold;
-  color: #1a7f64;
+  color: #FFF;
 }
 
 .logo-text {
@@ -58,33 +58,38 @@ export default {
 
 .nav-links {
   display: flex;
-  gap: 2rem;
+  gap: 1.25rem;
   align-items: center;
 }
 
+/* Plain text links for Browse Jobs and Browse Helpers */
 .nav-link {
   text-decoration: none;
-  color: #333;
-  font-weight: 500;
-  transition: color 0.3s;
+  color: white;
+  font-weight: bold;
+  transition: all 0.3s;
+  white-space: nowrap;
+  font-size: 1.1em;
 }
 
 .nav-link:hover {
-  color: #1a7f64;
+  opacity: 0.8;
 }
 
 .nav-button {
-  background: #1a7f64;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  background: white;
+  color: #2563EB;
+  padding: 0.75rem 1.75rem;
+  border-radius: 25px;
   text-decoration: none;
   font-weight: 600;
-  transition: background 0.3s;
+  transition: all 0.3s;
+  white-space: nowrap;
 }
 
 .nav-button:hover {
-  background: #156d56;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 @media (max-width: 768px) {
@@ -93,19 +98,45 @@ export default {
   }
 
   .nav-links {
-    gap: 1rem;
+    gap: 0.75rem;
+  }
+
+  .nav-link {
+    font-size: 0.9rem;
   }
 
   .nav-button {
-    padding: 0.5rem 1rem;
+    padding: 0.6rem 1.25rem;
     font-size: 0.9rem;
   }
 }
 
 @media (max-width: 480px) {
+  .nav-content {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .logo {
+    width: 100%;
+    justify-content: center;
+  }
+
   .nav-links {
-    flex-direction: column;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
     gap: 0.5rem;
+  }
+
+  .nav-link {
+    font-size: 0.85rem;
+  }
+
+  .nav-button {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
   }
 }
 </style>
