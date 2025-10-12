@@ -104,14 +104,101 @@
       <div class="container">
         <div class="secure-content">
           <p class="secure-label">SECURE PAYMENTS</p>
-          <h2 class="secure-title">Safe payments, every time</h2>
+          <h2 class="secure-title">Can't get safer than this</h2>
           <p class="secure-description">
-            All payments are held securely until you confirm the job is complete. Browse verified profiles, check ratings, and choose helpers with confidence knowing your money is protected.
+            Pick the right heroes based on real reviews and ratings. Only release payments when the quest is completed to your satisfaction.
           </p>
-          <img src="https://www.eposhybrid.uk/ihybridnew//upload/ck/2035148938.png" alt="Powered by Stripe" class="stripe-badge-image">
+          <div class="secure-badge">
+            <span class="powered-text">Powered by</span>
+            <span class="stripe-text">stripe</span>
+          </div>
         </div>
       </div>
     </section>
+
+    <!-- Categories Section -->
+    <section class="categories-section">
+      <div class="container">
+        <h2 class="categories-title">Popular Services</h2>
+        <p class="categories-subtitle">Whatever you need, we've got someone who can help</p>
+        
+        <div class="categories-grid">
+          <div class="category-card" style="background-image: url('https://www.fasthelp.in/wp-content/uploads/2022/09/Home-Maintenance.jpg');">
+            <div class="category-overlay"></div>
+            <div class="category-content">
+              <h3 class="category-name">Home Services</h3>
+              <p class="category-description">Repairs, maintenance, and improvements</p>
+            </div>
+          </div>
+
+          <div class="category-card" style="background-image: url('https://t4.ftcdn.net/jpg/02/67/54/81/360_F_267548196_S2gNmvRnxMl6r4hpwAm0dUjjWqEtxugG.jpg');">
+            <div class="category-overlay"></div>
+            <div class="category-content">
+              <h3 class="category-name">Cleaning</h3>
+              <p class="category-description">Deep cleaning, regular maintenance</p>
+            </div>
+          </div>
+
+          <div class="category-card" style="background-image: url('https://thumbs.dreamstime.com/b/food-delivery-cheerful-handsome-young-delivery-guy-holding-boxes-hot-pizza-109997703.jpg');">
+            <div class="category-overlay"></div>
+            <div class="category-content">
+              <h3 class="category-name">Delivery</h3>
+              <p class="category-description">Pickup and drop-off services</p>
+            </div>
+          </div>
+
+          <div class="category-card" style="background-image: url('https://www.metropolbanquet.com/wp-content/uploads/wedding-videographer.jpg');">
+            <div class="category-overlay"></div>
+            <div class="category-content">
+              <h3 class="category-name">Photography</h3>
+              <p class="category-description">Events, portraits, product photos</p>
+            </div>
+          </div>
+
+          <div class="category-card" style="background-image: url('https://avahr.com/wp-content/uploads/2023/02/web-graphic-designer-job-description-template.jpg');">
+            <div class="category-overlay"></div>
+            <div class="category-content">
+              <h3 class="category-name">Design</h3>
+              <p class="category-description">Graphics, web, and creative work</p>
+            </div>
+          </div>
+
+          <div class="category-card" style="background-image: url('https://images.ctfassets.net/9wfm2v6d5j1f/4G9jrxO5FdxjUk0AA9HJ6f/8a4804f2ca1db647927c65772986dbc7/how-to-become-a-gardener.jpg?w=1024&fm=webp');">
+            <div class="category-overlay"></div>
+            <div class="category-content">
+              <h3 class="category-name">Gardening</h3>
+              <p class="category-description">Landscaping and plant care</p>
+            </div>
+          </div>
+
+          <div class="category-card" style="background-image: url('https://www.housemoverssingapore.com/wp-content/uploads/2024/05/House-Moving.jpg');">
+            <div class="category-overlay"></div>
+            <div class="category-content">
+              <h3 class="category-name">Moving</h3>
+              <p class="category-description">Packing, loading, and transport</p>
+            </div>
+          </div>
+
+          <div class="category-card" style="background-color: #2563EB;">
+            <div class="category-content">
+              <h3 class="category-name">Many More...</h3>
+              <p class="category-description">Any needs you require</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-content">
+          <h3 class="footer-logo">QuickGig</h3>
+          <a href="/about" class="footer-about">About Us</a>
+        </div>
+        <p class="footer-copyright">© 2025 QuickGig. All rights reserved.</p>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -141,9 +228,7 @@ export default {
       }, 2500);
     },
     navigateToLogin() {
-      // Replace with your actual login/signup route
-      window.location.href = '/login';
-      // Or if using Vue Router: this.$router.push('/login');
+      this.$router.push('/request');
     }
   }
 };
@@ -292,6 +377,187 @@ export default {
   font-weight: 600;
 }
 
+/* Secure Payments Section */
+.secure-payments-section {
+  padding: 5rem 0;
+  background: #1a1a1a;
+  color: white;
+}
+
+.secure-content {
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.secure-label {
+  font-size: 0.9rem;
+  color: #10b981;
+  font-weight: 600;
+  letter-spacing: 2px;
+  margin-bottom: 1rem;
+}
+
+.secure-title {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  line-height: 1.2;
+}
+
+.secure-description {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: #d1d5db;
+  margin-bottom: 2rem;
+}
+
+.secure-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 8px;
+}
+
+.powered-text {
+  font-size: 0.9rem;
+  color: #9ca3af;
+}
+
+.stripe-text {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #6366f1;
+}
+
+/* Categories Section */
+.categories-section {
+  padding: 5rem 0;
+  background: white;
+}
+
+.categories-title {
+  font-size: 2.5rem;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.categories-subtitle {
+  font-size: 1.2rem;
+  color: #666;
+  text-align: center;
+  margin-bottom: 4rem;
+}
+
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.category-card {
+  background-size: cover;
+  background-position: center;
+  border-radius: 16px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  min-height: 200px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.category-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  transition: background 0.3s ease;
+}
+
+.category-card:hover .category-overlay {
+  background: rgba(37, 99, 235, 0.85);
+}
+
+.category-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+.category-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
+}
+
+.category-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 0.5rem;
+  transition: color 0.3s ease;
+}
+
+.category-description {
+  font-size: 0.9rem;
+  color: white;
+  line-height: 1.5;
+  transition: color 0.3s ease;
+  opacity: 0.95;
+}
+
+/* Footer */
+.footer {
+  background: #1a1a1a;
+  color: white;
+  padding: 3rem 0 2rem;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #374151;
+}
+
+.footer-logo {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #2563EB;
+  margin: 0;
+}
+
+.footer-about {
+  color: #9ca3af;
+  text-decoration: none;
+  transition: color 0.3s ease;
+  font-size: 0.95rem;
+}
+
+.footer-about:hover {
+  color: #2563EB;
+}
+
+.footer-copyright {
+  color: #9ca3af;
+  font-size: 0.9rem;
+  margin: 0;
+  text-align: center;
+}
 
 /* How It Works Section */
 .how-it-works-section {
@@ -387,46 +653,6 @@ export default {
   line-height: 1.6;
 }
 
-/* Secure Payments Section */
-.secure-payments-section {
-  padding: 5rem 0;
-  background: #1a1a1a;
-  color: white;
-}
-
-.secure-content {
-  text-align: center;
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.secure-label {
-  font-size: 0.9rem;
-  color: #10b981;
-  font-weight: 600;
-  letter-spacing: 2px;
-  margin-bottom: 1rem;
-}
-
-.secure-title {
-  font-size: 3rem;
-  font-weight: 700;
-  margin-bottom: 1.5rem;
-  line-height: 1.2;
-}
-
-.secure-description {
-  font-size: 1.1rem;
-  line-height: 1.6;
-  color: #d1d5db;
-  margin-bottom: 2rem;
-}
-
-.stripe-badge-image {
-  max-width: 220px;
-  height: auto;
-}
-
 /* Responsive Design */
 @media (max-width: 968px) {
   .title-content {
@@ -482,6 +708,16 @@ export default {
     font-size: 2.5rem;
   }
 
+  .categories-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .footer-content {
+    flex-direction: column;
+    gap: 1.5rem;
+    text-align: center;
+  }
+
   .section-title {
     font-size: 2rem;
   }
@@ -511,6 +747,25 @@ export default {
 
   .secure-description {
     font-size: 1rem;
+  }
+
+  .categories-title {
+    font-size: 2rem;
+  }
+
+  .categories-subtitle {
+    font-size: 1rem;
+  }
+
+  .categories-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .footer-content {
+    flex-direction: column;
+    gap: 1.5rem;
+    text-align: center;
   }
 
   .section-title {
