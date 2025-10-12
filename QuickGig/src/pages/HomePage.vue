@@ -1,20 +1,18 @@
 <template>
   <div id="app">
-    <!-- Main Title Section -->
+    <!-- Title Section -->
     <section class="title-section">
       <div class="container">
         <div class="title-content">
           <div class="title-text">
             <h1 class="main-title">
-              Do you need help<br>
-              <div class="second-line">
-                <span class="with-text">with </span>
-                <div class="word-container">
-                  <transition name="slide-fade" mode="out-in">
-                    <span :key="currentWord" class="changing-word">{{ currentWord }}</span>
-                  </transition>
-                </div>
+              Do you need help with<br>
+              <div class="word-container">
+                <transition name="slide-fade" mode="out-in">
+                  <span :key="currentWord" class="changing-word">{{ currentWord }}</span>
+                </transition>
               </div>
+              Just <span class="request-link" @click="navigateToLogin">request</span>
             </h1>
             <p class="main-description">
               QuickGig connects you with skilled locals in your area who are ready to help with any task. 
@@ -22,9 +20,42 @@
             </p>
           </div>
           <div class="title-image">
-            <!-- Space reserved for your image -->
-            <div class="image-placeholder">
-              Your image here
+            <div class="reviews-container">
+              <div class="review-card">
+                <div class="stars">
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                </div>
+                <p class="review-text">"Found someone to fix my sink in minutes! The whole process was so smooth and easy."</p>
+                <p class="reviewer-name">- Sarah M.</p>
+              </div>
+              
+              <div class="review-card">
+                <div class="stars">
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                </div>
+                <p class="review-text">"Amazing service! The photographer was professional and delivered exactly what I needed."</p>
+                <p class="reviewer-name">- James L.</p>
+              </div>
+              
+              <div class="review-card">
+                <div class="stars">
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                  <span class="star">★</span>
+                </div>
+                <p class="review-text">"Best decision ever! Got my furniture assembled quickly and the helper was super friendly."</p>
+                <p class="reviewer-name">- Maria K.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -67,6 +98,20 @@
         </div>
       </div>
     </section>
+
+    <!-- Secure Payments Section -->
+    <section class="secure-payments-section">
+      <div class="container">
+        <div class="secure-content">
+          <p class="secure-label">SECURE PAYMENTS</p>
+          <h2 class="secure-title">Safe payments, every time</h2>
+          <p class="secure-description">
+            All payments are held securely until you confirm the job is complete. Browse verified profiles, check ratings, and choose helpers with confidence knowing your money is protected.
+          </p>
+          <img src="https://www.eposhybrid.uk/ihybridnew//upload/ck/2035148938.png" alt="Powered by Stripe" class="stripe-badge-image">
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -94,6 +139,11 @@ export default {
         this.wordIndex = (this.wordIndex + 1) % this.words.length;
         this.currentWord = this.words[this.wordIndex];
       }, 2500);
+    },
+    navigateToLogin() {
+      // Replace with your actual login/signup route
+      window.location.href = '/login';
+      // Or if using Vue Router: this.$router.push('/login');
     }
   }
 };
@@ -121,27 +171,49 @@ export default {
 .title-section {
   padding: 5rem 0 3rem;
   background: white;
-  text-align: center;
+}
+
+.title-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
+}
+
+.title-text {
+  text-align: left;
 }
 
 .main-title {
-  font-size: 3.5rem;
+  font-size: 5rem;
   color: #1a1a1a;
   margin-bottom: 1.5rem;
-  line-height: 1.3;
+  line-height: 1.2;
   font-weight: 700;
 }
 
 .word-container {
-  display: inline-block;
-  min-width: 280px;
-  position: relative;
+  display: block;
+  min-height: 1.2em;
 }
 
 .changing-word {
-  color: #ff6b6b;
+  color: #2563EB;
   display: inline-block;
   font-weight: 700;
+}
+
+.request-link {
+  color: #2563EB;
+  cursor: pointer;
+  text-decoration: underline;
+  font-weight: 700;
+  transition: all 0.3s ease;
+}
+
+.request-link:hover {
+  color: #1d4ed8;
+  text-decoration: none;
 }
 
 .slide-fade-enter-active {
@@ -166,9 +238,60 @@ export default {
   font-size: 1.2rem;
   color: #666;
   line-height: 1.6;
-  max-width: 800px;
-  margin: 0 auto;
+  max-width: 600px;
 }
+
+.title-image {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.reviews-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.review-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.review-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.stars {
+  margin-bottom: 0.75rem;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.star {
+  color: #FFA500;
+  font-size: 1.3rem;
+}
+
+.review-text {
+  font-size: 1rem;
+  color: #333;
+  line-height: 1.6;
+  margin-bottom: 0.75rem;
+  font-style: italic;
+}
+
+.reviewer-name {
+  font-size: 0.9rem;
+  color: #2563EB;
+  font-weight: 600;
+}
+
 
 /* How It Works Section */
 .how-it-works-section {
@@ -178,7 +301,7 @@ export default {
 
 .section-title {
   font-size: 2.5rem;
-  color: #e85d75;
+  color: #2563EB;
   text-align: center;
   margin-bottom: 0.5rem;
   font-weight: 700;
@@ -225,15 +348,15 @@ export default {
   width: 60px;
   height: 60px;
   background: white;
-  border: 4px solid #e85d75;
+  border: 4px solid #2563EB;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.75rem;
   font-weight: 700;
-  color: #e85d75;
-  box-shadow: 0 4px 12px rgba(232, 93, 117, 0.2);
+  color: #2563EB;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
 }
 
 .step-image {
@@ -264,14 +387,63 @@ export default {
   line-height: 1.6;
 }
 
+/* Secure Payments Section */
+.secure-payments-section {
+  padding: 5rem 0;
+  background: #1a1a1a;
+  color: white;
+}
+
+.secure-content {
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.secure-label {
+  font-size: 0.9rem;
+  color: #10b981;
+  font-weight: 600;
+  letter-spacing: 2px;
+  margin-bottom: 1rem;
+}
+
+.secure-title {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  line-height: 1.2;
+}
+
+.secure-description {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: #d1d5db;
+  margin-bottom: 2rem;
+}
+
+.stripe-badge-image {
+  max-width: 220px;
+  height: auto;
+}
+
 /* Responsive Design */
 @media (max-width: 968px) {
-  .main-title {
-    font-size: 2.5rem;
+  .title-content {
+    grid-template-columns: 1fr;
+    gap: 3rem;
   }
 
-  .word-container {
-    min-width: 220px;
+  .title-text {
+    text-align: center;
+  }
+
+  .main-title {
+    font-size: 3.5rem;
+  }
+
+  .main-description {
+    margin: 0 auto;
   }
 
   .steps-grid {
@@ -295,15 +467,19 @@ export default {
   }
 
   .main-title {
-    font-size: 2rem;
-  }
-
-  .word-container {
-    min-width: 180px;
+    font-size: 2.5rem;
   }
 
   .main-description {
     font-size: 1rem;
+  }
+
+  .reviews-container {
+    margin-top: 2rem;
+  }
+
+  .secure-title {
+    font-size: 2.5rem;
   }
 
   .section-title {
@@ -322,11 +498,19 @@ export default {
 
 @media (max-width: 480px) {
   .main-title {
-    font-size: 1.75rem;
+    font-size: 2rem;
   }
 
-  .word-container {
-    min-width: 150px;
+  .review-card {
+    padding: 1.25rem;
+  }
+
+  .review-text {
+    font-size: 0.9rem;
+  }
+
+  .secure-description {
+    font-size: 1rem;
   }
 
   .section-title {
@@ -349,608 +533,6 @@ export default {
 
   .step-description {
     font-size: 0.95rem;
-  }
-}
-</style>
-
-<style scoped>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-#app {
-  width: 100%;
-  min-height: 100vh;
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 2rem;
-}
-
-.hero {
-  position: relative;
-  min-height: 600px;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  padding: 4rem 0;
-}
-
-.hero-background {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, #e85d75 0%, #ef7d8e 50%, #f59aa8 100%);
-  z-index: -1;
-}
-
-.hero-content {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4rem;
-  align-items: center;
-}
-
-.hero-text {
-  max-width: 600px;
-}
-
-.hero-title {
-  font-size: 3.5rem;
-  color: white;
-  margin-bottom: 1.5rem;
-  font-weight: 700;
-  line-height: 1.2;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.hero-subtitle {
-  font-size: 1.2rem;
-  color: white;
-  margin-bottom: 2.5rem;
-  line-height: 1.6;
-  opacity: 0.95;
-}
-
-.search-container {
-  max-width: 100%;
-  display: flex;
-  background: white;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-}
-
-.search-input {
-  flex: 1;
-  padding: 1.25rem 1.5rem;
-  border: none;
-  font-size: 1rem;
-  outline: none;
-}
-
-.search-button {
-  background: #e85d75;
-  border: none;
-  padding: 1.25rem 2.5rem;
-  cursor: pointer;
-  transition: background 0.3s;
-  color: white;
-  font-weight: 600;
-  font-size: 1rem;
-}
-
-.search-button:hover {
-  background: #d64961;
-}
-
-/* Floating Cards */
-.hero-cards {
-  position: relative;
-  height: 500px;
-}
-
-.floating-card {
-  position: absolute;
-  background: white;
-  border-radius: 16px;
-  padding: 1.5rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  animation: float 3s ease-in-out infinite;
-}
-
-.card-1 {
-  top: 0;
-  right: 20%;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  animation-delay: 0s;
-}
-
-.card-2 {
-  top: 30%;
-  right: 0;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  animation-delay: 0.5s;
-}
-
-.card-3 {
-  bottom: 25%;
-  right: 15%;
-  max-width: 280px;
-  animation-delay: 1s;
-}
-
-.card-4 {
-  bottom: 0;
-  right: 35%;
-  animation-delay: 1.5s;
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-.card-icon {
-  font-size: 2rem;
-}
-
-.card-content {
-  text-align: left;
-}
-
-.card-label {
-  font-size: 0.85rem;
-  color: #666;
-  margin-bottom: 0.25rem;
-}
-
-.card-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #e85d75;
-}
-
-.stars {
-  font-size: 1.2rem;
-  margin-bottom: 0.5rem;
-}
-
-.rating {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #e85d75;
-  margin-bottom: 0.5rem;
-}
-
-.review-text {
-  font-size: 0.95rem;
-  color: #666;
-  font-style: italic;
-}
-
-.helper-badge {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.helper-icon {
-  width: 50px;
-  height: 50px;
-  background: #e85d75;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-}
-
-.helper-info {
-  text-align: left;
-}
-
-.helper-name {
-  font-weight: 700;
-  color: #1a1a1a;
-  margin-bottom: 0.25rem;
-}
-
-.helper-location {
-  font-size: 0.9rem;
-  color: #666;
-}
-
-.community-section {
-  padding: 5rem 0;
-  background: white;
-}
-
-.community-content {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4rem;
-  align-items: center;
-}
-
-.community-text {
-  padding-right: 2rem;
-}
-
-.community-title {
-  font-size: 3.5rem;
-  color: #1a1a1a;
-  margin-bottom: 1.5rem;
-  line-height: 1.3;
-  font-weight: 700;
-}
-
-.word-container {
-  display: inline-block;
-  min-width: 280px;
-  position: relative;
-}
-
-.changing-word {
-  color: #ff6b6b;
-  display: inline-block;
-  font-weight: 700;
-}
-
-.slide-fade-enter-active {
-  transition: all 0.4s ease-out;
-}
-
-.slide-fade-leave-active {
-  transition: all 0.3s ease-in;
-}
-
-.slide-fade-enter-from {
-  transform: translateY(20px);
-  opacity: 0;
-}
-
-.slide-fade-leave-to {
-  transform: translateY(-20px);
-  opacity: 0;
-}
-
-.community-description {
-  font-size: 1.2rem;
-  color: #666;
-  line-height: 1.6;
-}
-
-/* How It Works Section */
-.how-it-works {
-  width: 100%;
-}
-
-.section-title {
-  font-size: 2rem;
-  color: #e85d75;
-  text-align: center;
-  margin-bottom: 2rem;
-  font-weight: 700;
-}
-
-.carousel {
-  position: relative;
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.carousel-wrapper {
-  position: relative;
-  width: 100%;
-  height: 400px;
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-}
-
-.slide-card {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.slide-bg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.slide-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.5) 70%, transparent 100%);
-  padding: 2.5rem 2rem 2rem;
-  color: white;
-  text-align: center;
-}
-
-.slide-number {
-  width: 50px;
-  height: 50px;
-  background: #1a7f64;
-  color: white;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.slide-title {
-  font-size: 1.75rem;
-  font-weight: 700;
-  margin-bottom: 0.75rem;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-}
-
-.slide-description {
-  font-size: 1.1rem;
-  line-height: 1.5;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-  opacity: 0.95;
-}
-
-.carousel-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(26, 127, 100, 0.9);
-  color: white;
-  border: none;
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  font-size: 2rem;
-  cursor: pointer;
-  z-index: 10;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(4px);
-}
-
-.carousel-arrow:hover {
-  background: rgba(21, 109, 86, 0.95);
-  transform: translateY(-50%) scale(1.15);
-}
-
-.carousel-arrow.left {
-  left: -60px;
-}
-
-.carousel-arrow.right {
-  right: -60px;
-}
-
-.carousel-indicators {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-}
-
-.indicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #ddd;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.indicator.active {
-  background: #1a7f64;
-  width: 30px;
-  border-radius: 5px;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-@media (max-width: 968px) {
-  .hero-content {
-    grid-template-columns: 1fr;
-    gap: 2rem;
-  }
-
-  .hero-cards {
-    height: 300px;
-    margin-top: 2rem;
-  }
-
-  .hero-title {
-    font-size: 2.5rem;
-  }
-
-  .hero-subtitle {
-    font-size: 1rem;
-  }
-
-  .floating-card {
-    font-size: 0.9rem;
-    padding: 1rem;
-  }
-
-  .community-content {
-    grid-template-columns: 1fr;
-    gap: 3rem;
-  }
-
-  .community-text {
-    padding-right: 0;
-    text-align: center;
-  }
-
-  .community-title {
-    font-size: 2.5rem;
-  }
-
-  .word-container {
-    min-width: 220px;
-  }
-
-  .carousel-arrow.left {
-    left: 10px;
-  }
-
-  .carousel-arrow.right {
-    right: 10px;
-  }
-
-  .carousel-wrapper {
-    height: 350px;
-  }
-
-  .carousel-indicators {
-    bottom: 15px;
-  }
-}
-
-@media (max-width: 768px) {
-  .container {
-    padding: 0 1rem;
-  }
-
-  .hero {
-    min-height: 500px;
-    padding: 3rem 0;
-  }
-
-  .hero-title {
-    font-size: 2rem;
-  }
-
-  .hero-subtitle {
-    font-size: 0.95rem;
-    margin-bottom: 2rem;
-  }
-
-  .search-container {
-    flex-direction: column;
-  }
-
-  .search-button {
-    padding: 1rem;
-  }
-
-  .hero-cards {
-    display: none;
-  }
-
-  .community-title {
-    font-size: 2rem;
-  }
-
-  .word-container {
-    min-width: 180px;
-  }
-
-  .community-description {
-    font-size: 1rem;
-  }
-
-  .carousel-content {
-    padding: 1.5rem;
-    min-height: 350px;
-  }
-
-  .slide img {
-    max-width: 250px;
-  }
-
-  .carousel-wrapper {
-    height: 300px;
-  }
-
-  .carousel-indicators {
-    bottom: 12px;
-  }
-
-  .carousel-arrow {
-    width: 38px;
-    height: 38px;
-    font-size: 1.5rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .hero {
-    min-height: 450px;
-    padding: 2rem 0;
-  }
-
-  .hero-title {
-    font-size: 1.75rem;
-  }
-
-  .hero-subtitle {
-    font-size: 0.9rem;
-  }
-
-  .community-title {
-    font-size: 1.75rem;
-  }
-
-  .word-container {
-    min-width: 150px;
-  }
-
-  .carousel-arrow {
-    width: 35px;
-    height: 35px;
-    font-size: 1.4rem;
-  }
-
-  .carousel-arrow.left {
-    left: 8px;
-  }
-
-  .carousel-arrow.right {
-    right: 8px;
-  }
-
-  .carousel-indicators {
-    bottom: 10px;
-  }
-
-  .section-title {
-    font-size: 1.5rem;
   }
 }
 </style>
