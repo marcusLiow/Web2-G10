@@ -3,7 +3,7 @@
     <div class="container">
       <div class="nav-content">
         <div class="logo">
-          <span class="logo-text">QuickGig</span>
+          <span class="logo-text" @click="navigateToHome">QuickGig</span>
         </div>
         <div class="nav-links">
           <a href="#" class="nav-link">Browse Jobs</a>
@@ -17,8 +17,15 @@
 
 <script>
 export default {
-  name: 'Navbar'
+  name: 'Navbar',
+  methods: {
+    navigateToHome() {
+      this.$router.push('/');
+    }
+  }
+
 };
+
 </script>
 
 <style scoped>
@@ -54,7 +61,9 @@ export default {
 
 .logo-text {
   font-size: 1.5rem;
+  cursor: pointer;
 }
+
 
 .nav-links {
   display: flex;
