@@ -32,6 +32,26 @@
             </div>
 
             <div class="form-group">
+              <label for="category" class="form-label">Category</label>
+              <select 
+                id="category" 
+                v-model="formData.category"
+                class="form-input"
+                required
+              >
+                <option value="">-- Select a category --</option>
+                <option value="Construction">Construction</option>
+                <option value="Tech">Tech</option>
+                <option value="Home">Home</option>
+                <option value="Pets">Pets</option>
+                <option value="Cleaning">Cleaning</option>
+                <option value="Moving">Moving</option>
+                <option value="Landscaping">Landscaping</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
               <label for="location" class="form-label">Location</label>
               <input 
                 type="text" 
@@ -84,6 +104,7 @@ export default {
       formData: {
         title: '',
         description: '',
+        category: '',
         location: '',
         payment: ''
       },
@@ -93,41 +114,42 @@ export default {
   },
   methods: {
     async handleSubmit() {
-  this.isSubmitting = true;
-  this.submitError = null;
+      this.isSubmitting = true;
+      this.submitError = null;
 
-  try {
-    const userId = localStorage.getItem('userId');
-    
-    const requestData = {
-      title: this.formData.title,
-      description: this.formData.description,
-      location: this.formData.location,
-      payment: parseFloat(this.formData.payment),
-      status: 'open',
-      user_id: userId // Now it will have the actual user ID
-    };
+      try {
+        const userId = localStorage.getItem('userId');
+        
+        const requestData = {
+          title: this.formData.title,
+          description: this.formData.description,
+          category: this.formData.category,
+          location: this.formData.location,
+          payment: parseFloat(this.formData.payment),
+          status: 'open',
+          user_id: userId
+        };
 
-    const { data, error } = await supabase
-      .from('User-Job-Request')
-      .insert([requestData])
-      .select();
+        const { data, error } = await supabase
+          .from('User-Job-Request')
+          .insert([requestData])
+          .select();
 
-    if (error) throw error;
-    
-    console.log('Request created:', data);
-    alert('Job posted successfully!');
-    
-    // Redirect to job board page
-    this.$router.push('/jobs');
-    
-  } catch (error) {
-    console.error('Error adding request:', error);
-    this.submitError = 'Failed to post request. Please try again.';
-  } finally {
-    this.isSubmitting = false;
-  }
-}
+        if (error) throw error;
+        
+        console.log('Request created:', data);
+        alert('Job posted successfully!');
+        
+        // Redirect to job board page
+        this.$router.push('/jobs');
+        
+      } catch (error) {
+        console.error('Error adding request:', error);
+        this.submitError = 'Failed to post request. Please try again.';
+      } finally {
+        this.isSubmitting = false;
+      }
+    }
   }
 };
 </script>
@@ -217,6 +239,15 @@ export default {
   outline: none;
   border-color: #2563EB;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+select.form-input {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
 }
 
 .form-textarea {

@@ -91,31 +91,62 @@ const isLoading = ref(true);
 const fetchJobs = async () => {
   try {
     isLoading.value = true;
-    const { data, error } = await supabase
+    
+    console.log('Fetching jobs from Supabase...');
+    
+    const { data: jobsData, error: jobsError } = await supabase
       .from('User-Job-Request')
       .select('*')
+      .eq('status', 'open')
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (jobsError) throw jobsError;
 
-    // Transform Supabase data to match your job structure
-    const transformedJobs = data.map(job => ({
-      id: job.id,
-      name: job.title,
-      description: job.description,
-      budget: `${job.payment}`,
-      skills: job.skills || [],
-      location: job.location,
-      date: new Date(job.created_at).toLocaleDateString('en-GB'),
-      category: job.category || 'Other',
-      fullDescription: job.description,
-      requirements: job.requirements || [],
-      postedBy: job.posted_by || 'Anonymous',
-      contactEmail: job.contact_email || 'N/A'
+    console.log('Jobs fetched:', jobsData);
+
+    // Fetch user data for each job
+    const transformedJobs = await Promise.all(jobsData.map(async (job) => {
+      let postedBy = 'Anonymous';
+      let contactEmail = 'N/A';
+      
+      console.log('Job user_id:', job.user_id);
+      
+      if (job.user_id) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('username, email')
+          .eq('id', job.user_id)
+          .single();
+        
+        console.log('User data for job:', userData, 'Error:', userError);
+        
+        if (!userError && userData) {
+          postedBy = userData.username || 'Anonymous';
+          contactEmail = userData.email || 'N/A';
+        }
+      }
+      
+      console.log('Final postedBy:', postedBy, 'Email:', contactEmail);
+
+      return {
+        id: job.id,
+        name: job.title,
+        description: job.description,
+        budget: `${job.payment}`,
+        skills: ['General'],
+        location: job.location,
+        date: new Date(job.created_at).toLocaleDateString('en-GB'),
+        category: job.category || 'Other',
+        fullDescription: job.description,
+        requirements: ['Contact poster for details'],
+        postedBy: postedBy,
+        contactEmail: contactEmail
+      };
     }));
 
     // Combine with mock jobs
     jobs.value = [...transformedJobs, ...mockJobs];
+    console.log('Final jobs array:', jobs.value);
   } catch (error) {
     console.error('Error fetching jobs:', error);
     // If fetch fails, just use mock jobs

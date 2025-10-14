@@ -34,8 +34,7 @@ export default {
             avatar_url: session.user.user_metadata?.avatar_url || null,
             bio: null,
             location: null,
-            phone: null,
-            updated_at: new Date().toISOString()
+            phone: null
           };
           
           const { data: insertedUser, error: insertError } = await supabase
@@ -46,6 +45,8 @@ export default {
           
           if (insertError) throw insertError;
           userData = insertedUser;
+        } else if (userError) {
+          throw userError;
         }
         
         // Store user info in localStorage

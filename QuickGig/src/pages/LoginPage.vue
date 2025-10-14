@@ -96,15 +96,33 @@ export default {
         
         if (authError) throw authError;
         
-        // Get user details from users table
-        const { data: userData, error: userError } = await supabase
+        // Check if user exists in users table
+        let { data: userData, error: userError } = await supabase
           .from('users')
           .select('*')
           .eq('id', authData.user.id)
           .single();
         
-        if (userError) {
-          console.error('Error fetching user data:', userError);
+        // If user doesn't exist, create them
+        if (userError && userError.code === 'PGRST116') {
+          const { data: newUser, error: insertError } = await supabase
+            .from('users')
+            .insert([{
+              id: authData.user.id,
+              email: authData.user.email,
+              username: authData.user.email.split('@')[0],
+              avatar_url: null,
+              bio: null,
+              location: null,
+              phone: null
+            }])
+            .select()
+            .single();
+          
+          if (insertError) throw insertError;
+          userData = newUser;
+        } else if (userError) {
+          throw userError;
         }
         
         // Store user info in localStorage
