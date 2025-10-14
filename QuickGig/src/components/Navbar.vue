@@ -1,6 +1,6 @@
 <template>
-  <nav class="navbar">
-    <div class="container">
+  <nav class="top-navbar">
+    <div class="nav-container">
       <div class="nav-content">
         <div class="logo">
           <span class="logo-text" @click="navigateToHome">QuickGig</span>
@@ -26,13 +26,11 @@ export default {
       this.$router.push('/login')
     }
   }
-
 };
-
 </script>
 
 <style scoped>
-.navbar {
+.top-navbar {
   background: #2563EB;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   position: sticky;
@@ -41,7 +39,7 @@ export default {
   padding: 1rem 0;
 }
 
-.container {
+.nav-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 2rem;
@@ -73,7 +71,6 @@ export default {
   align-items: center;
 }
 
-/* Plain text links for Browse Jobs and Browse Helpers */
 .nav-link {
   text-decoration: none;
   color: white;
@@ -104,7 +101,7 @@ export default {
 }
 
 @media (max-width: 768px) {
-  .container {
+  .nav-container {
     padding: 0 1rem;
   }
 

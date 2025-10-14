@@ -28,7 +28,7 @@ export default {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(to bottom right, #a29bfe, #fd79a8);
+  background:  #f8f9fa;
 }
 
 .card {
@@ -36,7 +36,8 @@ export default {
   padding: 2rem;
   border-radius: 15px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  width: 300px;
+  width: 90%;
+  max-width: 600px;
   text-align: center;
 }
 
