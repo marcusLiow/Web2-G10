@@ -64,6 +64,7 @@ export default {
 
 .logo-text {
   font-size: 1.5rem;
+  cursor: pointer;
 }
 
 .nav-links {
