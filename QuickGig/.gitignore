@@ -31,4 +31,8 @@ coverage
 
 .env
 .env.local
+<<<<<<< HEAD
 .env*.local
+=======
+.env*.local
+>>>>>>> f48072eb8f0006a9b4fa4492215f5ee97f3d9cad
