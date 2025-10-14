@@ -1,6 +1,5 @@
 <template>
   <div id="app">
-    <!-- Request Form Section -->
     <section class="request-section">
       <div class="container">
         <div class="form-wrapper">
@@ -94,54 +93,47 @@ export default {
   },
   methods: {
     async handleSubmit() {
-      this.isSubmitting = true;
-      this.submitError = null;
+  this.isSubmitting = true;
+  this.submitError = null;
 
-      try {
-        // Create the request object
-        const requestData = {
-          title: this.formData.title,
-          description: this.formData.description,
-          location: this.formData.location,
-          payment: parseFloat(this.formData.payment),
-          status: 'open',
-          // Add user_id when you implement authentication
-          // user_id: supabase.auth.user()?.id
-        };
+  try {
+    const userId = localStorage.getItem('userId');
+    
+    const requestData = {
+      title: this.formData.title,
+      description: this.formData.description,
+      location: this.formData.location,
+      payment: parseFloat(this.formData.payment),
+      status: 'open',
+      user_id: userId // Now it will have the actual user ID
+    };
 
-        // Insert into Supabase
-        const { data, error } = await supabase
-          .from('User-Job-Request')
-          .insert([requestData])
-          .select();
+    const { data, error } = await supabase
+      .from('User-Job-Request')
+      .insert([requestData])
+      .select();
 
-        if (error) throw error;
-        
-        console.log('Request created:', data);
-        alert('Request posted successfully!');
-        
-        // Reset form
-        this.formData = {
-          title: '',
-          description: '',
-          location: '',
-          payment: ''
-        };
-        
-        
-      } catch (error) {
-        console.error('Error adding request:', error);
-        this.submitError = 'Failed to post request. Please try again.';
-        alert('Error: ' + error.message);
-      } finally {
-        this.isSubmitting = false;
-      }
-    }
+    if (error) throw error;
+    
+    console.log('Request created:', data);
+    alert('Job posted successfully!');
+    
+    // Redirect to job board page
+    this.$router.push('/jobs');
+    
+  } catch (error) {
+    console.error('Error adding request:', error);
+    this.submitError = 'Failed to post request. Please try again.';
+  } finally {
+    this.isSubmitting = false;
+  }
+}
   }
 };
 </script>
 
 <style scoped>
+/* Keep all your existing styles */
 * {
   margin: 0;
   padding: 0;

@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { supabase } from '../supabase/config';
 
 const mockJobs = [
   {
@@ -79,11 +80,55 @@ const mockJobs = [
   }
 ];
 
-const jobs = ref(mockJobs);
+const jobs = ref([]);
 const searchTerm = ref('');
 const selectedSkills = ref([]);
 const selectedJob = ref(null);
 const showModal = ref(false);
+const isLoading = ref(true);
+
+// Fetch jobs from Supabase
+const fetchJobs = async () => {
+  try {
+    isLoading.value = true;
+    const { data, error } = await supabase
+      .from('User-Job-Request')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Transform Supabase data to match your job structure
+    const transformedJobs = data.map(job => ({
+      id: job.id,
+      name: job.title,
+      description: job.description,
+      budget: `${job.payment}`,
+      skills: job.skills || [],
+      location: job.location,
+      date: new Date(job.created_at).toLocaleDateString('en-GB'),
+      category: job.category || 'Other',
+      fullDescription: job.description,
+      requirements: job.requirements || [],
+      postedBy: job.posted_by || 'Anonymous',
+      contactEmail: job.contact_email || 'N/A'
+    }));
+
+    // Combine with mock jobs
+    jobs.value = [...transformedJobs, ...mockJobs];
+  } catch (error) {
+    console.error('Error fetching jobs:', error);
+    // If fetch fails, just use mock jobs
+    jobs.value = mockJobs;
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// Fetch jobs when component mounts
+onMounted(() => {
+  fetchJobs();
+});
 
 const availableSkills = computed(() => {
   const allSkills = jobs.value.flatMap(job => job.skills);
@@ -205,7 +250,16 @@ const applyForJob = () => {
       </div>
 
       <!-- Job Cards -->
-      <div class="jobs-grid">
+      <div v-if="isLoading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading jobs...</p>
+      </div>
+
+      <div v-else-if="filteredJobs.length === 0" class="empty-state">
+        <p>No jobs found matching your criteria.</p>
+      </div>
+
+      <div v-else class="jobs-grid">
         <div
           v-for="job in filteredJobs"
           :key="job.id"
@@ -239,6 +293,12 @@ const applyForJob = () => {
         </div>
       </div>
     </div>
+
+    <!-- Post Job Button (Fixed) -->
+    <router-link to="/request" class="post-job-btn">
+      <span class="plus-icon">+</span>
+      <span class="btn-text">Post Job</span>
+    </router-link>
 
     <!-- Modal -->
     <div v-if="showModal" class="modal-overlay" @click="closeModal">
@@ -716,5 +776,55 @@ const applyForJob = () => {
   background: #1d4ed8;
   transform: translateY(-1px);
   box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
+}
+
+/* Post Job Button (Fixed) */
+.post-job-btn {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  background: #2563eb;
+  color: white;
+  text-decoration: none;
+  border-radius: 9999px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.5);
+  cursor: pointer;
+  transition: all 0.3s;
+  z-index: 999;
+}
+
+.post-job-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-2px);
+  box-shadow: 0 15px 30px -5px rgba(37, 99, 235, 0.6);
+}
+
+.plus-icon {
+  font-size: 1.5rem;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.btn-text {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .post-job-btn {
+    bottom: 1.5rem;
+    right: 1.5rem;
+    padding: 0.875rem 1.25rem;
+    font-size: 1rem;
+  }
+  
+  .plus-icon {
+    font-size: 1.25rem;
+  }
 }
 </style>

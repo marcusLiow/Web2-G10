@@ -6,14 +6,14 @@
       <div class="profile-header">
         <div class="profile-content">
           <div class="avatar-container">
-            <img v-if="user.avatar" :src="user.avatar" :alt="user.name" class="avatar" />
-            <div v-else class="avatar-placeholder">👤</div>
+            <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.username" class="avatar" />
+            <div v-else class="avatar-placeholder">{{ user.username ? user.username.charAt(0).toUpperCase() : '👤' }}</div>
           </div>
           
           <div class="profile-info">
             <div class="profile-top">
               <div>
-                <h1 class="profile-name">{{ user.name || 'Your Name' }}</h1>
+                <h1 class="profile-name">{{ user.username || 'Your Name' }}</h1>
                 <div class="contact-info">
                   <div v-if="user.location" class="contact-item">
                     <span>📍</span> {{ user.location }}
@@ -100,9 +100,16 @@
             <p v-if="user.bio" class="text-normal">{{ user.bio }}</p>
             <p v-else class="text-placeholder">No bio added yet. Click "Edit Profile" to add one.</p>
             <div class="info-list">
-              <p><span class="label">Member since:</span> {{ user.joinedDate }}</p>
+              <p><span class="label">Member since:</span> {{ formatDate(user.created_at) }}</p>
               <p><span class="label">Response rate:</span> 98%</p>
               <p><span class="label">Response time:</span> Within 1 hour</p>
+            </div>
+            
+            <!-- Logout Button in About Tab -->
+            <div class="logout-container">
+              <button @click="handleLogout" class="btn-logout-inline">
+                Logout
+              </button>
             </div>
           </div>
         </div>
@@ -206,19 +213,19 @@
         <div class="modal-body">
           <div class="form-group">
             <label>Profile Photo URL</label>
-            <input v-model="editForm.avatar" type="text" placeholder="https://example.com/photo.jpg" />
+            <input v-model="editForm.avatar_url" type="text" placeholder="https://example.com/photo.jpg" />
             <p class="hint">Enter a URL to your profile photo</p>
           </div>
 
           <div class="form-group">
-            <label>Name *</label>
+            <label>Username *</label>
             <input 
-              v-model="editForm.name" 
+              v-model="editForm.username" 
               type="text" 
-              placeholder="Your full name"
-              :class="{ 'input-error': errors.name }"
+              placeholder="Your username"
+              :class="{ 'input-error': errors.username }"
             />
-            <p v-if="errors.name" class="error-message">{{ errors.name }}</p>
+            <p v-if="errors.username" class="error-message">{{ errors.username }}</p>
           </div>
 
           <div class="form-group">
@@ -232,9 +239,9 @@
               v-model="editForm.email" 
               type="email" 
               placeholder="your.email@example.com"
-              :class="{ 'input-error': errors.email }"
+              disabled
             />
-            <p v-if="errors.email" class="error-message">{{ errors.email }}</p>
+            <p class="hint">Email cannot be changed</p>
           </div>
 
           <div class="form-group">
@@ -258,9 +265,11 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
-import Navbar from '@/components/Navbar.vue';
+import { ref, reactive, onMounted } from 'vue';
+import { supabase } from '../supabase/config';
+import { useRouter } from 'vue-router';
 
+const router = useRouter();
 const activeTab = ref('about');
 const showEditModal = ref(false);
 
@@ -272,15 +281,16 @@ const tabs = [
 ];
 
 const user = reactive({
-  name: "",
-  avatar: "",
+  id: '',
+  username: '',
+  avatar_url: '',
   rating: 0,
   reviewCount: 0,
-  location: "",
-  email: "",
-  phone: "",
-  bio: "",
-  joinedDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+  location: '',
+  email: '',
+  phone: '',
+  bio: '',
+  created_at: '',
   stats: {
     jobsCompleted: 0,
     earnings: 0,
@@ -292,29 +302,73 @@ const user = reactive({
 });
 
 const editForm = reactive({
-  name: "",
-  avatar: "",
-  location: "",
-  email: "",
-  phone: "",
-  bio: "",
+  username: '',
+  avatar_url: '',
+  location: '',
+  email: '',
+  phone: '',
+  bio: '',
 });
 
 const errors = reactive({
-  name: "",
-  email: "",
+  username: '',
+  email: '',
 });
 
+onMounted(async () => {
+  await loadUserData();
+});
+
+const loadUserData = async () => {
+  try {
+    const userId = localStorage.getItem('userId');
+    
+    if (!userId) {
+      router.push('/login');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error) throw error;
+
+    user.id = data.id;
+    user.username = data.username || '';
+    user.email = data.email || '';
+    user.phone = data.phone || '';
+    user.location = data.location || '';
+    user.bio = data.bio || '';
+    user.avatar_url = data.avatar_url || '';
+    user.created_at = data.created_at || '';
+
+  } catch (error) {
+    console.error('Error loading user data:', error);
+    alert('Failed to load profile data');
+  }
+};
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'Unknown';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'long'
+  });
+};
+
 const openEditModal = () => {
-  editForm.name = user.name;
-  editForm.avatar = user.avatar;
+  editForm.username = user.username;
+  editForm.avatar_url = user.avatar_url;
   editForm.location = user.location;
   editForm.email = user.email;
   editForm.phone = user.phone;
   editForm.bio = user.bio;
-  // Clear errors when opening modal
-  errors.name = "";
-  errors.email = "";
+  errors.username = '';
+  errors.email = '';
   showEditModal.value = true;
 };
 
@@ -322,45 +376,72 @@ const closeEditModal = () => {
   showEditModal.value = false;
 };
 
-const saveProfile = () => {
-  // Clear previous errors
-  errors.name = "";
-  errors.email = "";
+const saveProfile = async () => {
+  errors.username = '';
   
-  let hasError = false;
-  
-  // Validate name
-  if (!editForm.name || !editForm.name.trim()) {
-    errors.name = "Name is required";
-    hasError = true;
-  }
-  
-  // Validate email
-  if (!editForm.email || !editForm.email.trim()) {
-    errors.email = "Email is required";
-    hasError = true;
-  } else {
-    // Basic email validation
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(editForm.email)) {
-      errors.email = "Please enter a valid email address";
-      hasError = true;
-    }
-  }
-  
-  // If there are errors, don't save
-  if (hasError) {
+  if (!editForm.username || !editForm.username.trim()) {
+    errors.username = 'Username is required';
     return;
   }
   
-  // Save if validation passes
-  user.name = editForm.name;
-  user.avatar = editForm.avatar;
-  user.location = editForm.location;
-  user.email = editForm.email;
-  user.phone = editForm.phone;
-  user.bio = editForm.bio;
-  closeEditModal();
+  try {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        username: editForm.username,
+        avatar_url: editForm.avatar_url,
+        location: editForm.location,
+        phone: editForm.phone,
+        bio: editForm.bio,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', user.id);
+
+    if (error) throw error;
+
+    user.username = editForm.username;
+    user.avatar_url = editForm.avatar_url;
+    user.location = editForm.location;
+    user.phone = editForm.phone;
+    user.bio = editForm.bio;
+
+    localStorage.setItem('username', user.username);
+    if (user.avatar_url) {
+      localStorage.setItem('avatarUrl', user.avatar_url);
+    }
+
+    window.dispatchEvent(new Event('user-logged-in'));
+    
+    closeEditModal();
+    alert('Profile updated successfully!');
+  } catch (error) {
+    console.error('Error saving profile:', error);
+    alert('Failed to save profile. Please try again.');
+  }
+};
+
+const handleLogout = async () => {
+  if (!confirm('Are you sure you want to log out?')) {
+    return;
+  }
+  
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('username');
+    localStorage.removeItem('avatarUrl');
+    
+    window.dispatchEvent(new Event('user-logged-out'));
+    
+    router.push('/');
+  } catch (error) {
+    console.error('Error logging out:', error);
+    alert('Error logging out. Please try again.');
+  }
 };
 
 const getBadgeClass = (level) => {
@@ -371,10 +452,10 @@ const getBadgeClass = (level) => {
 </script>
 
 <style scoped>
-/* Base Styles */
+/* Keep ALL your original styles here */
 .profile-page {
   min-height: 100vh;
-  background-color: #f9fafb;
+  background-color: #fafafa;
 }
 
 .container {
@@ -383,7 +464,6 @@ const getBadgeClass = (level) => {
   padding: 2rem 1rem;
 }
 
-/* Profile Header */
 .profile-header {
   background: white;
   border-radius: 0.5rem;
@@ -514,7 +594,6 @@ const getBadgeClass = (level) => {
   font-style: italic;
 }
 
-/* Stats Grid */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -556,7 +635,6 @@ const getBadgeClass = (level) => {
   color: #6b7280;
 }
 
-/* Tabs */
 .tabs-section {
   margin-top: 1.5rem;
 }
@@ -642,7 +720,30 @@ const getBadgeClass = (level) => {
   font-weight: 600;
 }
 
-/* Skills */
+/* Logout Button */
+.logout-container {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.btn-logout-inline {
+  padding: 0.75rem 2rem;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-logout-inline:hover {
+  background: #b91c1c;
+}
+
 .skills-list {
   display: flex;
   flex-direction: column;
@@ -699,7 +800,6 @@ const getBadgeClass = (level) => {
   color: #6b7280;
 }
 
-/* Reviews */
 .reviews-list {
   display: flex;
   flex-direction: column;
@@ -783,7 +883,6 @@ const getBadgeClass = (level) => {
   line-height: 1.5;
 }
 
-/* Jobs */
 .jobs-list {
   display: flex;
   flex-direction: column;
@@ -839,7 +938,6 @@ const getBadgeClass = (level) => {
   font-weight: 500;
 }
 
-/* Empty State */
 .empty-state {
   text-align: center;
   padding: 3rem 0;
@@ -861,7 +959,6 @@ const getBadgeClass = (level) => {
   font-size: 0.875rem;
 }
 
-/* Modal */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1011,7 +1108,6 @@ const getBadgeClass = (level) => {
   background: #1d4ed8;
 }
 
-/* Responsive */
 @media (max-width: 768px) {
   .profile-content {
     flex-direction: column;

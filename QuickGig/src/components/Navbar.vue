@@ -6,9 +6,12 @@
           <span class="logo-text" @click="navigateToHome">QuickGig</span>
         </div>
         <div class="nav-links">
-          <a href="#" class="nav-link">Browse Jobs</a>
+          <router-link to="/jobs" class="nav-link">Browse Jobs</router-link>
           <a href="#" class="nav-link">Browse Helpers</a>
-          <router-link to="/login" class="nav-button">Log In</router-link>
+          
+          <!-- Show different buttons based on login status -->
+          <router-link v-if="!isLoggedIn" to="/login" class="nav-button">Log In</router-link>
+          <router-link v-else to="/profile" class="nav-button">Profile</router-link>
         </div>
       </div>
     </div>
@@ -16,11 +19,55 @@
 </template>
 
 <script>
+import { supabase } from '../supabase/config'
+
 export default {
   name: 'Navbar',
+  data() {
+    return {
+      isLoggedIn: false,
+      username: '',
+      userEmail: ''
+    };
+  },
+  mounted() {
+    // Check login status when component mounts
+    this.checkLoginStatus();
+    
+    // Listen for login/logout events
+    window.addEventListener('user-logged-in', this.checkLoginStatus);
+    window.addEventListener('user-logged-out', this.checkLoginStatus);
+    
+    // Check Supabase session
+    this.checkSupabaseSession();
+  },
+  beforeUnmount() {
+    window.removeEventListener('user-logged-in', this.checkLoginStatus);
+    window.removeEventListener('user-logged-out', this.checkLoginStatus);
+  },
   methods: {
     navigateToHome() {
       this.$router.push('/');
+    },
+    async checkSupabaseSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        this.isLoggedIn = true;
+        localStorage.setItem('isLoggedIn', 'true');
+        this.loadUserData();
+      }
+    },
+    checkLoginStatus() {
+      this.isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      console.log('Checking login status:', this.isLoggedIn); // Debug log
+      if (this.isLoggedIn) {
+        this.loadUserData();
+      }
+    },
+    loadUserData() {
+      this.username = localStorage.getItem('username') || 'User';
+      this.userEmail = localStorage.getItem('userEmail') || '';
+      console.log('Loaded user data:', this.username, this.userEmail); // Debug log
     }
   }
 };
@@ -90,6 +137,7 @@ export default {
   font-weight: 600;
   transition: all 0.3s;
   white-space: nowrap;
+  display: inline-block;
 }
 
 .nav-button:hover {

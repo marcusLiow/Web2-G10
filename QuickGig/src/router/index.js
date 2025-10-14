@@ -18,7 +18,7 @@ const router = createRouter({
     {
       path: '/request',
       name: 'request',
-      component: request
+      component: import('../pages/request.vue')
     },
     {
       path: '/login',
@@ -33,7 +33,7 @@ const router = createRouter({
     {
       path: '/profile',
       name: 'profile',
-      component: ProfilePage
+      component: () => import('../pages/ProfilePage.vue')
     },
     {
       path: '/dashboard',
@@ -43,7 +43,12 @@ const router = createRouter({
     {
       path: '/jobs',
       name: 'JobPage',
-      component: JobPage
+      component: () => import('../pages/JobPage.vue')
+    },
+    {
+      path: '/auth/callback',
+      name: 'AuthCallback',
+      component: () => import('../pages/AuthCallback.vue')
     }
 
   ]
