@@ -4,6 +4,7 @@
       <RouterLink to="/" class="logo">QuickGig</RouterLink>
       <div class="nav-links">
         <RouterLink to="/">Home</RouterLink>
+        <RouterLink to="/profile">Profile</RouterLink>
       </div>
     </div>
   </nav>
@@ -14,7 +15,7 @@
 
 <style scoped>
 .navbar {
-  background: #333;
+  background: blue;
   padding: 1rem;
   color: white;
 }
