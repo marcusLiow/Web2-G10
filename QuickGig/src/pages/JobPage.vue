@@ -42,7 +42,7 @@ const mockJobs = [
     skills: ['Cleaning', 'Attention to Detail'],
     location: 'Westside',
     date: '16/10/2025',
-    category: 'Home',
+    category: 'Cleaning',
     fullDescription: 'Moving out of my 2 bed 1 bath apartment and need it properly cleaned for inspection. Kitchen appliances (oven, fridge, microwave) are pretty dirty and the bathroom grout needs a good scrub. About 850 sq ft total. Can provide cleaning stuff or you can bring your own if you prefer.',
     requirements: ['Have cleaned professionally before', 'Bring supplies or I can provide', 'Need at least 2 references', 'Background check OK'],
     postedBy: 'Sarah J.',
@@ -82,10 +82,22 @@ const mockJobs = [
 
 const jobs = ref([]);
 const searchTerm = ref('');
-const selectedSkills = ref([]);
+const selectedCategory = ref('');
 const selectedJob = ref(null);
 const showModal = ref(false);
 const isLoading = ref(true);
+
+// Categories list
+const categories = [
+  'Construction',
+  'Tech', 
+  'Home',
+  'Pets',
+  'Cleaning',
+  'Moving',
+  'Landscaping',
+  'Other'
+];
 
 // Fetch jobs from Supabase
 const fetchJobs = async () => {
@@ -161,20 +173,9 @@ onMounted(() => {
   fetchJobs();
 });
 
-const availableSkills = computed(() => {
-  const allSkills = jobs.value.flatMap(job => job.skills);
-  return Array.from(new Set(allSkills)).sort();
-});
-
-const unselectedSkills = computed(() => {
-  return availableSkills.value.filter(
-    skill => !selectedSkills.value.includes(skill)
-  );
-});
-
 const filteredJobs = computed(() => {
   const term = searchTerm.value.toLowerCase().trim();
-  const skills = selectedSkills.value;
+  const category = selectedCategory.value;
   let result = jobs.value;
 
   if (term) {
@@ -185,32 +186,16 @@ const filteredJobs = computed(() => {
     );
   }
 
-  if (skills.length > 0) {
-    result = result.filter(job =>
-      skills.every(skill => job.skills.includes(skill))
-    );
+  if (category) {
+    result = result.filter(job => job.category === category);
   }
 
   return result;
 });
 
-const toggleSkill = event => {
-  const skill = event.target.value;
-  event.target.value = '';
-  if (skill && !selectedSkills.value.includes(skill)) {
-    selectedSkills.value.push(skill);
-  }
-};
-
-const removeSkill = skillToRemove => {
-  selectedSkills.value = selectedSkills.value.filter(
-    skill => skill !== skillToRemove
-  );
-};
-
 const clearFilters = () => {
   searchTerm.value = '';
-  selectedSkills.value = [];
+  selectedCategory.value = '';
 };
 
 const viewJobDetails = (job) => {
@@ -251,28 +236,28 @@ const applyForJob = () => {
           </div>
 
           <div class="search-group">
-            <label class="search-label">Filter by Skill</label>
-            <select @change="toggleSkill" class="search-select">
-              <option value="">-- Select a skill to filter --</option>
-              <option
-                v-for="skill in unselectedSkills"
-                :key="skill"
-                :value="skill"
-              >
-                {{ skill }}
-              </option>
+            <label class="search-label">Filter by Category</label>
+            <select 
+              v-model="selectedCategory"
+              class="search-select"
+            >
+              <option value="">-- Select a category --</option>
+              <option value="Construction">Construction</option>
+              <option value="Tech">Tech</option>
+              <option value="Home">Home</option>
+              <option value="Pets">Pets</option>
+              <option value="Cleaning">Cleaning</option>
+              <option value="Moving">Moving</option>
+              <option value="Landscaping">Landscaping</option>
+              <option value="Other">Other</option>
             </select>
           </div>
         </div>
 
-        <div v-if="selectedSkills.length" class="selected-skills">
-          <span
-            v-for="skill in selectedSkills"
-            :key="skill"
-            @click="removeSkill(skill)"
-            class="skill-tag selected"
-          >
-            {{ skill }} ✕
+        <div v-if="selectedCategory" class="selected-filters">
+          <span class="filter-tag">
+            Category: {{ selectedCategory }} 
+            <button @click="selectedCategory = ''" class="remove-filter">✕</button>
           </span>
           <button class="clear-btn" @click="clearFilters">
             Clear All
@@ -493,14 +478,44 @@ const applyForJob = () => {
   color: #9ca3af;
 }
 
-/* Selected Skills */
-.selected-skills {
+/* Selected Filters */
+.selected-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
   padding-top: 1rem;
   border-top: 1px solid #e5e7eb;
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #dbeafe;
+  color: #1e40af;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid #93c5fd;
+}
+
+.remove-filter {
+  background: none;
+  border: none;
+  color: #1e40af;
+  cursor: pointer;
+  font-size: 1.125rem;
+  line-height: 1;
+  padding: 0;
+  margin-left: 0.25rem;
+  transition: all 0.2s;
+}
+
+.remove-filter:hover {
+  transform: scale(1.2);
+  color: #1d4ed8;
 }
 
 .skill-tag {
@@ -512,16 +527,6 @@ const applyForJob = () => {
   font-size: 0.875rem;
   font-weight: 500;
   border: 1px solid #93c5fd;
-}
-
-.skill-tag.selected {
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.skill-tag.selected:hover {
-  background: #bfdbfe;
-  transform: scale(1.05);
 }
 
 .clear-btn {
@@ -538,6 +543,38 @@ const applyForJob = () => {
 .clear-btn:hover {
   color: #991b1b;
   text-decoration: underline;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  color: #6b7280;
+}
+
+.spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #6b7280;
+  font-size: 1.125rem;
 }
 
 /* Jobs Grid */
