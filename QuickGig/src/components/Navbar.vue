@@ -9,6 +9,9 @@
           <router-link to="/jobs" class="nav-link">Browse Jobs</router-link>
           <a href="#" class="nav-link">Browse Helpers</a>
           
+          <!-- Show Dashboard link only when logged in -->
+          <router-link v-if="isLoggedIn" to="/dashboard" class="nav-link">Dashboard</router-link>
+          
           <!-- Show different buttons based on login status -->
           <router-link v-if="!isLoggedIn" to="/login" class="nav-button">Log In</router-link>
           <router-link v-else to="/profile" class="nav-button">Profile</router-link>
@@ -31,14 +34,9 @@ export default {
     };
   },
   mounted() {
-    // Check login status when component mounts
     this.checkLoginStatus();
-    
-    // Listen for login/logout events
     window.addEventListener('user-logged-in', this.checkLoginStatus);
     window.addEventListener('user-logged-out', this.checkLoginStatus);
-    
-    // Check Supabase session
     this.checkSupabaseSession();
   },
   beforeUnmount() {
@@ -59,7 +57,6 @@ export default {
     },
     checkLoginStatus() {
       this.isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-      console.log('Checking login status:', this.isLoggedIn); // Debug log
       if (this.isLoggedIn) {
         this.loadUserData();
       }
@@ -67,7 +64,6 @@ export default {
     loadUserData() {
       this.username = localStorage.getItem('username') || 'User';
       this.userEmail = localStorage.getItem('userEmail') || '';
-      console.log('Loaded user data:', this.username, this.userEmail); // Debug log
     }
   }
 };

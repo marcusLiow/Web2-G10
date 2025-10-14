@@ -38,7 +38,7 @@ const router = createRouter({
     {
       path: '/dashboard',
       name: 'Dashboard',
-      component: AnalyticsDashboard
+      component: () => import('../pages/Dashboard.vue')
     },
     {
       path: '/jobs',
