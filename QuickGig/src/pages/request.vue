@@ -1,9 +1,5 @@
 <template>
   <div id="app">
-<<<<<<< HEAD
-    <!-- Request Form Section -->
-=======
->>>>>>> c8d3327598a5f29bf143b13dbe22fb35d1fbc1e9
     <section class="request-section">
       <div class="container">
         <div class="form-wrapper">
@@ -36,8 +32,6 @@
             </div>
 
             <div class="form-group">
-<<<<<<< HEAD
-=======
               <label for="category" class="form-label">Category</label>
               <select 
                 id="category" 
@@ -58,7 +52,6 @@
             </div>
 
             <div class="form-group">
->>>>>>> c8d3327598a5f29bf143b13dbe22fb35d1fbc1e9
               <label for="location" class="form-label">Location</label>
               <input 
                 type="text" 
@@ -111,10 +104,7 @@ export default {
       formData: {
         title: '',
         description: '',
-<<<<<<< HEAD
-=======
         category: '',
->>>>>>> c8d3327598a5f29bf143b13dbe22fb35d1fbc1e9
         location: '',
         payment: ''
       },
@@ -128,20 +118,6 @@ export default {
       this.submitError = null;
 
       try {
-<<<<<<< HEAD
-        // Create the request object
-        const requestData = {
-          title: this.formData.title,
-          description: this.formData.description,
-          location: this.formData.location,
-          payment: parseFloat(this.formData.payment),
-          status: 'open',
-          // Add user_id when you implement authentication
-          // user_id: supabase.auth.user()?.id
-        };
-
-        // Insert into Supabase
-=======
         const userId = localStorage.getItem('userId');
         
         const requestData = {
@@ -154,7 +130,6 @@ export default {
           user_id: userId
         };
 
->>>>>>> c8d3327598a5f29bf143b13dbe22fb35d1fbc1e9
         const { data, error } = await supabase
           .from('User-Job-Request')
           .insert([requestData])
@@ -163,31 +138,14 @@ export default {
         if (error) throw error;
         
         console.log('Request created:', data);
-<<<<<<< HEAD
-        alert('Request posted successfully!');
-        
-        // Reset form
-        this.formData = {
-          title: '',
-          description: '',
-          location: '',
-          payment: ''
-        };
-        
-=======
         alert('Job posted successfully!');
         
         // Redirect to job board page
         this.$router.push('/jobs');
->>>>>>> c8d3327598a5f29bf143b13dbe22fb35d1fbc1e9
         
       } catch (error) {
         console.error('Error adding request:', error);
         this.submitError = 'Failed to post request. Please try again.';
-<<<<<<< HEAD
-        alert('Error: ' + error.message);
-=======
->>>>>>> c8d3327598a5f29bf143b13dbe22fb35d1fbc1e9
       } finally {
         this.isSubmitting = false;
       }
@@ -197,10 +155,7 @@ export default {
 </script>
 
 <style scoped>
-<<<<<<< HEAD
-=======
 /* Keep all your existing styles */
->>>>>>> c8d3327598a5f29bf143b13dbe22fb35d1fbc1e9
 * {
   margin: 0;
   padding: 0;
@@ -286,8 +241,6 @@ export default {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-<<<<<<< HEAD
-=======
 select.form-input {
   cursor: pointer;
   appearance: none;
@@ -297,7 +250,6 @@ select.form-input {
   padding-right: 2.5rem;
 }
 
->>>>>>> c8d3327598a5f29bf143b13dbe22fb35d1fbc1e9
 .form-textarea {
   resize: vertical;
   min-height: 150px;
