@@ -3,12 +3,12 @@
     <div class="container">
       <div class="nav-content">
         <div class="logo">
-          <span class="logo-text">QuickGig</span>
+          <span class="logo-text" @click="navigateToHome">QuickGig</span>
         </div>
         <div class="nav-links">
           <a href="#" class="nav-link">Browse Jobs</a>
           <a href="#" class="nav-link">Browse Helpers</a>
-          <a href="#" class="nav-button">Log In</a>
+          <a href="#" class="nav-button" @click="navigateToSignUp">Log In</a>
         </div>
       </div>
     </div>
@@ -17,8 +17,18 @@
 
 <script>
 export default {
-  name: 'Navbar'
+  name: 'Navbar',
+  methods: {
+    navigateToHome() {
+      this.$router.push('/');
+    },
+    navigateToSignUp() {
+      this.$router.push('/login')
+    }
+  }
+
 };
+
 </script>
 
 <style scoped>
