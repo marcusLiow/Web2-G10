@@ -324,7 +324,7 @@ const getBadgeClass = (level) => {
 /* Base Styles */
 .profile-page {
   min-height: 100vh;
-  background-color: #f9fafb;
+  background-color: #FAF9F6;
 }
 
 .container {
