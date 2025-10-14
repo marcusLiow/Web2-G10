@@ -1,6 +1,5 @@
 <template>
   <div class="profile-page">
-
     
     <main class="container">
       <!-- Profile Header -->
@@ -213,7 +212,13 @@
 
           <div class="form-group">
             <label>Name *</label>
-            <input v-model="editForm.name" type="text" placeholder="Your full name" />
+            <input 
+              v-model="editForm.name" 
+              type="text" 
+              placeholder="Your full name"
+              :class="{ 'input-error': errors.name }"
+            />
+            <p v-if="errors.name" class="error-message">{{ errors.name }}</p>
           </div>
 
           <div class="form-group">
@@ -223,7 +228,13 @@
 
           <div class="form-group">
             <label>Email *</label>
-            <input v-model="editForm.email" type="email" placeholder="your.email@example.com" />
+            <input 
+              v-model="editForm.email" 
+              type="email" 
+              placeholder="your.email@example.com"
+              :class="{ 'input-error': errors.email }"
+            />
+            <p v-if="errors.email" class="error-message">{{ errors.email }}</p>
           </div>
 
           <div class="form-group">
@@ -289,6 +300,11 @@ const editForm = reactive({
   bio: "",
 });
 
+const errors = reactive({
+  name: "",
+  email: "",
+});
+
 const openEditModal = () => {
   editForm.name = user.name;
   editForm.avatar = user.avatar;
@@ -296,6 +312,9 @@ const openEditModal = () => {
   editForm.email = user.email;
   editForm.phone = user.phone;
   editForm.bio = user.bio;
+  // Clear errors when opening modal
+  errors.name = "";
+  errors.email = "";
   showEditModal.value = true;
 };
 
@@ -304,21 +323,33 @@ const closeEditModal = () => {
 };
 
 const saveProfile = () => {
-  // Validate required fields
+  // Clear previous errors
+  errors.name = "";
+  errors.email = "";
+  
+  let hasError = false;
+  
+  // Validate name
   if (!editForm.name || !editForm.name.trim()) {
-    alert('Please enter your name');
-    return;
+    errors.name = "Name is required";
+    hasError = true;
   }
   
+  // Validate email
   if (!editForm.email || !editForm.email.trim()) {
-    alert('Please enter your email');
-    return;
+    errors.email = "Email is required";
+    hasError = true;
+  } else {
+    // Basic email validation
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(editForm.email)) {
+      errors.email = "Please enter a valid email address";
+      hasError = true;
+    }
   }
   
-  // Basic email validation
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailPattern.test(editForm.email)) {
-    alert('Please enter a valid email address');
+  // If there are errors, don't save
+  if (hasError) {
     return;
   }
   
@@ -915,6 +946,21 @@ const getBadgeClass = (level) => {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.input-error {
+  border-color: #ef4444 !important;
+}
+
+.input-error:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.error-message {
+  color: #ef4444;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
 }
 
 .form-group textarea {
