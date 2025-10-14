@@ -1,14 +1,20 @@
 <template>
-  <nav class="navbar">
-    <div class="container">
+  <nav class="top-navbar">
+    <div class="nav-container">
       <div class="nav-content">
         <div class="logo">
           <span class="logo-text" @click="navigateToHome">QuickGig</span>
         </div>
         <div class="nav-links">
-          <a href="#" class="nav-link">Browse Jobs</a>
+          <router-link to="/jobs" class="nav-link">Browse Jobs</router-link>
           <a href="#" class="nav-link">Browse Helpers</a>
-          <a href="#" class="nav-button">Log In</a>
+          
+          <!-- Show Dashboard link only when logged in -->
+          <router-link v-if="isLoggedIn" to="/dashboard" class="nav-link">Dashboard</router-link>
+          
+          <!-- Show different buttons based on login status -->
+          <router-link v-if="!isLoggedIn" to="/login" class="nav-button">Log In</router-link>
+          <router-link v-else to="/profile" class="nav-button">Profile</router-link>
         </div>
       </div>
     </div>
@@ -16,20 +22,55 @@
 </template>
 
 <script>
+import { supabase } from '../supabase/config'
+
 export default {
   name: 'Navbar',
+  data() {
+    return {
+      isLoggedIn: false,
+      username: '',
+      userEmail: ''
+    };
+  },
+  mounted() {
+    this.checkLoginStatus();
+    window.addEventListener('user-logged-in', this.checkLoginStatus);
+    window.addEventListener('user-logged-out', this.checkLoginStatus);
+    this.checkSupabaseSession();
+  },
+  beforeUnmount() {
+    window.removeEventListener('user-logged-in', this.checkLoginStatus);
+    window.removeEventListener('user-logged-out', this.checkLoginStatus);
+  },
   methods: {
     navigateToHome() {
       this.$router.push('/');
+    },
+    async checkSupabaseSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        this.isLoggedIn = true;
+        localStorage.setItem('isLoggedIn', 'true');
+        this.loadUserData();
+      }
+    },
+    checkLoginStatus() {
+      this.isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      if (this.isLoggedIn) {
+        this.loadUserData();
+      }
+    },
+    loadUserData() {
+      this.username = localStorage.getItem('username') || 'User';
+      this.userEmail = localStorage.getItem('userEmail') || '';
     }
   }
-
 };
-
 </script>
 
 <style scoped>
-.navbar {
+.top-navbar {
   background: #2563EB;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   position: sticky;
@@ -64,6 +105,11 @@ export default {
   cursor: pointer;
 }
 
+.logo-text {
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
 
 .nav-links {
   display: flex;
@@ -71,7 +117,6 @@ export default {
   align-items: center;
 }
 
-/* Plain text links for Browse Jobs and Browse Helpers */
 .nav-link {
   text-decoration: none;
   color: white;
@@ -94,6 +139,7 @@ export default {
   font-weight: 600;
   transition: all 0.3s;
   white-space: nowrap;
+  display: inline-block;
 }
 
 .nav-button:hover {
@@ -102,7 +148,7 @@ export default {
 }
 
 @media (max-width: 768px) {
-  .container {
+  .nav-container {
     padding: 0 1rem;
   }
 

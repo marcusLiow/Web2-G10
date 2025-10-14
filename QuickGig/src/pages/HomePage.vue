@@ -66,7 +66,6 @@
     <section class="how-it-works-section">
       <div class="container">
         <h2 class="section-title">How It Works</h2>
-        <p class="section-subtitle">The process is easy!</p>
         
         <div class="steps-grid">
           <div class="step-card">
@@ -123,7 +122,7 @@
         <p class="categories-subtitle">Whatever you need, we've got someone who can help</p>
         
         <div class="categories-grid">
-          <div class="category-card" style="background-image: url('https://www.fasthelp.in/wp-content/uploads/2022/09/Home-Maintenance.jpg');">
+          <div class="category-card" style="background-image: url('https://generationhomesnw.com/wp-content/uploads/Home-Maintenance.jpg');">
             <div class="category-overlay"></div>
             <div class="category-content">
               <h3 class="category-name">Home Services</h3>
@@ -556,31 +555,23 @@ export default {
   color: #9ca3af;
   font-size: 0.9rem;
   margin: 0;
-  text-align: center;
+  text-align: left;
 }
 
 /* How It Works Section */
 .how-it-works-section {
-  padding: 5rem 0;
+  padding: 3rem 0;
   background: #f8f9fa;
 }
 
 .section-title {
-  font-size: 2.5rem;
+  font-size: 2.8rem;
   color: #2563EB;
   text-align: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 2.5rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 2px;
-}
-
-.section-subtitle {
-  font-size: 2rem;
-  color: #1a1a1a;
-  text-align: center;
-  margin-bottom: 4rem;
-  font-weight: 700;
 }
 
 .steps-grid {
