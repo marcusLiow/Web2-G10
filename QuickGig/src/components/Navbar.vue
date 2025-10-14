@@ -8,7 +8,7 @@
         <div class="nav-links">
           <a href="#" class="nav-link">Browse Jobs</a>
           <a href="#" class="nav-link">Browse Helpers</a>
-          <a href="#" class="nav-button" @click="navigateToSignUp">Log In</a>
+          <router-link to="/login" class="nav-button">Log In</router-link>
         </div>
       </div>
     </div>
@@ -21,9 +21,6 @@ export default {
   methods: {
     navigateToHome() {
       this.$router.push('/');
-    },
-    navigateToSignUp() {
-      this.$router.push('/login')
     }
   }
 };

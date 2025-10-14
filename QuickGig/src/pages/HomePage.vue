@@ -555,7 +555,7 @@ export default {
   color: #9ca3af;
   font-size: 0.9rem;
   margin: 0;
-  text-align: center;
+  text-align: left;
 }
 
 /* How It Works Section */
