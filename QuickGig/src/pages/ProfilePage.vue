@@ -1,6 +1,6 @@
 <template>
   <div class="profile-page">
-    <Navbar />
+
     
     <main class="container">
       <!-- Profile Header -->
@@ -304,6 +304,25 @@ const closeEditModal = () => {
 };
 
 const saveProfile = () => {
+  // Validate required fields
+  if (!editForm.name || !editForm.name.trim()) {
+    alert('Please enter your name');
+    return;
+  }
+  
+  if (!editForm.email || !editForm.email.trim()) {
+    alert('Please enter your email');
+    return;
+  }
+  
+  // Basic email validation
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(editForm.email)) {
+    alert('Please enter a valid email address');
+    return;
+  }
+  
+  // Save if validation passes
   user.name = editForm.name;
   user.avatar = editForm.avatar;
   user.location = editForm.location;
@@ -324,7 +343,7 @@ const getBadgeClass = (level) => {
 /* Base Styles */
 .profile-page {
   min-height: 100vh;
-  background-color: #FAF9F6;
+  background-color: #f9fafb;
 }
 
 .container {
