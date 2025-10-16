@@ -3,7 +3,7 @@
     <div class="nav-container">
       <div class="nav-content">
         <div class="logo">
-          <span class="logo-text" @click="navigateToHome">QuickGig</span>
+          <span class="logo-text" @click="navigateToHome">SideQuest</span>
         </div>
         <div class="nav-links">
           <router-link to="/jobs" class="nav-link">Browse Jobs</router-link>

@@ -200,13 +200,13 @@ export default {
             this.successMessage = 'Sign up successful! You can now log in.';
             setTimeout(() => {
               this.$router.push('/login');
-            }, 1500);
+            }, 4000);
           } else {
             // Email confirmation required
             this.successMessage = 'Sign up successful! Please check your email to verify your account before logging in.';
             setTimeout(() => {
               this.$router.push('/login');
-            }, 2000);
+            }, 4000);
           }
         } else {
           this.errorMessage = 'Sign up failed. Please try again.';

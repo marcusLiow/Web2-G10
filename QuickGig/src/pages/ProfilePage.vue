@@ -83,6 +83,16 @@
               </div>
             </div>
           </div>
+          
+          <div class="stat-card">
+            <div class="stat-content">
+              <div class="stat-icon">📋</div>
+              <div>
+                <p class="stat-number">{{ userListings.length }}</p>
+                <p class="stat-label">Active Listings</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Tabs Section -->
@@ -209,6 +219,65 @@
               </div>
             </div>
           </div>
+
+          <!-- My Listings Tab -->
+          <div v-if="activeTab === 'listings'" class="tab-content">
+            <div class="content-header">
+              <h2>My Job Listings</h2>
+              <p class="subtitle">{{ userListings.length }} total listings</p>
+            </div>
+            <div class="content-body">
+              <div v-if="loadingListings" class="loading-container">
+                <p>Loading listings...</p>
+              </div>
+              <div v-else-if="userListings.length > 0" class="listings-list">
+                <div v-for="listing in userListings" :key="listing.id" class="listing-card">
+                  <div class="listing-main">
+                    <div class="listing-header-row">
+                      <h3>{{ listing.title }}</h3>
+                      <span :class="['listing-status-badge', getStatusClass(listing.status)]">
+                        {{ listing.status.toUpperCase() }}
+                      </span>
+                    </div>
+                    
+                    <p class="listing-description">{{ listing.description }}</p>
+                    
+                    <div class="listing-details">
+                      <div class="listing-detail-item">
+                        <span class="detail-icon">📍</span>
+                        <span>{{ listing.location }}</span>
+                      </div>
+                      <div v-if="listing.category" class="listing-detail-item">
+                        <span class="detail-icon">🏷️</span>
+                        <span>{{ listing.category }}</span>
+                      </div>
+                      <div class="listing-detail-item">
+                        <span class="detail-icon">📅</span>
+                        <span>Posted {{ formatDateShort(listing.created_at) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="listing-footer">
+                    <p class="listing-payment">${{ listing.payment }}</p>
+                    <div class="listing-actions">
+                      <button @click="editListing(listing)" class="btn-action btn-action-edit">
+                        ✏️ Edit
+                      </button>
+                      <button @click="deleteListing(listing.id)" class="btn-action btn-action-delete">
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="empty-state">
+                <div class="empty-icon">📋</div>
+                <p class="empty-title">No listings yet</p>
+                <p class="empty-text">You haven't created any job listings yet. Start posting to find help!</p>
+              </div>
+            </div>
+          </div>
         </div>
       </template>
     </main>
@@ -272,6 +341,80 @@
         </div>
       </div>
     </div>
+
+    <!-- Edit Listing Modal -->
+    <div v-if="showEditListingModal" class="modal-overlay" @click="closeEditListingModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2>Edit Listing</h2>
+          <button @click="closeEditListingModal" class="close-btn">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Title *</label>
+            <input 
+              v-model="editListingForm.title" 
+              type="text" 
+              placeholder="Job title"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Description *</label>
+            <textarea 
+              v-model="editListingForm.description" 
+              rows="4" 
+              placeholder="Describe the job in detail..."
+            ></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Location *</label>
+            <input 
+              v-model="editListingForm.location" 
+              type="text" 
+              placeholder="Job location"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Category</label>
+            <input 
+              v-model="editListingForm.category" 
+              type="text" 
+              placeholder="e.g., Cleaning, Moving, Repair"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Payment ($) *</label>
+            <input 
+              v-model.number="editListingForm.payment" 
+              type="number" 
+              min="0" 
+              step="0.01"
+              placeholder="0.00"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Status *</label>
+            <select v-model="editListingForm.status">
+              <option value="open">Open</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="closeEditListingModal" class="btn-cancel">Cancel</button>
+          <button @click="saveListingChanges" class="btn-save">Save Changes</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -283,13 +426,16 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const activeTab = ref('about');
 const showEditModal = ref(false);
-const isLoading = ref(true); // Add loading state
+const showEditListingModal = ref(false);
+const isLoading = ref(true);
+const loadingListings = ref(false);
 
 const tabs = [
   { label: 'About', value: 'about' },
   { label: 'Skills & Expertise', value: 'skills' },
   { label: 'Reviews', value: 'reviews' },
-  { label: 'Job History', value: 'jobs' }
+  { label: 'Job History', value: 'jobs' },
+  { label: 'My Listings', value: 'listings' }
 ];
 
 const user = reactive({
@@ -325,18 +471,31 @@ const editForm = reactive({
   bio: '',
 });
 
+const editListingForm = reactive({
+  id: null,
+  title: '',
+  description: '',
+  location: '',
+  category: '',
+  payment: 0,
+  status: 'open',
+});
+
 const errors = reactive({
   username: '',
   email: '',
 });
 
+const userListings = ref([]);
+
 onMounted(async () => {
   await loadUserData();
+  await loadUserListings();
 });
 
 const loadUserData = async () => {
   try {
-    isLoading.value = true; // Start loading
+    isLoading.value = true;
     
     const userId = localStorage.getItem('userId');
     
@@ -347,7 +506,6 @@ const loadUserData = async () => {
 
     console.log('Loading user data for userId:', userId);
 
-    // Fetch everything from users table (no need for profiles table!)
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
@@ -361,7 +519,6 @@ const loadUserData = async () => {
 
     console.log('User data loaded:', userData);
 
-    // Basic user info
     user.id = userData.id;
     user.username = userData.username || '';
     user.email = userData.email || '';
@@ -370,39 +527,31 @@ const loadUserData = async () => {
     user.bio = userData.bio || '';
     user.avatar_url = userData.avatar_url || '';
     user.created_at = userData.created_at || '';
-
-    // Adventurer-specific fields from users table
     user.role = userData.user_role || '';
     user.experienceLevel = userData.expertise_level || '';
     user.hourlyRate = userData.hourly_rate || null;
     
-    // Transform skills from JSONB to array format for the UI
     if (userData.skills) {
       console.log('Raw skills data:', userData.skills);
       
       let skillsArray = [];
       
-      // Handle if skills is stored as JSONB array
       if (Array.isArray(userData.skills)) {
         skillsArray = userData.skills;
       } else if (typeof userData.skills === 'object') {
-        // If it's an object, try to extract array
         skillsArray = Object.values(userData.skills);
       }
       
       console.log('Skills array:', skillsArray);
       
-      // Transform to UI format
       user.skills = skillsArray.map(skill => {
-        // If skill is already an object with name, level, jobs, keep it
         if (typeof skill === 'object' && skill.name) {
           return skill;
         }
-        // Otherwise, transform string skill into object format
         return {
           name: typeof skill === 'string' ? skill : String(skill),
           level: userData.expertise_level || 'Beginner',
-          jobs: 0 // Default to 0 jobs completed
+          jobs: 0
         };
       });
       
@@ -413,7 +562,41 @@ const loadUserData = async () => {
     console.error('Error loading user data:', error);
     alert('Failed to load profile data: ' + (error.message || 'Unknown error'));
   } finally {
-    isLoading.value = false; // Stop loading
+    isLoading.value = false;
+  }
+};
+
+const loadUserListings = async () => {
+  try {
+    loadingListings.value = true;
+    
+    const userId = localStorage.getItem('userId');
+    
+    if (!userId) {
+      return;
+    }
+
+    console.log('Loading listings for userId:', userId);
+
+    const { data: listings, error } = await supabase
+      .from('User-Job-Request')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading listings:', error);
+      throw error;
+    }
+
+    console.log('Listings loaded:', listings);
+    userListings.value = listings || [];
+
+  } catch (error) {
+    console.error('Error loading listings:', error);
+    alert('Failed to load listings: ' + (error.message || 'Unknown error'));
+  } finally {
+    loadingListings.value = false;
   }
 };
 
@@ -424,6 +607,21 @@ const formatDate = (dateString) => {
     year: 'numeric', 
     month: 'long'
   });
+};
+
+const formatDateShort = (dateString) => {
+  if (!dateString) return 'Unknown';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffTime = Math.abs(now - date);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+  return `${Math.floor(diffDays / 365)} years ago`;
 };
 
 const openEditModal = () => {
@@ -486,6 +684,84 @@ const saveProfile = async () => {
   }
 };
 
+const editListing = (listing) => {
+  editListingForm.id = listing.id;
+  editListingForm.title = listing.title;
+  editListingForm.description = listing.description;
+  editListingForm.location = listing.location;
+  editListingForm.category = listing.category || '';
+  editListingForm.payment = listing.payment;
+  editListingForm.status = listing.status;
+  showEditListingModal.value = true;
+};
+
+const closeEditListingModal = () => {
+  showEditListingModal.value = false;
+  // Reset form
+  editListingForm.id = null;
+  editListingForm.title = '';
+  editListingForm.description = '';
+  editListingForm.location = '';
+  editListingForm.category = '';
+  editListingForm.payment = 0;
+  editListingForm.status = 'open';
+};
+
+const saveListingChanges = async () => {
+  if (!editListingForm.title || !editListingForm.description || !editListingForm.location) {
+    alert('Please fill in all required fields');
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('User-Job-Request')
+      .update({
+        title: editListingForm.title,
+        description: editListingForm.description,
+        location: editListingForm.location,
+        category: editListingForm.category,
+        payment: editListingForm.payment,
+        status: editListingForm.status,
+      })
+      .eq('id', editListingForm.id);
+
+    if (error) throw error;
+
+    // Reload listings
+    await loadUserListings();
+    
+    closeEditListingModal();
+    alert('Listing updated successfully!');
+  } catch (error) {
+    console.error('Error updating listing:', error);
+    alert('Failed to update listing. Please try again.');
+  }
+};
+
+const deleteListing = async (listingId) => {
+  if (!confirm('Are you sure you want to delete this listing? This action cannot be undone.')) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('User-Job-Request')
+      .delete()
+      .eq('id', listingId);
+
+    if (error) throw error;
+
+    // Reload listings
+    await loadUserListings();
+    
+    alert('Listing deleted successfully!');
+  } catch (error) {
+    console.error('Error deleting listing:', error);
+    alert('Failed to delete listing. Please try again.');
+  }
+};
+
 const handleLogout = async () => {
   if (!confirm('Are you sure you want to log out?')) {
     return;
@@ -516,6 +792,15 @@ const getBadgeClass = (level) => {
   if (levelLower.includes('expert') || levelLower.includes('advanced')) return 'expert';
   if (levelLower.includes('intermediate')) return 'intermediate';
   return 'beginner';
+};
+
+const getStatusClass = (status) => {
+  const statusLower = status.toLowerCase();
+  if (statusLower === 'open') return 'status-open';
+  if (statusLower === 'in_progress') return 'status-in-progress';
+  if (statusLower === 'completed') return 'status-completed';
+  if (statusLower === 'cancelled') return 'status-cancelled';
+  return 'status-open';
 };
 </script>
 
@@ -713,6 +998,7 @@ const getBadgeClass = (level) => {
   background: white;
   border-radius: 0.5rem 0.5rem 0 0;
   border-bottom: 1px solid #e5e7eb;
+  overflow-x: auto;
 }
 
 .tab-button {
@@ -725,6 +1011,7 @@ const getBadgeClass = (level) => {
   border-bottom: 2px solid transparent;
   color: #6b7280;
   transition: color 0.2s;
+  white-space: nowrap;
 }
 
 .tab-button:hover {
@@ -747,7 +1034,6 @@ const getBadgeClass = (level) => {
   font-weight: bold;
   margin-bottom: 1rem;
 }
-
 
 .content-header {
   padding: 1.5rem;
@@ -1019,6 +1305,149 @@ const getBadgeClass = (level) => {
   font-weight: 500;
 }
 
+/* Listings Styles */
+.listings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.listing-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.listing-card:hover {
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.listing-main {
+  padding: 1.5rem;
+}
+
+.listing-header-row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.listing-header-row h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  flex: 1;
+  min-width: 200px;
+}
+
+.listing-status-badge {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-open {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.status-in-progress {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.status-completed {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.status-cancelled {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.listing-description {
+  color: #6b7280;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+.listing-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.listing-detail-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.detail-icon {
+  font-size: 1rem;
+}
+
+.listing-footer {
+  padding: 1rem 1.5rem;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.listing-payment {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #16a34a;
+}
+
+.listing-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-action {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.btn-action-edit {
+  background: #2563eb;
+  color: white;
+}
+
+.btn-action-edit:hover {
+  background: #1d4ed8;
+}
+
+.btn-action-delete {
+  background: #dc2626;
+  color: white;
+}
+
+.btn-action-delete:hover {
+  background: #b91c1c;
+}
+
 .empty-state {
   text-align: center;
   padding: 3rem 0;
@@ -1110,7 +1539,8 @@ const getBadgeClass = (level) => {
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
   width: 100%;
   padding: 0.5rem 0.75rem;
   border: 1px solid #d1d5db;
@@ -1120,7 +1550,8 @@ const getBadgeClass = (level) => {
 }
 
 .form-group input:focus,
-.form-group textarea:focus {
+.form-group textarea:focus,
+.form-group select:focus {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
@@ -1222,6 +1653,24 @@ const getBadgeClass = (level) => {
   
   .job-right {
     text-align: left;
+  }
+
+  .listing-header-row {
+    flex-direction: column;
+  }
+
+  .listing-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .listing-actions {
+    width: 100%;
+  }
+
+  .btn-action {
+    flex: 1;
+    justify-content: center;
   }
 }
 </style>
