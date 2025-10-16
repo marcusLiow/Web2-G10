@@ -8,6 +8,7 @@ import AnalyticsDashboard from "../pages/Dashboard.vue";
 import JobPage from "../pages/JobPage.vue"
 import Onboarding from '@/pages/Onboarding.vue'
 import AdventurerSignUp from '@/pages/AdventurerSignUp.vue'
+import maptest from '@/pages/maptest.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -61,6 +62,11 @@ const router = createRouter({
       path: '/signup/adventurer', 
       name: 'AdventurerSignUp',
       component: () => import('../pages/AdventurerSignUp.vue')
+    },
+    {
+      path: '/map-test',
+      name: 'MapTest',
+      component: () => import('@/pages/maptest.vue')
     }
 
   ]

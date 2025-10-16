@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { supabase } from '../supabase/config';
+import { GoogleMap, Marker, InfoWindow } from 'vue3-google-map';
+import { geocodeAddress } from '../utils/geocoding';
 
 const jobs = ref([]);
 const searchTerm = ref('');
@@ -9,6 +11,11 @@ const selectedJob = ref(null);
 const showModal = ref(false);
 const isLoading = ref(true);
 const isLoggedIn = ref(false);
+const showMap = ref(false);
+const jobCoordinates = ref(null);
+const showMapInfoWindow = ref(false);
+
+const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 // Categories list
 const categories = [
@@ -129,15 +136,36 @@ const clearFilters = () => {
   selectedCategory.value = '';
 };
 
-const viewJobDetails = (job) => {
+const viewJobDetails = async (job) => {
   selectedJob.value = job;
   showModal.value = true;
+  showMap.value = false;
+  jobCoordinates.value = null;
+  
+  // Geocode the location
+  if (job.location && apiKey) {
+    const coords = await geocodeAddress(job.location);
+    jobCoordinates.value = coords;
+  }
 };
 
 const closeModal = () => {
   showModal.value = false;
   selectedJob.value = null;
+  showMap.value = false;
+  jobCoordinates.value = null;
 };
+
+const toggleMap = () => {
+  showMap.value = !showMap.value;
+  if (showMap.value) {
+    showMapInfoWindow.value = true;
+  }
+};
+
+const mapCenter = computed(() => 
+  jobCoordinates.value || { lat: 1.3521, lng: 103.8198 } // Default to Singapore
+);
 
 const applyForJob = () => {
   alert(`Application submitted for: ${selectedJob.value.name}\n\nYou will be contacted at your registered email.`);
@@ -308,6 +336,41 @@ const applyForJob = () => {
             </p>
           </div>
 
+          <!-- Map Section -->
+          <div class="modal-section">
+            <button @click="toggleMap" class="map-toggle-btn">
+              {{ showMap ? '📍 Hide Location Map' : '📍 Show Location Map' }}
+            </button>
+            
+            <div v-if="showMap" class="map-container">
+              <div v-if="!jobCoordinates" class="map-loading">
+                Loading map...
+              </div>
+              <GoogleMap
+                v-else
+                :api-key="apiKey"
+                style="width: 100%; height: 400px; border-radius: 0.75rem;"
+                :center="mapCenter"
+                :zoom="15"
+              >
+                <Marker 
+                  :options="{ position: mapCenter }"
+                  @click="showMapInfoWindow = true"
+                />
+                <InfoWindow
+                  v-if="showMapInfoWindow"
+                  :options="{ position: mapCenter }"
+                  @closeclick="showMapInfoWindow = false"
+                >
+                  <div class="map-info-window">
+                    <h4>{{ selectedJob.name }}</h4>
+                    <p>{{ selectedJob.location }}</p>
+                  </div>
+                </InfoWindow>
+              </GoogleMap>
+            </div>
+          </div>
+
           <button class="apply-btn" @click="applyForJob">
             Apply for This Job
           </button>
@@ -318,6 +381,60 @@ const applyForJob = () => {
 </template>
 
 <style scoped>
+.map-toggle-btn {
+  width: 100%;
+  padding: 0.875rem;
+  background: #f3f4f6;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 1rem;
+}
+
+.map-toggle-btn:hover {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+.map-container {
+  margin-top: 1rem;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.map-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  background: #f9fafb;
+  color: #6b7280;
+  font-size: 1rem;
+  border-radius: 0.75rem;
+}
+
+.map-info-window {
+  padding: 0.5rem;
+  min-width: 200px;
+}
+
+.map-info-window h4 {
+  margin: 0 0 0.25rem 0;
+  color: #111827;
+  font-size: 1rem;
+}
+
+.map-info-window p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
 * {
   box-sizing: border-box;
 }

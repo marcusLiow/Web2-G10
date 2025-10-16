@@ -23,13 +23,13 @@
                   <h1 class="profile-name">{{ user.username }}</h1>
                   <div class="contact-info">
                     <div v-if="user.location" class="contact-item">
-                      <span>📍</span> {{ user.location }}
+                      <span class="contact-label">Location:</span> {{ user.location }}
                     </div>
                     <div v-if="user.email" class="contact-item">
-                      <span>✉️</span> {{ user.email }}
+                      <span class="contact-label">Email:</span> {{ user.email }}
                     </div>
                     <div v-if="user.phone" class="contact-item">
-                      <span>📞</span> {{ user.phone }}
+                      <span class="contact-label">Phone:</span> {{ user.phone }}
                     </div>
                   </div>
                   <div v-if="user.reviewCount > 0" class="rating-container">
@@ -42,7 +42,7 @@
                 </div>
                 
                 <button @click="openEditModal" class="btn-edit">
-                  <span>✏️</span> Edit Profile
+                  Edit Profile
                 </button>
               </div>
               
@@ -54,9 +54,8 @@
 
         <!-- Stats Cards -->
         <div class="stats-grid">
-          <div class="stat-card">
+          <div class="stat-card stat-card-jobs">
             <div class="stat-content">
-              <div class="stat-icon">💼</div>
               <div>
                 <p class="stat-number">{{ user.stats.jobsCompleted }}</p>
                 <p class="stat-label">Jobs Completed</p>
@@ -64,9 +63,8 @@
             </div>
           </div>
           
-          <div class="stat-card">
+          <div class="stat-card stat-card-earnings">
             <div class="stat-content">
-              <div class="stat-icon">💰</div>
               <div>
                 <p class="stat-number">${{ user.stats.earnings.toLocaleString() }}</p>
                 <p class="stat-label">Total Earnings</p>
@@ -74,9 +72,8 @@
             </div>
           </div>
           
-          <div class="stat-card">
+          <div class="stat-card stat-card-rating">
             <div class="stat-content">
-              <div class="stat-icon">🏆</div>
               <div>
                 <p class="stat-number">{{ user.rating.toFixed(1) }}</p>
                 <p class="stat-label">Average Rating</p>
@@ -84,9 +81,8 @@
             </div>
           </div>
           
-          <div class="stat-card">
+          <div class="stat-card stat-card-listings">
             <div class="stat-content">
-              <div class="stat-icon">📋</div>
               <div>
                 <p class="stat-number">{{ userListings.length }}</p>
                 <p class="stat-label">Active Listings</p>
@@ -166,7 +162,7 @@
                   <div class="review-content">
                     <div class="review-avatar">
                       <img v-if="review.avatar" :src="review.avatar" :alt="review.author" />
-                      <div v-else class="avatar-placeholder-small">👤</div>
+                      <div v-else class="avatar-placeholder-small">{{ review.author.charAt(0).toUpperCase() }}</div>
                     </div>
                     <div class="review-body">
                       <div class="review-header">
@@ -185,7 +181,7 @@
                 </div>
               </div>
               <div v-else class="empty-state">
-                <div class="empty-icon">⭐</div>
+                <div class="empty-icon-text">No Reviews</div>
                 <p class="empty-title">No reviews yet</p>
                 <p class="empty-text">Reviews will appear here when customers rate your service</p>
               </div>
@@ -213,7 +209,7 @@
                 </div>
               </div>
               <div v-else class="empty-state">
-                <div class="empty-icon">💼</div>
+                <div class="empty-icon-text">No Jobs</div>
                 <p class="empty-title">No jobs yet</p>
                 <p class="empty-text">Your completed jobs will appear here</p>
               </div>
@@ -244,16 +240,16 @@
                     
                     <div class="listing-details">
                       <div class="listing-detail-item">
-                        <span class="detail-icon">📍</span>
+                        <span class="detail-label">Location:</span>
                         <span>{{ listing.location }}</span>
                       </div>
                       <div v-if="listing.category" class="listing-detail-item">
-                        <span class="detail-icon">🏷️</span>
+                        <span class="detail-label">Category:</span>
                         <span>{{ listing.category }}</span>
                       </div>
                       <div class="listing-detail-item">
-                        <span class="detail-icon">📅</span>
-                        <span>Posted {{ formatDateShort(listing.created_at) }}</span>
+                        <span class="detail-label">Posted:</span>
+                        <span>{{ formatDateShort(listing.created_at) }}</span>
                       </div>
                     </div>
                   </div>
@@ -262,17 +258,17 @@
                     <p class="listing-payment">${{ listing.payment }}</p>
                     <div class="listing-actions">
                       <button @click="editListing(listing)" class="btn-action btn-action-edit">
-                        ✏️ Edit
+                        Edit
                       </button>
                       <button @click="deleteListing(listing.id)" class="btn-action btn-action-delete">
-                        🗑️ Delete
+                        Delete
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
               <div v-else class="empty-state">
-                <div class="empty-icon">📋</div>
+                <div class="empty-icon-text">No Listings</div>
                 <p class="empty-title">No listings yet</p>
                 <p class="empty-text">You haven't created any job listings yet. Start posting to find help!</p>
               </div>
@@ -889,6 +885,11 @@ const getStatusClass = (status) => {
   gap: 0.25rem;
 }
 
+.contact-label {
+  font-weight: 600;
+  color: #374151;
+}
+
 .rating-container {
   display: flex;
   align-items: center;
@@ -927,10 +928,8 @@ const getStatusClass = (status) => {
   font-size: 0.875rem;
   background: white;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
   transition: background 0.2s;
+  font-weight: 500;
 }
 
 .btn-edit:hover {
@@ -959,33 +958,45 @@ const getStatusClass = (status) => {
   border-radius: 0.5rem;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   padding: 1.5rem;
+  border-left: 4px solid transparent;
+}
+
+.stat-card-jobs {
+  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+}
+
+.stat-card-earnings {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%);
+}
+
+.stat-card-rating {
+  border-left-color: #f59e0b;
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+}
+
+.stat-card-listings {
+  border-left-color: #8b5cf6;
+  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
 }
 
 .stat-content {
   display: flex;
   align-items: center;
-  gap: 1rem;
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 0.5rem;
-  background: #dbeafe;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
 }
 
 .stat-number {
-  font-size: 1.5rem;
+  font-size: 2rem;
   font-weight: bold;
+  margin-bottom: 0.25rem;
+  color: #111827;
 }
 
 .stat-label {
   font-size: 0.875rem;
   color: #6b7280;
+  font-weight: 500;
 }
 
 .tabs-section {
@@ -1208,7 +1219,8 @@ const getStatusClass = (status) => {
 
 .avatar-placeholder-small {
   color: #9ca3af;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
 }
 
 .review-body {
@@ -1391,8 +1403,9 @@ const getStatusClass = (status) => {
   gap: 0.375rem;
 }
 
-.detail-icon {
-  font-size: 1rem;
+.detail-label {
+  font-weight: 600;
+  color: #374151;
 }
 
 .listing-footer {
@@ -1425,9 +1438,6 @@ const getStatusClass = (status) => {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
 }
 
 .btn-action-edit {
@@ -1453,15 +1463,20 @@ const getStatusClass = (status) => {
   padding: 3rem 0;
 }
 
-.empty-icon {
-  font-size: 4rem;
+.empty-icon-text {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #d1d5db;
   margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .empty-title {
   color: #6b7280;
   font-size: 1.125rem;
   margin-bottom: 0.5rem;
+  font-weight: 600;
 }
 
 .empty-text {
