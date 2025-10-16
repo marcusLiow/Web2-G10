@@ -322,8 +322,19 @@ export default {
       this.skills.splice(index, 1);
     },
     async handleSubmit() {
-      if (!this.isFormValid) {
-        this.errorMessage = 'Please fill in all required fields correctly.';
+      // Validation
+      if (!this.formData.email || !this.formData.password || !this.formData.username) {
+        this.errorMessage = 'Please fill in all required fields.';
+        return;
+      }
+
+      if (this.formData.password !== this.formData.confirmPassword) {
+        this.errorMessage = 'Passwords do not match.';
+        return;
+      }
+
+      if (this.skills.length === 0) {
+        this.errorMessage = 'Please add at least one skill.';
         return;
       }
 
@@ -336,6 +347,7 @@ export default {
       this.errorMessage = '';
 
       try {
+        // Step 1: Create auth user
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: this.formData.email,
           password: this.formData.password,
@@ -352,30 +364,32 @@ export default {
         }
 
         if (authData?.user) {
-          const profileData = {
-            user_id: authData.user.id,
-            username: this.formData.username,
-            email: this.formData.email,
-            role: 'adventurer',
-            skills: this.skills,
-            experience_level: this.formData.experienceLevel,
-            hourly_rate: this.formData.hourlyRate,
-            location: this.formData.location,
-            service_types: this.formData.serviceTypes,
-            bio: this.formData.bio
-          };
+          // Step 2: Update the users table with all the adventurer data
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({
+              username: this.formData.username,
+              user_role: 'adventurer',
+              skills: this.skills, // JSONB array of skill strings
+              expertise_level: this.formData.experienceLevel,
+              hourly_rate: this.formData.hourlyRate,
+              location: this.formData.location,
+              service_types: [
+                this.formData.serviceTypes.inPerson ? 'in-person' : null,
+                this.formData.serviceTypes.remote ? 'remote' : null
+              ].filter(Boolean), // Remove null values
+              bio: this.formData.bio
+            })
+            .eq('id', authData.user.id);
 
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert([profileData]);
-
-          if (profileError) {
-            console.error('Profile creation error:', profileError);
-            this.errorMessage = 'Account created, but profile setup failed. Please contact support.';
-            return;
+          if (updateError) {
+            console.error('User update error:', updateError);
+            this.errorMessage = 'Account created, but profile setup failed. Please update your profile after logging in.';
+            // Still allow them to continue since the auth account was created
+          } else {
+            alert('Account created successfully! Please check your email to verify your account.');
           }
-
-          alert('Account created successfully! Please check your email to verify your account.');
+          
           this.$router.push('/login');
         }
       } catch (error) {
@@ -384,8 +398,6 @@ export default {
           this.errorMessage = 'This email is already registered. Please try logging in.';
         } else if (error.message.includes('invalid email')) {
           this.errorMessage = 'Please enter a valid email address.';
-        } else if (error.message.includes('violates row-level security policy')) {
-          this.errorMessage = 'Database permission error. Please contact support or check your Supabase RLS policies.';
         } else {
           this.errorMessage = 'Failed to create account: ' + (error.message || 'Please try again.');
         }

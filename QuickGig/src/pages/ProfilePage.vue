@@ -2,204 +2,215 @@
   <div class="profile-page">
     
     <main class="container">
-      <!-- Profile Header -->
-      <div class="profile-header">
-        <div class="profile-content">
-          <div class="avatar-container">
-            <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.username" class="avatar" />
-            <div v-else class="avatar-placeholder">{{ user.username ? user.username.charAt(0).toUpperCase() : '👤' }}</div>
-          </div>
-          
-          <div class="profile-info">
-            <div class="profile-top">
-              <div>
-                <h1 class="profile-name">{{ user.username || 'Your Name' }}</h1>
-                <div class="contact-info">
-                  <div v-if="user.location" class="contact-item">
-                    <span>📍</span> {{ user.location }}
+      <!-- Show loading state while data loads -->
+      <div v-if="isLoading" class="loading-container">
+        <p>Loading profile...</p>
+      </div>
+
+      <!-- Only show profile once data is loaded -->
+      <template v-else>
+        <!-- Profile Header -->
+        <div class="profile-header">
+          <div class="profile-content">
+            <div class="avatar-container">
+              <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.username" class="avatar" />
+              <div v-else class="avatar-placeholder">{{ user.username.charAt(0).toUpperCase() }}</div>
+            </div>
+            
+            <div class="profile-info">
+              <div class="profile-top">
+                <div>
+                  <h1 class="profile-name">{{ user.username }}</h1>
+                  <div class="contact-info">
+                    <div v-if="user.location" class="contact-item">
+                      <span>📍</span> {{ user.location }}
+                    </div>
+                    <div v-if="user.email" class="contact-item">
+                      <span>✉️</span> {{ user.email }}
+                    </div>
+                    <div v-if="user.phone" class="contact-item">
+                      <span>📞</span> {{ user.phone }}
+                    </div>
                   </div>
-                  <div v-if="user.email" class="contact-item">
-                    <span>✉️</span> {{ user.email }}
-                  </div>
-                  <div v-if="user.phone" class="contact-item">
-                    <span>📞</span> {{ user.phone }}
+                  <div v-if="user.reviewCount > 0" class="rating-container">
+                    <div class="stars">
+                      <span v-for="star in 5" :key="star" :class="star <= user.rating ? 'star-filled' : 'star-empty'">★</span>
+                    </div>
+                    <span class="rating-number">{{ user.rating }}</span>
+                    <span class="review-count">({{ user.reviewCount }} reviews)</span>
                   </div>
                 </div>
-                <div v-if="user.reviewCount > 0" class="rating-container">
-                  <div class="stars">
-                    <span v-for="star in 5" :key="star" :class="star <= user.rating ? 'star-filled' : 'star-empty'">★</span>
-                  </div>
-                  <span class="rating-number">{{ user.rating }}</span>
-                  <span class="review-count">({{ user.reviewCount }} reviews)</span>
+                
+                <button @click="openEditModal" class="btn-edit">
+                  <span>✏️</span> Edit Profile
+                </button>
+              </div>
+              
+              <p v-if="user.bio" class="bio">{{ user.bio }}</p>
+              <p v-else class="bio-placeholder">Add a bio to tell people about yourself...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-content">
+              <div class="stat-icon">💼</div>
+              <div>
+                <p class="stat-number">{{ user.stats.jobsCompleted }}</p>
+                <p class="stat-label">Jobs Completed</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="stat-card">
+            <div class="stat-content">
+              <div class="stat-icon">💰</div>
+              <div>
+                <p class="stat-number">${{ user.stats.earnings.toLocaleString() }}</p>
+                <p class="stat-label">Total Earnings</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="stat-card">
+            <div class="stat-content">
+              <div class="stat-icon">🏆</div>
+              <div>
+                <p class="stat-number">{{ user.rating.toFixed(1) }}</p>
+                <p class="stat-label">Average Rating</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs Section -->
+        <div class="tabs-section">
+          <div class="tabs-header">
+            <button
+              v-for="tab in tabs"
+              :key="tab.value"
+              @click="activeTab = tab.value"
+              :class="['tab-button', { active: activeTab === tab.value }]"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+
+          <!-- About Tab -->
+          <div v-if="activeTab === 'about'" class="tab-content">
+            <div class="content-body">
+              <!-- Header without border -->
+              <h2 class="content-title">About Me</h2>
+              
+              <!-- Bio FIRST - before any lines -->
+              <p v-if="user.bio" class="text-normal">{{ user.bio }}</p>
+              <p v-else class="text-placeholder">No bio added yet. Click "Edit Profile" to add one.</p>
+              
+              <!-- Then info list with border on top -->
+              <div v-if="user.created_at" class="info-list-section">
+                <div class="info-list">
+                  <p><span class="label">Member since:</span> {{ formatDate(user.created_at) }}</p>
                 </div>
               </div>
               
-              <button @click="openEditModal" class="btn-edit">
-                <span>✏️</span> Edit Profile
-              </button>
-            </div>
-            
-            <p v-if="user.bio" class="bio">{{ user.bio }}</p>
-            <p v-else class="bio-placeholder">Add a bio to tell people about yourself...</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Stats Cards -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon">💼</div>
-            <div>
-              <p class="stat-number">{{ user.stats.jobsCompleted }}</p>
-              <p class="stat-label">Jobs Completed</p>
-            </div>
-          </div>
-        </div>
-        
-        <div class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon">💰</div>
-            <div>
-              <p class="stat-number">${{ user.stats.earnings.toLocaleString() }}</p>
-              <p class="stat-label">Total Earnings</p>
-            </div>
-          </div>
-        </div>
-        
-        <div class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon">🏆</div>
-            <div>
-              <p class="stat-number">{{ user.rating.toFixed(1) }}</p>
-              <p class="stat-label">Average Rating</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tabs Section -->
-      <div class="tabs-section">
-        <div class="tabs-header">
-          <button
-            v-for="tab in tabs"
-            :key="tab.value"
-            @click="activeTab = tab.value"
-            :class="['tab-button', { active: activeTab === tab.value }]"
-          >
-            {{ tab.label }}
-          </button>
-        </div>
-
-        <!-- About Tab -->
-        <div v-if="activeTab === 'about'" class="tab-content">
-          <div class="content-header">
-            <h2>About Me</h2>
-          </div>
-          <div class="content-body">
-            <p v-if="user.bio" class="text-normal">{{ user.bio }}</p>
-            <p v-else class="text-placeholder">No bio added yet. Click "Edit Profile" to add one.</p>
-            <div class="info-list">
-              <p><span class="label">Member since:</span> {{ formatDate(user.created_at) }}</p>
-              <p><span class="label">Response rate:</span> 98%</p>
-              <p><span class="label">Response time:</span> Within 1 hour</p>
-            </div>
-            
-            <!-- Logout Button in About Tab -->
-            <div class="logout-container">
-              <button @click="handleLogout" class="btn-logout-inline">
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Skills Tab -->
-        <div v-if="activeTab === 'skills'" class="tab-content">
-          <div class="content-header">
-            <h2>Skills & Expertise</h2>
-            <p class="subtitle">Services I offer to the community</p>
-          </div>
-          <div class="content-body">
-            <div v-if="user.skills.length > 0" class="skills-list">
-              <div v-for="(skill, index) in user.skills" :key="index" class="skill-card">
-                <div class="skill-header">
-                  <h3>{{ skill.name }}</h3>
-                  <span :class="['badge', getBadgeClass(skill.level)]">{{ skill.level }}</span>
-                </div>
-                <p class="skill-jobs">{{ skill.jobs }} jobs completed</p>
+              <!-- Logout Button in About Tab -->
+              <div class="logout-container">
+                <button @click="handleLogout" class="btn-logout-inline">
+                  Logout
+                </button>
               </div>
             </div>
-            <p v-else class="text-placeholder">No skills added yet.</p>
           </div>
-        </div>
 
-        <!-- Reviews Tab -->
-        <div v-if="activeTab === 'reviews'" class="tab-content">
-          <div class="content-header">
-            <h2>Customer Reviews</h2>
-            <p class="subtitle">{{ user.reviewCount }} total reviews</p>
-          </div>
-          <div class="content-body">
-            <div v-if="user.reviews.length > 0" class="reviews-list">
-              <div v-for="review in user.reviews" :key="review.id" class="review-card">
-                <div class="review-content">
-                  <div class="review-avatar">
-                    <img v-if="review.avatar" :src="review.avatar" :alt="review.author" />
-                    <div v-else class="avatar-placeholder-small">👤</div>
+          <!-- Skills Tab -->
+          <div v-if="activeTab === 'skills'" class="tab-content">
+            <div class="content-header">
+              <h2>Skills & Expertise</h2>
+              <p class="subtitle">Services I offer to the community</p>
+            </div>
+            <div class="content-body">
+              <div v-if="user.skills.length > 0" class="skills-list">
+                <div v-for="(skill, index) in user.skills" :key="index" class="skill-card">
+                  <div class="skill-header">
+                    <h3>{{ skill.name }}</h3>
+                    <span :class="['badge', getBadgeClass(skill.level)]">{{ skill.level }}</span>
                   </div>
-                  <div class="review-body">
-                    <div class="review-header">
-                      <div>
-                        <p class="review-author">{{ review.author }}</p>
-                        <p class="review-date">{{ review.date }}</p>
-                      </div>
-                      <div class="stars">
-                        <span v-for="star in 5" :key="star" :class="star <= review.rating ? 'star-filled' : 'star-empty'">★</span>
-                      </div>
+                  <p class="skill-jobs">{{ skill.jobs }} jobs completed</p>
+                </div>
+              </div>
+              <p v-else class="text-placeholder">No skills added yet.</p>
+            </div>
+          </div>
+
+          <!-- Reviews Tab -->
+          <div v-if="activeTab === 'reviews'" class="tab-content">
+            <div class="content-header">
+              <h2>Customer Reviews</h2>
+              <p class="subtitle">{{ user.reviewCount }} total reviews</p>
+            </div>
+            <div class="content-body">
+              <div v-if="user.reviews.length > 0" class="reviews-list">
+                <div v-for="review in user.reviews" :key="review.id" class="review-card">
+                  <div class="review-content">
+                    <div class="review-avatar">
+                      <img v-if="review.avatar" :src="review.avatar" :alt="review.author" />
+                      <div v-else class="avatar-placeholder-small">👤</div>
                     </div>
-                    <span class="service-badge">{{ review.service }}</span>
-                    <p class="review-text">{{ review.comment }}</p>
+                    <div class="review-body">
+                      <div class="review-header">
+                        <div>
+                          <p class="review-author">{{ review.author }}</p>
+                          <p class="review-date">{{ review.date }}</p>
+                        </div>
+                        <div class="stars">
+                          <span v-for="star in 5" :key="star" :class="star <= review.rating ? 'star-filled' : 'star-empty'">★</span>
+                        </div>
+                      </div>
+                      <span class="service-badge">{{ review.service }}</span>
+                      <p class="review-text">{{ review.comment }}</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            <div v-else class="empty-state">
-              <div class="empty-icon">⭐</div>
-              <p class="empty-title">No reviews yet</p>
-              <p class="empty-text">Reviews will appear here when customers rate your service</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Jobs Tab -->
-        <div v-if="activeTab === 'jobs'" class="tab-content">
-          <div class="content-header">
-            <h2>Job History</h2>
-            <p class="subtitle">Recent completed jobs</p>
-          </div>
-          <div class="content-body">
-            <div v-if="user.recentJobs.length > 0" class="jobs-list">
-              <div v-for="job in user.recentJobs" :key="job.id" class="job-card">
-                <div>
-                  <h3>{{ job.title }}</h3>
-                  <p class="job-client">Client: {{ job.client }}</p>
-                  <p class="job-date">{{ job.date }}</p>
-                </div>
-                <div class="job-right">
-                  <p class="job-amount">${{ job.amount }}</p>
-                  <span class="status-badge">{{ job.status }}</span>
-                </div>
+              <div v-else class="empty-state">
+                <div class="empty-icon">⭐</div>
+                <p class="empty-title">No reviews yet</p>
+                <p class="empty-text">Reviews will appear here when customers rate your service</p>
               </div>
             </div>
-            <div v-else class="empty-state">
-              <div class="empty-icon">💼</div>
-              <p class="empty-title">No jobs yet</p>
-              <p class="empty-text">Your completed jobs will appear here</p>
+          </div>
+
+          <!-- Jobs Tab -->
+          <div v-if="activeTab === 'jobs'" class="tab-content">
+            <div class="content-header">
+              <h2>Job History</h2>
+              <p class="subtitle">Recent completed jobs</p>
+            </div>
+            <div class="content-body">
+              <div v-if="user.recentJobs.length > 0" class="jobs-list">
+                <div v-for="job in user.recentJobs" :key="job.id" class="job-card">
+                  <div>
+                    <h3>{{ job.title }}</h3>
+                    <p class="job-client">Client: {{ job.client }}</p>
+                    <p class="job-date">{{ job.date }}</p>
+                  </div>
+                  <div class="job-right">
+                    <p class="job-amount">${{ job.amount }}</p>
+                    <span class="status-badge">{{ job.status }}</span>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="empty-state">
+                <div class="empty-icon">💼</div>
+                <p class="empty-title">No jobs yet</p>
+                <p class="empty-text">Your completed jobs will appear here</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </template>
     </main>
 
     <!-- Edit Profile Modal -->
@@ -272,6 +283,7 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const activeTab = ref('about');
 const showEditModal = ref(false);
+const isLoading = ref(true); // Add loading state
 
 const tabs = [
   { label: 'About', value: 'about' },
@@ -322,9 +334,10 @@ onMounted(async () => {
   await loadUserData();
 });
 
-
 const loadUserData = async () => {
   try {
+    isLoading.value = true; // Start loading
+    
     const userId = localStorage.getItem('userId');
     
     if (!userId) {
@@ -332,15 +345,23 @@ const loadUserData = async () => {
       return;
     }
 
-    // Fetch from users table
+    console.log('Loading user data for userId:', userId);
+
+    // Fetch everything from users table (no need for profiles table!)
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single();
 
-    if (userError) throw userError;
+    if (userError) {
+      console.error('Error loading user data:', userError);
+      throw userError;
+    }
 
+    console.log('User data loaded:', userData);
+
+    // Basic user info
     user.id = userData.id;
     user.username = userData.username || '';
     user.email = userData.email || '';
@@ -350,39 +371,49 @@ const loadUserData = async () => {
     user.avatar_url = userData.avatar_url || '';
     user.created_at = userData.created_at || '';
 
-    // Fetch from profiles table for adventurer-specific data
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    // Only process profile data if found (not all users have profiles)
-    if (!profileError && profileData) {
-      user.role = profileData.role || '';
-      user.experienceLevel = profileData.experience_level || '';
-      user.hourlyRate = profileData.hourly_rate || null;
+    // Adventurer-specific fields from users table
+    user.role = userData.user_role || '';
+    user.experienceLevel = userData.expertise_level || '';
+    user.hourlyRate = userData.hourly_rate || null;
+    
+    // Transform skills from JSONB to array format for the UI
+    if (userData.skills) {
+      console.log('Raw skills data:', userData.skills);
       
-      // Transform skills array into the format expected by the UI
-      if (profileData.skills && Array.isArray(profileData.skills)) {
-        user.skills = profileData.skills.map(skill => {
-          // If skill is already an object with name, level, jobs, keep it
-          if (typeof skill === 'object' && skill.name) {
-            return skill;
-          }
-          // Otherwise, transform string skill into object format
-          return {
-            name: skill,
-            level: profileData.experience_level || 'Beginner',
-            jobs: 0 // Default to 0 jobs completed
-          };
-        });
+      let skillsArray = [];
+      
+      // Handle if skills is stored as JSONB array
+      if (Array.isArray(userData.skills)) {
+        skillsArray = userData.skills;
+      } else if (typeof userData.skills === 'object') {
+        // If it's an object, try to extract array
+        skillsArray = Object.values(userData.skills);
       }
+      
+      console.log('Skills array:', skillsArray);
+      
+      // Transform to UI format
+      user.skills = skillsArray.map(skill => {
+        // If skill is already an object with name, level, jobs, keep it
+        if (typeof skill === 'object' && skill.name) {
+          return skill;
+        }
+        // Otherwise, transform string skill into object format
+        return {
+          name: typeof skill === 'string' ? skill : String(skill),
+          level: userData.expertise_level || 'Beginner',
+          jobs: 0 // Default to 0 jobs completed
+        };
+      });
+      
+      console.log('Transformed skills:', user.skills);
     }
 
   } catch (error) {
     console.error('Error loading user data:', error);
-    alert('Failed to load profile data');
+    alert('Failed to load profile data: ' + (error.message || 'Unknown error'));
+  } finally {
+    isLoading.value = false; // Stop loading
   }
 };
 
@@ -711,6 +742,13 @@ const getBadgeClass = (level) => {
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
+.content-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+
 .content-header {
   padding: 1.5rem;
   border-bottom: 1px solid #e5e7eb;
@@ -733,13 +771,19 @@ const getBadgeClass = (level) => {
 
 .text-normal {
   color: #6b7280;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
   line-height: 1.6;
 }
 
 .text-placeholder {
   color: #9ca3af;
   font-style: italic;
+  margin-bottom: 1.5rem;
+}
+
+.info-list-section {
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
   margin-bottom: 1rem;
 }
 
@@ -1143,6 +1187,15 @@ const getBadgeClass = (level) => {
 
 .btn-save:hover {
   background: #1d4ed8;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 50vh;
+  font-size: 1.2rem;
+  color: #6b7280;
 }
 
 @media (max-width: 768px) {
