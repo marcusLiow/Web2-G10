@@ -79,7 +79,8 @@ export default {
   padding: 1rem 0;
 }
 
-.container {
+/* ADD THIS - it was missing! */
+.nav-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 2rem;
@@ -104,12 +105,6 @@ export default {
   font-size: 1.5rem;
   cursor: pointer;
 }
-
-.logo-text {
-  font-size: 1.5rem;
-  cursor: pointer;
-}
-
 
 .nav-links {
   display: flex;

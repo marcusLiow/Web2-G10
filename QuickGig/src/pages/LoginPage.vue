@@ -55,7 +55,7 @@
         <div class="card-footer">
           <p class="signup-prompt">
             Don't have an account?
-            <router-link to="/signup" class="signup-link">Sign Up</router-link>
+            <router-link to="/onboarding" class="signup-link">Sign Up</router-link>
           </p>
         </div>
       </div>
