@@ -1,5 +1,5 @@
 <template>
-  <nav class="top-navbar">
+  <nav class="top-navbar" :class="{ 'helpers-page': isHelpersPage }">
     <div class="nav-container">
       <div class="nav-content">
         <div class="logo">
@@ -7,7 +7,7 @@
         </div>
         <div class="nav-links">
           <router-link to="/jobs" class="nav-link">Browse Jobs</router-link>
-          <a href="#" class="nav-link">Browse Helpers</a>
+          <router-link to="/helpers" class="nav-link">Browse Helpers</router-link>
           
           <!-- Show Dashboard link only when logged in -->
           <router-link v-if="isLoggedIn" to="/dashboard" class="nav-link">Dashboard</router-link>
@@ -30,11 +30,13 @@ export default {
     return {
       isLoggedIn: false,
       username: '',
-      userEmail: ''
+      userEmail: '',
+      isHelpersPage: false
     };
   },
   mounted() {
     this.checkLoginStatus();
+    this.checkCurrentRoute();
     window.addEventListener('user-logged-in', this.checkLoginStatus);
     window.addEventListener('user-logged-out', this.checkLoginStatus);
     this.checkSupabaseSession();
@@ -43,9 +45,17 @@ export default {
     window.removeEventListener('user-logged-in', this.checkLoginStatus);
     window.removeEventListener('user-logged-out', this.checkLoginStatus);
   },
+  watch: {
+    '$route'(to) {
+      this.isHelpersPage = to.path === '/helpers';
+    }
+  },
   methods: {
     navigateToHome() {
       this.$router.push('/');
+    },
+    checkCurrentRoute() {
+      this.isHelpersPage = this.$route.path === '/helpers';
     },
     async checkSupabaseSession() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -77,9 +87,13 @@ export default {
   top: 0;
   z-index: 100;
   padding: 1rem 0;
+  transition: background 0.3s ease;
 }
 
-/* ADD THIS - it was missing! */
+.top-navbar.helpers-page {
+  background: #6C5B7F;
+}
+
 .nav-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -119,10 +133,15 @@ export default {
   transition: all 0.3s;
   white-space: nowrap;
   font-size: 1.1em;
+  padding-bottom: 0.25rem;
 }
 
 .nav-link:hover {
   opacity: 0.8;
+}
+
+.nav-link.router-link-active {
+  border-bottom: 3px solid white;
 }
 
 .nav-button {
@@ -135,6 +154,10 @@ export default {
   transition: all 0.3s;
   white-space: nowrap;
   display: inline-block;
+}
+
+.helpers-page .nav-button {
+  color: #6C5B7F;
 }
 
 .nav-button:hover {

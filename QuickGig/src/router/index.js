@@ -8,6 +8,7 @@ import AnalyticsDashboard from "../pages/Dashboard.vue";
 import JobPage from "../pages/JobPage.vue"
 import Onboarding from '@/pages/Onboarding.vue'
 import AdventurerSignUp from '@/pages/AdventurerSignUp.vue'
+import HelpersPage from '../pages/HelpersPage.vue'  // Add this line
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -46,6 +47,11 @@ const router = createRouter({
       path: '/jobs',
       name: 'JobPage',
       component: () => import('../pages/JobPage.vue')
+    },
+    {
+      path: '/helpers',  // Add this route
+      name: 'HelpersPage',
+      component: () => import('../pages/HelpersPage.vue')
     },
     {
       path: '/auth/callback',
