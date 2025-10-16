@@ -36,7 +36,7 @@
               </svg>
             </button>
             
-            <!-- Dropdown Menu - simplified without v-show or v-if initially -->
+            <!-- Dropdown Menu -->
             <div class="dropdown-menu" :style="{ display: isDropdownOpen ? 'block' : 'none' }">
               <router-link to="/profile" class="dropdown-item" @click="closeDropdown">
                 <span>Profile</span>
@@ -68,8 +68,6 @@ export default {
     };
   },
   mounted() {
-    console.log('✅ Navbar mounted');
-    
     this.checkLoginStatus();
     window.addEventListener('user-logged-in', this.checkLoginStatus);
     window.addEventListener('user-logged-out', this.checkLoginStatus);
@@ -131,35 +129,15 @@ export default {
     },
     handleProfileClick(event) {
       event.stopPropagation();
-      console.log('🟢 Profile button clicked!');
-      console.log('Current state before toggle:', this.isDropdownOpen);
-      
-      // Simple toggle without $set (Vue 3 doesn't need it)
       this.isDropdownOpen = !this.isDropdownOpen;
-      
-      console.log('New state after toggle:', this.isDropdownOpen);
-      
-      // Double-check the state changed
-      this.$nextTick(() => {
-        console.log('State after nextTick:', this.isDropdownOpen);
-        const dropdownEl = document.querySelector('.dropdown-menu');
-        if (dropdownEl) {
-          console.log('Dropdown element found, display style:', dropdownEl.style.display);
-          console.log('Dropdown element computed style:', window.getComputedStyle(dropdownEl).display);
-        } else {
-          console.log('⚠️ Dropdown element not found!');
-        }
-      });
     },
     closeDropdown() {
-      console.log('🔴 Closing dropdown');
       this.isDropdownOpen = false;
     },
     handleDocumentClick(event) {
       // Check if the click is outside the dropdown
       const profileDropdown = document.querySelector('.profile-dropdown');
       if (profileDropdown && !profileDropdown.contains(event.target)) {
-        console.log('📍 Clicked outside dropdown, closing...');
         this.isDropdownOpen = false;
       }
     },

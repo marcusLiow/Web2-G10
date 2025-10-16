@@ -291,6 +291,9 @@ const user = reactive({
   phone: '',
   bio: '',
   created_at: '',
+  role: '',
+  experienceLevel: '',
+  hourlyRate: null,
   stats: {
     jobsCompleted: 0,
     earnings: 0,
@@ -319,6 +322,7 @@ onMounted(async () => {
   await loadUserData();
 });
 
+
 const loadUserData = async () => {
   try {
     const userId = localStorage.getItem('userId');
@@ -328,22 +332,53 @@ const loadUserData = async () => {
       return;
     }
 
-    const { data, error } = await supabase
+    // Fetch from users table
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single();
 
-    if (error) throw error;
+    if (userError) throw userError;
 
-    user.id = data.id;
-    user.username = data.username || '';
-    user.email = data.email || '';
-    user.phone = data.phone || '';
-    user.location = data.location || '';
-    user.bio = data.bio || '';
-    user.avatar_url = data.avatar_url || '';
-    user.created_at = data.created_at || '';
+    user.id = userData.id;
+    user.username = userData.username || '';
+    user.email = userData.email || '';
+    user.phone = userData.phone || '';
+    user.location = userData.location || '';
+    user.bio = userData.bio || '';
+    user.avatar_url = userData.avatar_url || '';
+    user.created_at = userData.created_at || '';
+
+    // Fetch from profiles table for adventurer-specific data
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    // Only process profile data if found (not all users have profiles)
+    if (!profileError && profileData) {
+      user.role = profileData.role || '';
+      user.experienceLevel = profileData.experience_level || '';
+      user.hourlyRate = profileData.hourly_rate || null;
+      
+      // Transform skills array into the format expected by the UI
+      if (profileData.skills && Array.isArray(profileData.skills)) {
+        user.skills = profileData.skills.map(skill => {
+          // If skill is already an object with name, level, jobs, keep it
+          if (typeof skill === 'object' && skill.name) {
+            return skill;
+          }
+          // Otherwise, transform string skill into object format
+          return {
+            name: skill,
+            level: profileData.experience_level || 'Beginner',
+            jobs: 0 // Default to 0 jobs completed
+          };
+        });
+      }
+    }
 
   } catch (error) {
     console.error('Error loading user data:', error);
@@ -445,8 +480,10 @@ const handleLogout = async () => {
 };
 
 const getBadgeClass = (level) => {
-  if (level === 'Expert') return 'expert';
-  if (level === 'Intermediate') return 'intermediate';
+  if (!level) return 'beginner';
+  const levelLower = level.toLowerCase();
+  if (levelLower.includes('expert') || levelLower.includes('advanced')) return 'expert';
+  if (levelLower.includes('intermediate')) return 'intermediate';
   return 'beginner';
 };
 </script>
