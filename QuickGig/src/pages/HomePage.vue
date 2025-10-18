@@ -15,7 +15,7 @@
               Just <span class="request-link" @click="navigateToLogin">request</span>
             </h1>
             <p class="main-description">
-              QuickGig connects you with skilled locals in your area who are ready to help with any task. 
+              SideQuest connects you with skilled locals in your area who are ready to help with any task. 
               From home repairs to event planning, find the perfect match for your needs.
             </p>
           </div>
@@ -71,7 +71,7 @@
           <div class="step-card">
             <div class="step-number">1</div>
             <div class="step-image">
-              <img src="https://www.reuters.com/resizer/v2/ZA4VDDIHVJMDHKFQZDTQGY5FLQ.jpg?auth=fcc8692434f2e20349dcd96036b2c6ff745c2a0e31480e8641e6a0886e34c54c&width=2965&quality=80" alt="Post a request" />
+              <img src="https://www.reuters.com/resizer/v2/ZA4VDDIHVJMDHKFQZDTQGY5FLQ.jpg?auth=fcc8692434f2e20349dcd96036b2c6ff745c2a0e31480e8641e6a0886e34c54c&width=2965&quality=80" alt="Post a request">
             </div>
             <h3 class="step-title">Post a Request</h3>
             <p class="step-description">Let others know in detail what you need done!</p>
@@ -80,7 +80,7 @@
           <div class="step-card">
             <div class="step-number">2</div>
             <div class="step-image">
-              <img src="https://www.reuters.com/resizer/v2/ZA4VDDIHVJMDHKFQZDTQGY5FLQ.jpg?auth=fcc8692434f2e20349dcd96036b2c6ff745c2a0e31480e8641e6a0886e34c54c&width=2965&quality=80" alt="Choose helper" />
+              <img src="https://www.reuters.com/resizer/v2/ZA4VDDIHVJMDHKFQZDTQGY5FLQ.jpg?auth=fcc8692434f2e20349dcd96036b2c6ff745c2a0e31480e8641e6a0886e34c54c&width=2965&quality=80" alt="Choose helper">
             </div>
             <h3 class="step-title">Choose the Helper</h3>
             <p class="step-description">Receive offers within seconds and look at their reviews to see who's best.</p>
@@ -89,7 +89,7 @@
           <div class="step-card">
             <div class="step-number">3</div>
             <div class="step-image">
-              <img src="https://www.reuters.com/resizer/v2/ZA4VDDIHVJMDHKFQZDTQGY5FLQ.jpg?auth=fcc8692434f2e20349dcd96036b2c6ff745c2a0e31480e8641e6a0886e34c54c&width=2965&quality=80" alt="Pay safely" />
+              <img src="https://www.reuters.com/resizer/v2/ZA4VDDIHVJMDHKFQZDTQGY5FLQ.jpg?auth=fcc8692434f2e20349dcd96036b2c6ff745c2a0e31480e8641e6a0886e34c54c&width=2965&quality=80" alt="Pay safely">
             </div>
             <h3 class="step-title">Pay Safely</h3>
             <p class="step-description">Only release your payment once the request is done to your satisfaction.</p>
@@ -162,7 +162,7 @@
             </div>
           </div>
 
-          <div class="category-card" style="background-image: url('https://images.ctfassets.net/9wfm2v6d5j1f/4G9jrxO5FdxjUk0AA9HJ6f/8a4804f2ca1db647927c65772986dbc7/how-to-become-a-gardener.jpg?w=1024&fm=webp');">
+          <div class="category-card" style="background-image: url('https://images.ctfassets.net/9wfm2v6d5j1f/4G9jrxO5FdxjUk0AA9HJ6f/8a4804f2ca1db647927c65772986dbc7/how-to-become-a-gardener.jpg?w=1920');">
             <div class="category-overlay"></div>
             <div class="category-content">
               <h3 class="category-name">Gardening</h3>
@@ -192,10 +192,10 @@
     <footer class="footer">
       <div class="container">
         <div class="footer-content">
-          <h3 class="footer-logo">QuickGig</h3>
+          <h3 class="footer-logo">SideQuest</h3>
           <a href="/about" class="footer-about">About Us</a>
         </div>
-        <p class="footer-copyright">© 2025 QuickGig. All rights reserved.</p>
+        <p class="footer-copyright">© 2025 SideQuest. All rights reserved.</p>
       </div>
     </footer>
   </div>
@@ -227,7 +227,16 @@ export default {
       }, 2500);
     },
     navigateToLogin() {
-      this.$router.push('/request');
+      // Check if user is logged in
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      
+      if (isLoggedIn) {
+        // User is logged in, go to request page
+        this.$router.push('/request');
+      } else {
+        // User is not logged in, go to login page
+        this.$router.push('/login');
+      }
     }
   }
 };
@@ -253,7 +262,7 @@ export default {
 
 /* Title Section */
 .title-section {
-  padding: 5rem 0 3rem;
+  padding: 2rem 0 3rem;
   background: white;
 }
 

@@ -2,11 +2,26 @@
   <div class="signup-page">
     <div class="signup-container">
       <div class="header">
-        <h1 class="title">⚔️ Sign Up as an Adventurer</h1>
-        <p class="subtitle">Create your account and showcase your skills to find quests</p>
+        <button class="back-button" @click="goBack">
+          &lt; Back
+        </button>
+        <h1 class="title">Create Adventurer Account</h1>
+        <p class="subtitle">Showcase your skills and start finding quests</p>
       </div>
 
       <div class="signup-card">
+        <!-- Success Message -->
+        <div v-if="successMessage" class="success-banner">
+          <span class="banner-icon">✓</span>
+          {{ successMessage }}
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="errorMessage" class="error-banner">
+          <span class="banner-icon">⚠</span>
+          {{ errorMessage }}
+        </div>
+
         <!-- Account Information -->
         <div class="form-section">
           <h2 class="section-title">Account Information</h2>
@@ -79,163 +94,129 @@
           <label class="section-label">
             Your Skills & Services <span class="required">*</span>
           </label>
-          <p class="section-hint">Add at least 1 skill you can offer</p>
-          
+          <p class="section-hint">Add your skills with experience levels (e.g., "Python - Expert", "HTML - Intermediate")</p>
+
           <div class="skills-input-area">
-            <div class="input-group">
-              <input 
-                type="text" 
-                v-model="currentSkill"
-                @keypress.enter.prevent="addSkill"
-                placeholder="e.g., Plumbing, Web Development, Dog Walking..."
-                class="skill-input"
-                maxlength="50"
-              />
+            <div class="skill-add-section">
+              <div class="input-group">
+                <input 
+                  type="text"
+                  v-model="currentSkill.name"
+                  @keyup.enter="addSkill"
+                  class="skill-input"
+                  :class="{ 'input-error': skillErrorMessage }"
+                  placeholder="Type a skill (e.g., Python, Graphic Design)"
+                />
+                <p v-if="skillErrorMessage" class="field-error">
+                  {{ skillErrorMessage }}
+                </p>
+              </div>
+
+              <div class="experience-selector">
+                <label class="mini-label">Experience Level</label>
+                <div class="experience-buttons">
+                  <button
+                    v-for="level in experienceLevels"
+                    :key="level.value"
+                    type="button"
+                    class="exp-button"
+                    :class="{ 'selected': currentSkill.level === level.value }"
+                    @click="currentSkill.level = level.value"
+                  >
+                    <span class="exp-icon">{{ level.icon }}</span>
+                    <span class="exp-label">{{ level.label }}</span>
+                  </button>
+                </div>
+              </div>
+
               <button 
-                @click="addSkill" 
-                class="add-button"
-                :disabled="!currentSkill.trim()"
                 type="button"
+                @click="addSkill"
+                :disabled="!currentSkill.name.trim() || !currentSkill.level"
+                class="add-button"
               >
-                Add
+                Add Skill
               </button>
             </div>
 
             <div v-if="skills.length > 0" class="skills-list">
-              <div 
-                v-for="(skill, index) in skills" 
-                :key="index" 
-                class="skill-tag"
-              >
-                <span>{{ skill }}</span>
+              <div v-for="(skill, index) in skills" :key="index" class="skill-tag">
+                <span class="skill-icon">{{ getSkillIcon(skill.level) }}</span>
+                <div class="skill-info">
+                  <span class="skill-name">{{ skill.name }}</span>
+                  <span class="skill-level">{{ skill.level }}</span>
+                </div>
                 <button 
-                  @click="removeSkill(index)" 
-                  class="remove-button"
                   type="button"
+                  @click="removeSkill(index)"
+                  class="remove-button"
                 >
                   ×
                 </button>
               </div>
             </div>
-
             <p v-else class="empty-message">
-              No skills added yet. Start typing and press "Add"!
+              No skills added yet. Add at least one skill with an experience level.
             </p>
           </div>
-        </div>
 
-        <!-- Experience Level -->
-        <div class="form-section">
-          <label class="section-label">
-            Experience Level <span class="required">*</span>
-          </label>
-          <p class="section-hint">Select your overall experience level</p>
-          
-          <div class="radio-group">
-            <div 
-              v-for="level in experienceLevels" 
-              :key="level.value"
-              class="radio-option"
-              :class="{ selected: formData.experienceLevel === level.value }"
-              @click="formData.experienceLevel = level.value"
-            >
-              <span class="option-icon">{{ level.icon }}</span>
-              <div class="option-text">
-                <span class="option-label">{{ level.label }}</span>
-                <span class="option-description">{{ level.description }}</span>
-              </div>
+          <div class="form-group">
+            <label class="section-label">
+              Location <span class="required">*</span>
+            </label>
+            <input 
+              type="text"
+              v-model="formData.location"
+              class="text-input"
+              placeholder="City, Country"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="section-label">
+              Service Types <span class="required">*</span>
+            </label>
+            <div class="checkbox-group">
+              <label class="checkbox-option">
+                <input 
+                  type="checkbox"
+                  v-model="formData.serviceTypes.inPerson"
+                />
+                <span>In-Person Services</span>
+              </label>
+              <label class="checkbox-option">
+                <input 
+                  type="checkbox"
+                  v-model="formData.serviceTypes.remote"
+                />
+                <span>Remote Services</span>
+              </label>
             </div>
           </div>
-        </div>
 
-        <!-- Hourly Rate -->
-        <div class="form-section">
-          <label class="section-label">
-            Hourly Rate <span class="required">*</span>
-          </label>
-          <p class="section-hint">What do you charge per hour?</p>
-          
-          <div class="rate-input-wrapper">
-            <span class="currency-symbol">$</span>
-            <input 
-              type="number" 
-              v-model.number="formData.hourlyRate"
-              class="rate-input"
-              placeholder="25"
-              min="0"
-              step="5"
-            />
-            <span class="rate-suffix">/hour</span>
-          </div>
-        </div>
-
-        <!-- Location -->
-        <div class="form-section">
-          <label class="section-label">
-            Service Area <span class="required">*</span>
-          </label>
-          <p class="section-hint">Where can you provide your services?</p>
-          
-          <input 
-            type="text" 
-            v-model="formData.location"
-            class="text-input"
-            placeholder="e.g., Singapore, Bedok area, Remote"
-          />
-        </div>
-
-        <!-- Service Type -->
-        <div class="form-section">
-          <label class="section-label">
-            Service Type <span class="required">*</span>
-          </label>
-          <p class="section-hint">How do you provide your services?</p>
-          
-          <div class="checkbox-group">
-            <label class="checkbox-option">
-              <input 
-                type="checkbox" 
-                v-model="formData.serviceTypes.inPerson"
-              />
-              <span>In-Person</span>
+          <div class="form-group">
+            <label class="section-label">
+              Bio <span class="required">*</span>
             </label>
-            <label class="checkbox-option">
-              <input 
-                type="checkbox" 
-                v-model="formData.serviceTypes.remote"
-              />
-              <span>Remote/Online</span>
-            </label>
+            <p class="section-hint">Tell questors about yourself and your experience</p>
+            <textarea 
+              v-model="formData.bio"
+              class="bio-textarea"
+              placeholder="Describe your skills, experience, and what makes you great at what you do..."
+              rows="6"
+              required
+            ></textarea>
+            <p class="character-count">{{ formData.bio.length }} characters</p>
           </div>
-        </div>
-
-        <!-- Bio -->
-        <div class="form-section">
-          <label class="section-label">
-            About You <span class="required">*</span>
-          </label>
-          <p class="section-hint">Tell Questors about yourself and your experience</p>
-          
-          <textarea 
-            v-model="formData.bio"
-            placeholder="I have 5 years of experience in home repairs and renovations. I'm reliable, detail-oriented, and love helping people with their projects..."
-            class="bio-textarea"
-            rows="5"
-            maxlength="500"
-          ></textarea>
-          <p class="character-count">{{ formData.bio.length }}/500 characters</p>
-        </div>
-
-        <div v-if="errorMessage" class="error-banner">
-          {{ errorMessage }}
         </div>
 
         <div class="form-actions">
           <button 
-            @click="handleSubmit" 
-            class="submit-button"
-            :disabled="isLoading || !isFormValid"
             type="button"
+            @click="handleSubmit"
+            class="submit-button"
+            :disabled="!isFormValid || isLoading"
           >
             {{ isLoading ? 'Creating Account...' : 'Create Account' }}
           </button>
@@ -257,7 +238,10 @@ export default {
   name: 'AdventurerSignUp',
   data() {
     return {
-      currentSkill: '',
+      currentSkill: {
+        name: '',
+        level: ''
+      },
       skills: [],
       passwordMismatch: false,
       formData: {
@@ -265,8 +249,6 @@ export default {
         username: '',
         password: '',
         confirmPassword: '',
-        experienceLevel: '',
-        hourlyRate: null,
         location: '',
         serviceTypes: {
           inPerson: false,
@@ -276,24 +258,26 @@ export default {
       },
       isLoading: false,
       errorMessage: '',
+      successMessage: '',
+      skillErrorMessage: '',
       experienceLevels: [
         {
-          value: 'beginner',
+          value: 'Beginner',
           label: 'Beginner',
           icon: '🌱',
-          description: '0-2 years experience'
+          description: '0-2 years'
         },
         {
-          value: 'intermediate',
+          value: 'Intermediate',
           label: 'Intermediate',
           icon: '⚡',
-          description: '2-5 years experience'
+          description: '2-5 years'
         },
         {
-          value: 'expert',
+          value: 'Expert',
           label: 'Expert',
           icon: '🏆',
-          description: '5+ years experience'
+          description: '5+ years'
         }
       ]
     };
@@ -301,9 +285,6 @@ export default {
   computed: {
     isFormValid() {
       const hasServiceType = this.formData.serviceTypes.inPerson || this.formData.serviceTypes.remote;
-      const hasValidRate = this.formData.hourlyRate !== null && 
-                           this.formData.hourlyRate !== '' && 
-                           this.formData.hourlyRate > 0;
       
       return (
         this.formData.email.trim() !== '' &&
@@ -313,8 +294,6 @@ export default {
         this.formData.password === this.formData.confirmPassword &&
         this.formData.password.length >= 6 &&
         this.skills.length >= 1 &&
-        this.formData.experienceLevel !== '' &&
-        hasValidRate &&
         this.formData.location.trim() !== '' &&
         hasServiceType &&
         this.formData.bio.trim().length > 0
@@ -322,195 +301,156 @@ export default {
     }
   },
   methods: {
+    goBack() {
+      this.$router.push('/onboarding');
+    },
     checkPasswordMatch() {
       if (this.formData.confirmPassword) {
         this.passwordMismatch = this.formData.password !== this.formData.confirmPassword;
-      } else {
-        this.passwordMismatch = false;
       }
     },
     addSkill() {
-      const skillName = this.currentSkill.trim();
+      const skillName = this.currentSkill.name.trim();
+      const skillLevel = this.currentSkill.level;
       
-      if (!skillName) return;
+      // Clear previous error
+      this.skillErrorMessage = '';
       
-      const exists = this.skills.some(
-        s => s.toLowerCase() === skillName.toLowerCase()
-      );
-      
-      if (exists) {
-        this.errorMessage = 'This skill is already added';
-        setTimeout(() => this.errorMessage = '', 3000);
-        return;
+      if (skillName && skillLevel) {
+        const existingSkill = this.skills.find(s => s.name.toLowerCase() === skillName.toLowerCase());
+        if (!existingSkill) {
+          this.skills.push({
+            name: skillName,
+            level: skillLevel
+          });
+          this.currentSkill = { name: '', level: '' };
+        } else {
+          this.skillErrorMessage = 'This skill has already been added';
+          setTimeout(() => {
+            this.skillErrorMessage = '';
+          }, 3000);
+        }
       }
-
-      if (this.skills.length >= 15) {
-        this.errorMessage = 'Maximum 15 skills allowed';
-        setTimeout(() => this.errorMessage = '', 3000);
-        return;
-      }
-
-      this.skills.push(skillName);
-      this.currentSkill = '';
-      this.errorMessage = '';
     },
     removeSkill(index) {
       this.skills.splice(index, 1);
     },
+    getSkillIcon(level) {
+      const levelData = this.experienceLevels.find(l => l.value === level);
+      return levelData ? levelData.icon : '📌';
+    },
+    scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
     async handleSubmit() {
-      // Validate passwords match
-      if (this.formData.password !== this.formData.confirmPassword) {
-        this.errorMessage = 'Passwords do not match!';
+      // Clear previous messages
+      this.errorMessage = '';
+      this.successMessage = '';
+
+      // Validation
+      if (!this.formData.email || !this.formData.password || !this.formData.username) {
+        this.errorMessage = 'Please fill in all required fields.';
+        this.scrollToTop();
         return;
       }
 
-      // Validate password length
       if (this.formData.password.length < 6) {
-        this.errorMessage = 'Password must be at least 6 characters long';
+        this.errorMessage = 'Password must be at least 6 characters long.';
+        this.scrollToTop();
         return;
       }
 
-      if (!this.isFormValid) {
-        this.errorMessage = 'Please fill in all required fields';
+      if (this.formData.password !== this.formData.confirmPassword) {
+        this.errorMessage = 'Passwords do not match.';
+        this.scrollToTop();
+        return;
+      }
+
+      if (this.skills.length === 0) {
+        this.errorMessage = 'Please add at least one skill.';
+        this.scrollToTop();
+        return;
+      }
+
+      if (!this.formData.serviceTypes.inPerson && !this.formData.serviceTypes.remote) {
+        this.errorMessage = 'Please select at least one service type.';
+        this.scrollToTop();
+        return;
+      }
+
+      if (this.formData.bio.trim().length === 0) {
+        this.errorMessage = 'Please enter a bio.';
+        this.scrollToTop();
         return;
       }
 
       this.isLoading = true;
-      this.errorMessage = '';
 
       try {
-        // Step 1: Create auth user with email confirmation disabled
-        console.log('Creating auth user...');
+        // 1. Sign up the user with Supabase Auth
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: this.formData.email,
           password: this.formData.password,
-          options: {
-            data: {
-              username: this.formData.username
-            },
-            emailRedirectTo: undefined // Disable email confirmation
-          }
         });
 
         if (authError) {
-          console.error('Auth error:', authError);
-          throw authError;
+          throw new Error(authError.message);
         }
 
-        if (!authData.user) {
-          throw new Error('Failed to create user account');
+        // 2. Get the user ID from auth
+        const userId = authData.user?.id;
+        if (!userId) {
+          throw new Error('Failed to retrieve user ID after signup');
         }
 
-        console.log('Auth user created:', authData.user.id);
-
-        // Step 2: Sign in immediately to get authenticated session
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: this.formData.email,
-          password: this.formData.password
-        });
-
-        if (signInError) {
-          console.error('Sign in error:', signInError);
-          throw signInError;
-        }
-
-        console.log('User signed in successfully');
-
-        // Step 3: Check if user profile already exists
-        const { data: existingUser, error: checkError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', authData.user.id)
-          .single();
-
-        if (checkError && checkError.code !== 'PGRST116') {
-          // PGRST116 means "not found", which is what we want
-          console.error('Error checking for existing user:', checkError);
-          throw checkError;
-        }
-
-        // Step 4: Prepare service types
+        // 3. Build service_types array
         const serviceTypes = [];
         if (this.formData.serviceTypes.inPerson) serviceTypes.push('in-person');
         if (this.formData.serviceTypes.remote) serviceTypes.push('remote');
 
-        // Step 5: Create or update user profile in users table
-        // Match the exact schema: skills as JSONB, hourly_rate as numeric(10,2)
-        const profileData = {
-          id: authData.user.id,
-          email: this.formData.email,
-          username: this.formData.username,
-          user_role: 'adventurer',
-          bio: this.formData.bio,
-          expertise_level: this.formData.experienceLevel,
-          skills: this.skills, // This will be stored as JSONB array
-          hourly_rate: parseFloat(this.formData.hourlyRate),
-          location: this.formData.location,
-          service_types: serviceTypes, // PostgreSQL text array
-          avatar_url: null,
-          phone: null
-        };
+        // 4. Upsert user data into the users table (handles both new and existing auth users)
+        const { error: upsertError } = await supabase
+          .from('users')
+          .upsert({
+            id: userId,
+            email: this.formData.email,
+            username: this.formData.username,
+            user_role: 'adventurer',
+            skills: this.skills,
+            location: this.formData.location,
+            bio: this.formData.bio,
+            service_types: serviceTypes,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'id'
+          });
 
-        let userData;
-        
-        if (existingUser) {
-          // User profile already exists, update it
-          console.log('User profile exists, updating:', profileData);
-          const { data: updatedUser, error: updateError } = await supabase
-            .from('users')
-            .update(profileData)
-            .eq('id', authData.user.id)
-            .select();
-
-          if (updateError) {
-            console.error('Profile update error:', updateError);
-            throw updateError;
-          }
-          userData = updatedUser;
-          console.log('Profile updated successfully:', userData);
-        } else {
-          // Create new user profile
-          console.log('Creating new user profile:', profileData);
-          const { data: newUser, error: insertError } = await supabase
-            .from('users')
-            .insert([profileData])
-            .select();
-
-          if (insertError) {
-            console.error('Profile creation error:', insertError);
-            throw insertError;
-          }
-          userData = newUser;
-          console.log('Profile created successfully:', userData);
+        if (upsertError) {
+          throw new Error(upsertError.message);
         }
 
-        // Step 6: Store user info in localStorage
+        // Store user info in localStorage
         localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userId', authData.user.id);
+        localStorage.setItem('userId', userId);
         localStorage.setItem('userEmail', this.formData.email);
         localStorage.setItem('username', this.formData.username);
-        localStorage.setItem('userRole', 'adventurer');
-        localStorage.removeItem('selectedRole');
 
-        // Step 7: Notify navbar
+        // Emit event for app to update nav
         window.dispatchEvent(new Event('user-logged-in'));
 
-        // Step 8: Show success and redirect
-        alert('Account created successfully! Welcome, Adventurer! ⚔️');
-        this.$router.push('/jobs');
-
-      } catch (error) {
-        console.error('Error during signup:', error);
+        // Show success message
+        this.successMessage = 'Account created successfully! Redirecting...';
+        this.scrollToTop();
         
-        if (error.message.includes('already registered') || error.message.includes('already been registered')) {
-          this.errorMessage = 'This email is already registered. Please try logging in.';
-        } else if (error.message.includes('invalid email')) {
-          this.errorMessage = 'Please enter a valid email address.';
-        } else if (error.message.includes('violates row-level security policy')) {
-          this.errorMessage = 'Database permission error. Please contact support or check your Supabase RLS policies.';
-        } else {
-          this.errorMessage = 'Failed to create account: ' + (error.message || 'Please try again.');
-        }
+        // Redirect after a short delay
+        setTimeout(() => {
+          this.$router.push('/jobs');
+        }, 1500);
+      } catch (error) {
+        console.error('Signup error:', error);
+        this.errorMessage = error.message || 'An error occurred during signup. Please try again.';
+        this.scrollToTop();
       } finally {
         this.isLoading = false;
       }
@@ -533,13 +473,33 @@ export default {
 }
 
 .signup-container {
-  max-width: 800px;
+  width: 100%;
+  max-width: 700px;
   margin: 0 auto;
 }
 
 .header {
   text-align: center;
   margin-bottom: 2rem;
+  position: relative;
+}
+
+.back-button {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  transition: all 0.3s ease;
+}
+
+.back-button:hover {
+  color: #667eea;
 }
 
 .title {
@@ -563,6 +523,10 @@ export default {
   border: 2px solid #e5e7eb;
 }
 
+.form-section {
+  margin-bottom: 2rem;
+}
+
 .section-title {
   font-size: 1.4rem;
   font-weight: 700;
@@ -570,10 +534,6 @@ export default {
   margin-bottom: 1.5rem;
   padding-bottom: 0.5rem;
   border-bottom: 2px solid #e2e8f0;
-}
-
-.form-section {
-  margin-bottom: 2rem;
 }
 
 .form-group {
@@ -588,14 +548,64 @@ export default {
   margin-bottom: 0.5rem;
 }
 
+.mini-label {
+  display: block;
+  font-weight: 600;
+  color: #4a5568;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.section-hint {
+  color: #718096;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
 .required {
   color: #e53e3e;
 }
 
-.section-hint {
-  font-size: 0.9rem;
+.text-input, .bio-textarea {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  font-size: 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.text-input:focus, .bio-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.bio-textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.character-count {
+  text-align: right;
+  font-size: 0.875rem;
   color: #718096;
-  margin-bottom: 1rem;
+  margin-top: 0.5rem;
+}
+
+.input-error {
+  border-color: #e53e3e !important;
+}
+
+.field-error {
+  color: #e53e3e;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .divider {
@@ -608,22 +618,25 @@ export default {
   background: #f7fafc;
   padding: 1.5rem;
   border-radius: 12px;
-  margin-top: 1rem;
-}
-
-.input-group {
-  display: flex;
-  gap: 0.75rem;
   margin-bottom: 1.5rem;
 }
 
+.skill-add-section {
+  margin-bottom: 1.5rem;
+}
+
+.input-group {
+  margin-bottom: 1rem;
+}
+
 .skill-input {
-  flex: 1;
+  width: 100%;
   padding: 0.875rem 1rem;
   font-size: 1rem;
   border: 2px solid #e2e8f0;
   border-radius: 10px;
   transition: all 0.3s ease;
+  font-family: inherit;
 }
 
 .skill-input:focus {
@@ -632,7 +645,54 @@ export default {
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+.experience-selector {
+  margin-bottom: 1rem;
+}
+
+.experience-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.exp-button {
+  flex: 1;
+  min-width: 120px;
+  padding: 0.75rem 1rem;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.exp-button:hover {
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.exp-button.selected {
+  background: #667eea;
+  border-color: #667eea;
+  color: white;
+}
+
+.exp-icon {
+  font-size: 1.5rem;
+}
+
+.exp-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 .add-button {
+  width: 100%;
   padding: 0.875rem 1.5rem;
   background: #667eea;
   color: white;
@@ -641,11 +701,13 @@ export default {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  font-size: 1rem;
 }
 
 .add-button:hover:not(:disabled) {
   background: #5568d3;
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .add-button:disabled {
@@ -655,18 +717,39 @@ export default {
 
 .skills-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.75rem;
 }
 
 .skill-tag {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   background: white;
-  padding: 0.5rem 0.75rem;
-  border-radius: 20px;
+  padding: 0.875rem 1rem;
+  border-radius: 12px;
   border: 2px solid #667eea;
+}
+
+.skill-icon {
+  font-size: 1.5rem;
+}
+
+.skill-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.skill-name {
+  font-weight: 600;
+  color: #2d3748;
+  font-size: 1rem;
+}
+
+.skill-level {
+  font-size: 0.875rem;
   color: #667eea;
   font-weight: 500;
 }
@@ -674,213 +757,127 @@ export default {
 .remove-button {
   background: none;
   border: none;
-  color: #667eea;
-  font-size: 1.5rem;
+  color: #e53e3e;
+  font-size: 1.75rem;
   cursor: pointer;
   padding: 0;
-  line-height: 1;
-  transition: color 0.2s;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
 }
 
 .remove-button:hover {
-  color: #e53e3e;
+  background: #fee;
+  transform: scale(1.1);
 }
 
 .empty-message {
-  color: #a0aec0;
-  font-style: italic;
   text-align: center;
-}
-
-.radio-group {
-  display: grid;
-  gap: 1rem;
-}
-
-.radio-option {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.25rem;
-  background: #f7fafc;
-  border: 3px solid #e2e8f0;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.radio-option:hover {
-  border-color: #cbd5e0;
-  background: #edf2f7;
-}
-
-.radio-option.selected {
-  border-color: #667eea;
-  background: #f0f4ff;
-}
-
-.option-icon {
-  font-size: 2rem;
-}
-
-.option-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.option-label {
-  font-weight: 700;
-  color: #2d3748;
-  font-size: 1.05rem;
-}
-
-.option-description {
   color: #718096;
-  font-size: 0.9rem;
-}
-
-.rate-input-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #f7fafc;
-  padding: 0.75rem 1rem;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  max-width: 250px;
-}
-
-.currency-symbol {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #4a5568;
-}
-
-.rate-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #2d3748;
-  padding: 0;
-}
-
-.rate-input:focus {
-  outline: none;
-}
-
-.rate-suffix {
-  color: #718096;
-  font-size: 0.95rem;
-}
-
-.text-input {
-  width: 100%;
-  padding: 0.875rem 1rem;
-  font-size: 1rem;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  transition: all 0.3s ease;
-  font-family: inherit;
-}
-
-.text-input:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.text-input.input-error {
-  border-color: #e53e3e;
-}
-
-.text-input.input-error:focus {
-  border-color: #e53e3e;
-  box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.1);
-}
-
-.field-error {
-  color: #e53e3e;
-  font-size: 0.85rem;
-  margin-top: 0.5rem;
-  font-weight: 500;
+  padding: 1.5rem;
+  font-style: italic;
 }
 
 .checkbox-group {
   display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .checkbox-option {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  padding: 0.75rem;
+  background: #f7fafc;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 1rem;
-  color: #2d3748;
+  transition: all 0.2s ease;
+}
+
+.checkbox-option:hover {
+  background: #edf2f7;
 }
 
 .checkbox-option input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   cursor: pointer;
 }
 
-.bio-textarea {
-  width: 100%;
-  padding: 1rem;
-  font-size: 1rem;
-  border: 2px solid #e2e8f0;
+.checkbox-option span {
+  font-weight: 500;
+  color: #2d3748;
+}
+
+.success-banner {
+  background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+  color: #155724;
+  padding: 1rem 1.25rem;
   border-radius: 12px;
-  font-family: inherit;
-  resize: vertical;
-  transition: all 0.3s ease;
-}
-
-.bio-textarea:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.character-count {
-  text-align: right;
-  font-size: 0.85rem;
-  color: #a0aec0;
-  margin-top: 0.5rem;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  border: 2px solid #b1dfbb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  animation: slideDown 0.3s ease-out;
 }
 
 .error-banner {
-  background: #fed7d7;
+  background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
   color: #c53030;
-  padding: 1rem;
-  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
   text-align: center;
   margin-bottom: 1.5rem;
-  font-weight: 500;
+  font-weight: 600;
+  border: 2px solid #fc8181;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  animation: slideDown 0.3s ease-out;
+}
+
+.banner-icon {
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .form-actions {
-  display: flex;
-  justify-content: center;
   margin-top: 2rem;
-  margin-bottom: 1.5rem;
 }
 
 .submit-button {
   width: 100%;
-  max-width: 400px;
   padding: 1rem;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: white;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
   border: none;
   border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
+  margin-top: 0.5rem;
 }
 
 .submit-button:hover:not(:disabled) {
@@ -891,13 +888,13 @@ export default {
 .submit-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  transform: none;
 }
 
 .login-prompt {
   text-align: center;
   color: #666;
   font-size: 0.95rem;
+  margin-top: 1.5rem;
 }
 
 .login-link {
@@ -921,20 +918,19 @@ export default {
     font-size: 1.75rem;
   }
 
-  .input-group {
+  .back-button {
+    position: static;
+    display: block;
+    margin-bottom: 1rem;
+    text-align: left;
+  }
+
+  .experience-buttons {
     flex-direction: column;
   }
 
-  .add-button {
-    width: 100%;
-  }
-
-  .submit-button {
-    max-width: 100%;
-  }
-
-  .radio-option {
-    flex-wrap: wrap;
+  .exp-button {
+    min-width: 100%;
   }
 }
 </style>

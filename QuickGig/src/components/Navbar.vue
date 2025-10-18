@@ -3,7 +3,7 @@
     <div class="nav-container">
       <div class="nav-content">
         <div class="logo">
-          <span class="logo-text" @click="navigateToHome">QuickGig</span>
+          <span class="logo-text" @click="navigateToHome">SideQuest</span>
         </div>
         <div class="nav-links">
           <router-link to="/jobs" class="nav-link">Browse Jobs</router-link>
@@ -14,7 +14,39 @@
           
           <!-- Show different buttons based on login status -->
           <router-link v-if="!isLoggedIn" to="/login" class="nav-button">Log In</router-link>
-          <router-link v-else to="/profile" class="nav-button">Profile</router-link>
+          
+          <!-- Profile Dropdown -->
+          <div v-else class="profile-dropdown">
+            <button class="profile-trigger" @click.prevent="handleProfileClick">
+              <div class="profile-avatar">
+                <img v-if="avatarUrl" :src="avatarUrl" :alt="username" />
+                <span v-else class="avatar-placeholder">{{ username.charAt(0).toUpperCase() }}</span>
+              </div>
+              <span class="profile-username">{{ username }}</span>
+              <svg 
+                class="dropdown-arrow" 
+                :class="{ 'arrow-open': isDropdownOpen }"
+                width="12" 
+                height="12" 
+                viewBox="0 0 12 12" 
+                fill="none" 
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+            
+            <!-- Dropdown Menu -->
+            <div class="dropdown-menu" :style="{ display: isDropdownOpen ? 'block' : 'none' }">
+              <router-link to="/profile" class="dropdown-item" @click="closeDropdown">
+                <span>Profile</span>
+              </router-link>
+              <div class="dropdown-divider"></div>
+              <button @click="handleLogout" class="dropdown-item logout-item">
+                <span>Log Out</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -31,6 +63,8 @@ export default {
       isLoggedIn: false,
       username: '',
       userEmail: '',
+      avatarUrl: '',
+      isDropdownOpen: false,
       isHelpersPage: false
     };
   },
@@ -40,10 +74,16 @@ export default {
     window.addEventListener('user-logged-in', this.checkLoginStatus);
     window.addEventListener('user-logged-out', this.checkLoginStatus);
     this.checkSupabaseSession();
+    
+    // Add global click handler with a small delay
+    setTimeout(() => {
+      document.addEventListener('click', this.handleDocumentClick);
+    }, 100);
   },
   beforeUnmount() {
     window.removeEventListener('user-logged-in', this.checkLoginStatus);
     window.removeEventListener('user-logged-out', this.checkLoginStatus);
+    document.removeEventListener('click', this.handleDocumentClick);
   },
   watch: {
     '$route'(to) {
@@ -62,7 +102,7 @@ export default {
       if (session) {
         this.isLoggedIn = true;
         localStorage.setItem('isLoggedIn', 'true');
-        this.loadUserData();
+        await this.loadUserData();
       }
     },
     checkLoginStatus() {
@@ -71,9 +111,70 @@ export default {
         this.loadUserData();
       }
     },
-    loadUserData() {
+    async loadUserData() {
       this.username = localStorage.getItem('username') || 'User';
       this.userEmail = localStorage.getItem('userEmail') || '';
+      this.avatarUrl = localStorage.getItem('avatarUrl') || '';
+      
+      // If no avatar in localStorage, try to fetch from database
+      if (!this.avatarUrl) {
+        const userId = localStorage.getItem('userId');
+        if (userId) {
+          try {
+            const { data, error } = await supabase
+              .from('users')
+              .select('avatar_url')
+              .eq('id', userId)
+              .single();
+            
+            if (!error && data?.avatar_url) {
+              this.avatarUrl = data.avatar_url;
+              localStorage.setItem('avatarUrl', data.avatar_url);
+            }
+          } catch (err) {
+            console.error('Error fetching avatar:', err);
+          }
+        }
+      }
+    },
+    handleProfileClick(event) {
+      event.stopPropagation();
+      this.isDropdownOpen = !this.isDropdownOpen;
+    },
+    closeDropdown() {
+      this.isDropdownOpen = false;
+    },
+    handleDocumentClick(event) {
+      // Check if the click is outside the dropdown
+      const profileDropdown = document.querySelector('.profile-dropdown');
+      if (profileDropdown && !profileDropdown.contains(event.target)) {
+        this.isDropdownOpen = false;
+      }
+    },
+    async handleLogout() {
+      if (!confirm('Are you sure you want to log out?')) {
+        return;
+      }
+      
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+        
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('username');
+        localStorage.removeItem('avatarUrl');
+        localStorage.removeItem('userRole');
+        
+        window.dispatchEvent(new Event('user-logged-out'));
+        
+        this.closeDropdown();
+        this.$router.push('/');
+      } catch (error) {
+        console.error('Error logging out:', error);
+        alert('Error logging out. Please try again.');
+      }
     }
   }
 };
@@ -165,6 +266,117 @@ export default {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* Profile Dropdown Styles */
+.profile-dropdown {
+  position: relative;
+}
+
+.profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  color: white;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.profile-trigger:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.profile-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #2563EB;
+}
+
+.profile-username {
+  color: white;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.dropdown-arrow {
+  color: white;
+  transition: transform 0.3s ease;
+}
+
+.dropdown-arrow.arrow-open {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  z-index: 999999;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 0.875rem 1.25rem;
+  color: #374151;
+  text-decoration: none;
+  font-weight: 500;
+  transition: background 0.2s ease;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.dropdown-item:hover {
+  background: #f3f4f6;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 0;
+}
+
+.logout-item {
+  color: #dc2626;
+}
+
+.logout-item:hover {
+  background: #fee2e2;
+}
+
+/* Responsive styles */
 @media (max-width: 768px) {
   .nav-container {
     padding: 0 1rem;
@@ -181,6 +393,14 @@ export default {
   .nav-button {
     padding: 0.6rem 1.25rem;
     font-size: 0.9rem;
+  }
+
+  .profile-username {
+    display: none;
+  }
+
+  .profile-trigger {
+    padding: 0.5rem;
   }
 }
 

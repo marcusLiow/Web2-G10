@@ -15,7 +15,7 @@ const mockHelpers = [
     completedJobs: 47,
     bio: 'I\'ve been building web applications for 5+ years. I love solving complex problems and delivering clean, maintainable code. Fast turnaround time and excellent communication guaranteed.',
     experience: ['5+ years in web development', 'Built 20+ e-commerce sites', 'Specialized in Vue and React', 'Available for urgent fixes'],
-    profileImage: '👨‍💻',
+    avatarUrl: 'https://i.pravatar.cc/150?img=12',
     responseTime: 'Usually responds within 2 hours',
     username: 'marcusChen_dev'
   },
@@ -31,7 +31,7 @@ const mockHelpers = [
     completedJobs: 156,
     bio: 'Professional cleaner with my own supplies and equipment. I take pride in my work and won\'t leave until you\'re 100% satisfied. Background checked and fully insured.',
     experience: ['8 years professional cleaning', 'Eco-friendly cleaning options', 'Own supplies & equipment', 'Background checked', 'References available'],
-    profileImage: '🧹',
+    avatarUrl: 'https://i.pravatar.cc/150?img=45',
     responseTime: 'Usually responds within 3 hours',
     username: 'sarahCleans'
   },
@@ -47,7 +47,7 @@ const mockHelpers = [
     completedJobs: 89,
     bio: 'I can fix almost anything around the house. From assembling IKEA furniture to patching drywall, I\'ve done it all. I bring my own tools and clean up when I\'m done.',
     experience: ['15+ years as a handyman', 'Licensed and insured', 'Own tools and equipment', 'Same-day service available', 'Free estimates'],
-    profileImage: '🔨',
+    avatarUrl: 'https://i.pravatar.cc/150?img=33',
     responseTime: 'Usually responds within 4 hours',
     username: 'tomTheHandyman'
   },
@@ -63,7 +63,7 @@ const mockHelpers = [
     completedJobs: 203,
     bio: 'Animals are my passion! I\'m certified in pet first aid and have experience with dogs, cats, and small animals. Your pets will be safe and happy with me.',
     experience: ['Certified dog trainer', 'Pet first aid certified', '10+ years pet care', 'Experience with all breeds', 'Insured and bonded'],
-    profileImage: '🐕',
+    avatarUrl: 'https://i.pravatar.cc/150?img=48',
     responseTime: 'Usually responds within 1 hour',
     username: 'lisaPetCare'
   },
@@ -79,7 +79,7 @@ const mockHelpers = [
     completedJobs: 124,
     bio: 'I transform outdoor spaces into beautiful, functional areas. Whether it\'s regular maintenance or a complete landscape redesign, I deliver quality work on time and on budget.',
     experience: ['12 years landscaping experience', 'Licensed contractor', 'Own equipment and truck', 'Free consultations', 'Portfolio available'],
-    profileImage: '🌱',
+    avatarUrl: 'https://i.pravatar.cc/150?img=68',
     responseTime: 'Usually responds within 3 hours',
     username: 'davidLandscapes'
   },
@@ -95,7 +95,7 @@ const mockHelpers = [
     completedJobs: 78,
     bio: 'I help busy professionals and small businesses stay organized. Fast, reliable, and detail-oriented. I can handle everything from inbox management to customer inquiries.',
     experience: ['5 years as a VA', 'Expert in Google Workspace', 'CRM experience', 'Excellent communication', 'Fast turnaround'],
-    profileImage: '💼',
+    avatarUrl: 'https://i.pravatar.cc/150?img=47',
     responseTime: 'Usually responds within 2 hours',
     username: 'emmaVA'
   }
@@ -147,18 +147,18 @@ const fetchHelpers = async () => {
     // Fetch user data for each helper
     const transformedHelpers = await Promise.all(helpersData.map(async (helper) => {
       let name = 'Anonymous';
-      let contactEmail = 'N/A';
+      let avatarUrl = '';
       
       if (helper.user_id) {
         const { data: userData, error: userError } = await supabase
           .from('users')
-          .select('username, email')
+          .select('username, avatar_url')
           .eq('id', helper.user_id)
           .single();
         
         if (!userError && userData) {
           name = userData.username || 'Anonymous';
-          contactEmail = userData.email || 'N/A';
+          avatarUrl = userData.avatar_url || '';
         }
       }
 
@@ -174,7 +174,7 @@ const fetchHelpers = async () => {
         completedJobs: helper.completed_jobs || 0,
         bio: helper.bio || helper.description,
         experience: helper.experience || ['Contact for details'],
-        profileImage: helper.profile_image || '👤',
+        avatarUrl: avatarUrl,
         responseTime: helper.response_time || 'Usually responds within 24 hours',
         username: name
       };
@@ -314,7 +314,10 @@ const renderStars = (rating) => {
           class="helper-card"
         >
           <div class="helper-avatar">
-            {{ helper.profileImage }}
+            <img v-if="helper.avatarUrl" :src="helper.avatarUrl" :alt="helper.name" class="avatar-img" />
+            <div v-else class="avatar-placeholder">
+              {{ helper.name.charAt(0).toUpperCase() }}
+            </div>
           </div>
           
           <div class="helper-content">
@@ -379,7 +382,10 @@ const renderStars = (rating) => {
           <div class="modal-header">
             <div class="profile-section">
               <div class="profile-avatar-large">
-                {{ selectedHelper.profileImage }}
+                <img v-if="selectedHelper.avatarUrl" :src="selectedHelper.avatarUrl" :alt="selectedHelper.name" class="avatar-img-large" />
+                <div v-else class="avatar-placeholder-large">
+                  {{ selectedHelper.name.charAt(0).toUpperCase() }}
+                </div>
               </div>
               <div>
                 <h2 class="modal-name">{{ selectedHelper.name }}</h2>
@@ -672,7 +678,6 @@ const renderStars = (rating) => {
 }
 
 .helper-avatar {
-  font-size: 3.5rem;
   width: 4.5rem;
   height: 4.5rem;
   display: flex;
@@ -681,6 +686,19 @@ const renderStars = (rating) => {
   background: #f9fafb;
   border-radius: 0.75rem;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  font-size: 2rem;
+  font-weight: 600;
+  color: #6b7280;
 }
 
 .helper-content {
@@ -900,7 +918,6 @@ const renderStars = (rating) => {
 }
 
 .profile-avatar-large {
-  font-size: 4rem;
   width: 5rem;
   height: 5rem;
   display: flex;
@@ -909,6 +926,19 @@ const renderStars = (rating) => {
   background: #f9fafb;
   border-radius: 0.75rem;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatar-img-large {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder-large {
+  font-size: 2.5rem;
+  font-weight: 600;
+  color: #6b7280;
 }
 
 .modal-name {
@@ -935,16 +965,6 @@ const renderStars = (rating) => {
 
 .separator {
   color: #d1d5db;
-}
-
-.rate-badge {
-  background: #16a34a;
-  color: white;
-  padding: 0.75rem 1.25rem;
-  border-radius: 0.5rem;
-  font-size: 1.25rem;
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .modal-quick-info {

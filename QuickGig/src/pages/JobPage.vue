@@ -1,84 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { supabase } from '../supabase/config';
-
-const mockJobs = [
-  {
-    id: 1,
-    name: 'Patio Installation',
-    description:
-      'Need help installing a stone patio (10x10ft) in backyard. Materials provided, should take 2-3 days.',
-    budget: '$800',
-    skills: ['Masonry', 'Landscaping', 'Heavy Lifting'],
-    location: 'Downtown',
-    date: '15/10/2025',
-    category: 'Construction',
-    fullDescription: 'Looking for someone with masonry experience to help install a stone patio. The space is already cleared and prepped. I have all the materials - stones, sand, edging etc. Just need someone who knows what they\'re doing. Should take 2-3 days max. Bring your own tools please.',
-    requirements: ['Experience with masonry/patios', 'Have your own tools', 'Can provide references', 'Comfortable with physical work'],
-    postedBy: 'John S.',
-    contactEmail: 'jsmith847@email.com'
-  },
-  {
-    id: 2,
-    name: 'Fix E-commerce Site Bugs',
-    description:
-      'Got 3 critical bugs on Vue/Node app that need fixing ASAP. Paying well for quick turnaround.',
-    budget: '$1500',
-    skills: ['Vue.js', 'Node.js', 'APIs', 'Git'],
-    location: 'Remote',
-    date: '14/10/2025',
-    category: 'Tech',
-    fullDescription: 'My e-commerce site has 3 bugs causing issues with checkout, login, and product filters. Built with Vue frontend and Node backend. Need someone who can jump in quick and knock these out. Will give you repo access and staging environment. Ideally done within 48hrs.',
-    requirements: ['Solid Vue and Node experience', 'Can start right away', 'Worked on e-commerce before', 'Know your way around Git', 'Comfortable with REST APIs'],
-    postedBy: 'Mike Chen',
-    contactEmail: 'mike.c.dev@gmail.com'
-  },
-  {
-    id: 3,
-    name: 'Deep Clean 2BR Apartment',
-    description:
-      'Moving out next week, need someone to deep clean apartment. Kitchen and bathroom need extra attention.',
-    budget: '$250',
-    skills: ['Cleaning', 'Attention to Detail'],
-    location: 'Westside',
-    date: '16/10/2025',
-    category: 'Cleaning',
-    fullDescription: 'Moving out of my 2 bed 1 bath apartment and need it properly cleaned for inspection. Kitchen appliances (oven, fridge, microwave) are pretty dirty and the bathroom grout needs a good scrub. About 850 sq ft total. Can provide cleaning stuff or you can bring your own if you prefer.',
-    requirements: ['Have cleaned professionally before', 'Bring supplies or I can provide', 'Need at least 2 references', 'Background check OK'],
-    postedBy: 'Sarah J.',
-    contactEmail: 'sarahjohnson.92@email.com'
-  },
-  {
-    id: 4,
-    name: 'Dog Walking - Weekday Mornings',
-    description:
-      'Need someone to walk my dog Mon-Fri around 8am. He\'s friendly but pulls on leash sometimes.',
-    budget: '$120/week',
-    skills: ['Pet Care', 'Reliability'],
-    location: 'North End',
-    date: '14/10/2025',
-    category: 'Pets',
-    fullDescription: 'I work early shifts and can\'t walk my dog before work anymore. He\'s a 3yr old lab mix, super friendly with people and other dogs but he does pull on the leash. Looking for someone consistent who can come Mon-Fri around 7:30-8am for 30min walks. Prefer someone who lives nearby.',
-    requirements: ['Experience with dogs', 'Available weekday mornings', 'Live in North End area', 'Reliable - can\'t skip days'],
-    postedBy: 'Tom Richards',
-    contactEmail: 't.richards@email.com'
-  },
-  {
-    id: 5,
-    name: 'Furniture Assembly',
-    description:
-      'Bought a bunch of IKEA furniture, not good with instructions. Need help assembling everything.',
-    budget: '$150',
-    skills: ['Assembly', 'Handy'],
-    location: 'East Side',
-    date: '15/10/2025',
-    category: 'Home',
-    fullDescription: 'Just moved and ordered way too much furniture from IKEA. I\'m terrible at this stuff. Need someone to assemble: 1 bed frame, 2 nightstands, 1 bookshelf, and a desk. Everything is still in boxes. Should take 4-5 hours? Bring your own tools.',
-    requirements: ['Good at following instructions', 'Have basic tools', 'Strong enough to lift furniture pieces', 'Available this weekend'],
-    postedBy: 'Lisa M.',
-    contactEmail: 'lisamartinez.inbox@gmail.com'
-  }
-];
+import { GoogleMap, Marker, InfoWindow } from 'vue3-google-map';
+import { geocodeAddress } from '../utils/geocoding';
 
 const jobs = ref([]);
 const searchTerm = ref('');
@@ -86,6 +10,12 @@ const selectedCategory = ref('');
 const selectedJob = ref(null);
 const showModal = ref(false);
 const isLoading = ref(true);
+const isLoggedIn = ref(false);
+const showMap = ref(false);
+const jobCoordinates = ref(null);
+const showMapInfoWindow = ref(false);
+
+const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 // Categories list
 const categories = [
@@ -98,6 +28,11 @@ const categories = [
   'Landscaping',
   'Other'
 ];
+
+// Check if user is logged in
+const checkLoginStatus = () => {
+  isLoggedIn.value = localStorage.getItem('isLoggedIn') === 'true';
+};
 
 // Fetch jobs from Supabase
 const fetchJobs = async () => {
@@ -144,7 +79,7 @@ const fetchJobs = async () => {
         id: job.id,
         name: job.title,
         description: job.description,
-        budget: `${job.payment}`,
+        budget: `$${job.payment}`,
         skills: ['General'],
         location: job.location,
         date: new Date(job.created_at).toLocaleDateString('en-GB'),
@@ -156,13 +91,11 @@ const fetchJobs = async () => {
       };
     }));
 
-    // Combine with mock jobs
-    jobs.value = [...transformedJobs, ...mockJobs];
+    jobs.value = transformedJobs;
     console.log('Final jobs array:', jobs.value);
   } catch (error) {
     console.error('Error fetching jobs:', error);
-    // If fetch fails, just use mock jobs
-    jobs.value = mockJobs;
+    jobs.value = [];
   } finally {
     isLoading.value = false;
   }
@@ -170,7 +103,12 @@ const fetchJobs = async () => {
 
 // Fetch jobs when component mounts
 onMounted(() => {
+  checkLoginStatus();
   fetchJobs();
+  
+  // Listen for login/logout events
+  window.addEventListener('user-logged-in', checkLoginStatus);
+  window.addEventListener('user-logged-out', checkLoginStatus);
 });
 
 const filteredJobs = computed(() => {
@@ -198,15 +136,36 @@ const clearFilters = () => {
   selectedCategory.value = '';
 };
 
-const viewJobDetails = (job) => {
+const viewJobDetails = async (job) => {
   selectedJob.value = job;
   showModal.value = true;
+  showMap.value = false;
+  jobCoordinates.value = null;
+  
+  // Geocode the location
+  if (job.location && apiKey) {
+    const coords = await geocodeAddress(job.location);
+    jobCoordinates.value = coords;
+  }
 };
 
 const closeModal = () => {
   showModal.value = false;
   selectedJob.value = null;
+  showMap.value = false;
+  jobCoordinates.value = null;
 };
+
+const toggleMap = () => {
+  showMap.value = !showMap.value;
+  if (showMap.value) {
+    showMapInfoWindow.value = true;
+  }
+};
+
+const mapCenter = computed(() => 
+  jobCoordinates.value || { lat: 1.3521, lng: 103.8198 } // Default to Singapore
+);
 
 const applyForJob = () => {
   alert(`Application submitted for: ${selectedJob.value.name}\n\nYou will be contacted at your registered email.`);
@@ -310,8 +269,8 @@ const applyForJob = () => {
       </div>
     </div>
 
-    <!-- Post Job Button (Fixed) -->
-    <router-link to="/request" class="post-job-btn">
+    <!-- Post Job Button (Fixed) - Only shown when logged in -->
+    <router-link v-if="isLoggedIn" to="/request" class="post-job-btn">
       <span class="plus-icon">+</span>
       <span class="btn-text">Post Job</span>
     </router-link>
@@ -377,6 +336,41 @@ const applyForJob = () => {
             </p>
           </div>
 
+          <!-- Map Section -->
+          <div class="modal-section">
+            <button @click="toggleMap" class="map-toggle-btn">
+              {{ showMap ? '📍 Hide Location Map' : '📍 Show Location Map' }}
+            </button>
+            
+            <div v-if="showMap" class="map-container">
+              <div v-if="!jobCoordinates" class="map-loading">
+                Loading map...
+              </div>
+              <GoogleMap
+                v-else
+                :api-key="apiKey"
+                style="width: 100%; height: 400px; border-radius: 0.75rem;"
+                :center="mapCenter"
+                :zoom="15"
+              >
+                <Marker 
+                  :options="{ position: mapCenter }"
+                  @click="showMapInfoWindow = true"
+                />
+                <InfoWindow
+                  v-if="showMapInfoWindow"
+                  :options="{ position: mapCenter }"
+                  @closeclick="showMapInfoWindow = false"
+                >
+                  <div class="map-info-window">
+                    <h4>{{ selectedJob.name }}</h4>
+                    <p>{{ selectedJob.location }}</p>
+                  </div>
+                </InfoWindow>
+              </GoogleMap>
+            </div>
+          </div>
+
           <button class="apply-btn" @click="applyForJob">
             Apply for This Job
           </button>
@@ -387,6 +381,60 @@ const applyForJob = () => {
 </template>
 
 <style scoped>
+.map-toggle-btn {
+  width: 100%;
+  padding: 0.875rem;
+  background: #f3f4f6;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 1rem;
+}
+
+.map-toggle-btn:hover {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+.map-container {
+  margin-top: 1rem;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.map-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  background: #f9fafb;
+  color: #6b7280;
+  font-size: 1rem;
+  border-radius: 0.75rem;
+}
+
+.map-info-window {
+  padding: 0.5rem;
+  min-width: 200px;
+}
+
+.map-info-window h4 {
+  margin: 0 0 0.25rem 0;
+  color: #111827;
+  font-size: 1rem;
+}
+
+.map-info-window p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
 * {
   box-sizing: border-box;
 }
