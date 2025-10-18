@@ -38,19 +38,73 @@
         <pre>{{ geocodeResult }}</pre>
       </div>
     </div>
+
+    <!-- Jobs Section -->
+    <div class="jobs-section">
+      <h2>Available Jobs</h2>
+      
+      <!-- Example job cards - replace with your actual job data -->
+      <div class="jobs-grid">
+        <div v-for="job in sampleJobs" :key="job.id" class="job-card">
+          <h3>{{ job.name }}</h3>
+          <p>{{ job.description }}</p>
+          <div class="job-meta">
+            <span class="price">{{ job.budget }}</span>
+            <span class="location">📍 {{ job.location }}</span>
+          </div>
+          <button @click="viewJobDetails(job)" class="view-details-btn">
+            View Details
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { GoogleMap, Marker } from 'vue3-google-map';
 
+const router = useRouter();
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY; // For displaying map
 const geocodingKey = import.meta.env.VITE_GOOGLE_GEOCODING_API_KEY; // For geocoding
 const status = ref('Initializing...');
 const center = ref({ lat: 1.3521, lng: 103.8198 }); // Singapore
 const testAddress = ref('Orchard Road, Singapore');
 const geocodeResult = ref(null);
+
+// Sample jobs data - replace with your actual data from Supabase
+const sampleJobs = ref([
+  {
+    id: 1,
+    name: 'House Cleaning Service',
+    description: 'Need someone to clean a 3-bedroom house',
+    budget: '$80',
+    location: 'Orchard Road, Singapore',
+    category: 'Cleaning',
+    fullDescription: 'Looking for a professional cleaner to deep clean a 3-bedroom house including kitchen and 2 bathrooms.',
+    postedBy: 'John Doe',
+    contactEmail: 'john@example.com',
+    date: '19/10/2024',
+    skills: ['Cleaning', 'Attention to detail'],
+    requirements: ['Bring own cleaning supplies', 'Available on weekends']
+  },
+  {
+    id: 2,
+    name: 'Garden Landscaping',
+    description: 'Small garden needs landscaping work',
+    budget: '$150',
+    location: 'Sentosa, Singapore',
+    category: 'Landscaping',
+    fullDescription: 'Need help with planting new flowers, trimming bushes, and general garden maintenance.',
+    postedBy: 'Jane Smith',
+    contactEmail: 'jane@example.com',
+    date: '18/10/2024',
+    skills: ['Gardening', 'Landscaping'],
+    requirements: ['Experience with tropical plants', 'Own tools preferred']
+  }
+]);
 
 onMounted(() => {
   if (apiKey) {
@@ -96,6 +150,14 @@ const testGeocode = async () => {
     };
   }
 };
+
+// Navigate to job details page
+const viewJobDetails = (job) => {
+  // Store job data in localStorage temporarily for the details page
+  localStorage.setItem('selectedJob', JSON.stringify(job));
+  // Navigate to job details page with job ID
+  router.push(`/job/${job.id}`);
+};
 </script>
 
 <style scoped>
@@ -109,6 +171,11 @@ const testGeocode = async () => {
 h1 {
   color: #2563eb;
   margin-bottom: 1.5rem;
+}
+
+h2 {
+  color: #111827;
+  margin: 2rem 0 1rem;
 }
 
 .status {
@@ -195,5 +262,84 @@ h1 {
   border-radius: 0.375rem;
   overflow-x: auto;
   font-size: 0.875rem;
+}
+
+/* Jobs Section */
+.jobs-section {
+  margin-top: 3rem;
+  padding: 2rem;
+  background: #f9fafb;
+  border-radius: 0.75rem;
+}
+
+.jobs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.job-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.job-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.job-card h3 {
+  margin: 0 0 0.75rem;
+  color: #111827;
+  font-size: 1.25rem;
+}
+
+.job-card p {
+  color: #6b7280;
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+.job-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 0.375rem;
+}
+
+.price {
+  font-weight: 600;
+  color: #059669;
+  font-size: 1.125rem;
+}
+
+.location {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.view-details-btn {
+  width: 100%;
+  padding: 0.75rem;
+  background: #1f2937;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-details-btn:hover {
+  background: #111827;
+  transform: translateY(-1px);
 }
 </style>

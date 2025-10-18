@@ -50,6 +50,15 @@ const router = createRouter({
       component: () => import('../pages/JobPage.vue')
     },
     {
+      path: '/job/:id',
+      name: 'JobDetails',
+      component: () => import('../pages/JobDetails.vue'),
+      beforeEnter: (to, from, next) => {
+        console.log('Navigating to JobDetails with ID:', to.params.id);
+        next();
+      }
+    },
+    {
       path: '/helpers',  // Add this route
       name: 'HelpersPage',
       component: () => import('../pages/HelpersPage.vue')
@@ -65,7 +74,7 @@ const router = createRouter({
       component: () => import('../pages/Onboarding.vue')
     },
     {
-      path: '/signup/adventurer', 
+      path: '/signup/adventurer',
       name: 'AdventurerSignUp',
       component: () => import('../pages/AdventurerSignUp.vue')
     },
