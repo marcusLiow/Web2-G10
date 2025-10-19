@@ -29,11 +29,13 @@
             v-for="chat in chats" 
             :key="chat.id" 
             class="chat-card"
+            :class="{ 'has-unread': chat.unreadCount > 0 }"
             @click="openChat(chat)"
           >
             <!-- User Avatar -->
             <div class="chat-avatar">
               {{ chat.otherUserName.charAt(0).toUpperCase() }}
+              <span v-if="chat.unreadCount > 0" class="avatar-badge"></span>
             </div>
 
             <!-- Chat Info -->
@@ -45,15 +47,15 @@
               
               <div class="chat-details">
                 <p class="job-title">{{ chat.jobTitle }}</p>
-                <p class="last-message" :class="{ unread: chat.unread }">
+                <p class="last-message" :class="{ unread: chat.unreadCount > 0 }">
                   {{ chat.lastMessage }}
                 </p>
               </div>
             </div>
 
             <!-- Unread Badge -->
-            <div v-if="chat.unread" class="unread-badge">
-              {{ chat.unreadCount }}
+            <div v-if="chat.unreadCount > 0" class="unread-badge">
+              {{ chat.unreadCount > 99 ? '99+' : chat.unreadCount }}
             </div>
           </div>
         </div>
@@ -63,13 +65,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
 
 const router = useRouter();
 const chats = ref([]);
 const isLoading = ref(true);
+let refreshInterval = null;
 
 onMounted(async () => {
   // Check if user is logged in
@@ -80,11 +83,21 @@ onMounted(async () => {
   }
 
   await fetchChats();
+  
+  // Refresh chats every 10 seconds
+  refreshInterval = setInterval(() => {
+    fetchChats();
+  }, 10000);
+});
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+  }
 });
 
 const fetchChats = async () => {
   try {
-    isLoading.value = true;
     const currentUserId = localStorage.getItem('userId');
     
     console.log('Fetching chats for user:', currentUserId);
@@ -129,16 +142,22 @@ const fetchChats = async () => {
         .eq('id', chat.job_id)
         .single();
       
-      // Check for unread messages (simplified - you can enhance this)
-      const { data: recentMessages } = await supabase
+      // Count unread messages for this chat - WITH DEBUGGING
+      console.log(`Checking unread for chat ${chat.id}...`);
+      
+      const { data: unreadMessages, count: unreadCount, error: unreadError } = await supabase
         .from('messages')
-        .select('id')
+        .select('*', { count: 'exact' })
         .eq('chat_id', chat.id)
         .neq('sender_id', currentUserId)
-        .gte('created_at', chat.last_message_time || new Date().toISOString())
-        .limit(10);
+        .eq('read', false);
       
-      const unreadCount = recentMessages?.length || 0;
+      console.log(`Chat ${chat.id} unread count:`, unreadCount);
+      console.log(`Unread messages:`, unreadMessages);
+      
+      if (unreadError) {
+        console.error(`Error fetching unread for chat ${chat.id}:`, unreadError);
+      }
       
       return {
         id: chat.id,
@@ -146,13 +165,12 @@ const fetchChats = async () => {
         jobTitle: jobData?.title || 'Deleted Job',
         lastMessage: chat.last_message || 'No messages yet',
         lastMessageTime: formatTime(chat.last_message_time),
-        unread: unreadCount > 0,
-        unreadCount: unreadCount
+        unreadCount: unreadCount || 0
       };
     }));
     
     chats.value = enrichedChats;
-    console.log('Enriched chats:', chats.value);
+    console.log('Enriched chats with unread counts:', chats.value);
     
   } catch (error) {
     console.error('Error fetching chats:', error);
@@ -182,6 +200,8 @@ const formatTime = (timestamp) => {
 };
 
 const openChat = (chat) => {
+  // Dispatch event to update navbar unread count
+  window.dispatchEvent(new Event('chat-read'));
   router.push(`/chat/${chat.id}`);
 };
 </script>
@@ -314,6 +334,14 @@ const openChat = (chat) => {
   background: #f9fafb;
 }
 
+.chat-card.has-unread {
+  background: #eff6ff;
+}
+
+.chat-card.has-unread:hover {
+  background: #dbeafe;
+}
+
 .chat-avatar {
   width: 56px;
   height: 56px;
@@ -326,6 +354,30 @@ const openChat = (chat) => {
   font-size: 1.5rem;
   font-weight: 600;
   flex-shrink: 0;
+  position: relative;
+}
+
+.avatar-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  background: #ef4444;
+  border: 2px solid white;
+  border-radius: 50%;
+  animation: pulse-badge 2s ease-in-out infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
 }
 
 .chat-info {
@@ -384,17 +436,20 @@ const openChat = (chat) => {
 }
 
 .unread-badge {
-  background: #2563eb;
+  background: #ef4444;
   color: white;
-  width: 24px;
+  min-width: 24px;
   height: 24px;
-  border-radius: 50%;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
   flex-shrink: 0;
+  padding: 0 0.5rem;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+  animation: pulse-badge 2s ease-in-out infinite;
 }
 
 @media (max-width: 768px) {
@@ -420,8 +475,41 @@ const openChat = (chat) => {
     font-size: 1.25rem;
   }
 
+  .avatar-badge {
+    width: 12px;
+    height: 12px;
+  }
+
   .chat-name {
     font-size: 0.95rem;
+  }
+
+  .unread-badge {
+    min-width: 22px;
+    height: 22px;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-card {
+    gap: 0.75rem;
+    padding: 0.875rem;
+  }
+
+  .chat-avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 1.1rem;
+  }
+
+  .chat-time {
+    font-size: 0.75rem;
+  }
+
+  .job-title,
+  .last-message {
+    font-size: 0.8rem;
   }
 }
 </style>
