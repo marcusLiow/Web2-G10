@@ -82,6 +82,16 @@ const router = createRouter({
       path: '/map-test',
       name: 'MapTest',
       component: () => import('@/pages/maptest.vue')
+    },
+    {
+      path: '/chats',
+      name: 'Chats',
+      component: () => import('../pages/ChatsPage.vue')
+    },
+    {
+      path: '/chat/:id',
+      name: 'ChatConversation',
+      component: () => import('../pages/ChatConversation.vue')
     }
 
   ]

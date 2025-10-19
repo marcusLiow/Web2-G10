@@ -3,7 +3,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { GoogleMap, Marker, InfoWindow } from 'vue3-google-map';
-import { geocodeAddress } from '../utils/geocoding';
+import { supabase } from '../supabase/config';
 
 const route = useRoute();
 const router = useRouter();
@@ -32,14 +32,48 @@ onMounted(async () => {
   if (storedJob) {
     job.value = JSON.parse(storedJob);
     
-    // Geocode the location if available
-    if (job.value.location && apiKey) {
-      const coords = await geocodeAddress(job.value.location);
-      jobCoordinates.value = coords;
+    console.log('Job data loaded:', job.value);
+    
+    // Check if coordinates are already in the job data (from database)
+    if (job.value.coordinates && job.value.coordinates.lat && job.value.coordinates.lng) {
+      jobCoordinates.value = job.value.coordinates;
+      console.log('Using coordinates from database:', jobCoordinates.value);
+    } 
+    // Otherwise use postal code to geocode (more accurate than full address)
+    else if (job.value.postal_code && apiKey) {
+      console.log('Geocoding postal code:', job.value.postal_code);
+      try {
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?` +
+          `address=${job.value.postal_code}+Singapore&` +
+          `region=sg&` +
+          `key=${apiKey}`
+        );
+        
+        const data = await response.json();
+        
+        if (data.status === 'OK' && data.results.length > 0) {
+          jobCoordinates.value = {
+            lat: data.results[0].geometry.location.lat,
+            lng: data.results[0].geometry.location.lng
+          };
+          console.log('Geocoded coordinates from postal code:', jobCoordinates.value);
+        } else {
+          console.log('Postal code geocoding failed, using default');
+          jobCoordinates.value = { lat: 1.3521, lng: 103.8198 };
+        }
+      } catch (error) {
+        console.error('Error geocoding postal code:', error);
+        jobCoordinates.value = { lat: 1.3521, lng: 103.8198 };
+      }
+    } else {
+      // No coordinates, postal code, or API key - use default
+      console.log('No coordinates or postal code available, using default Singapore location');
+      jobCoordinates.value = { lat: 1.3521, lng: 103.8198 };
     }
   } else {
     // If no job data, redirect back to listings
-    router.push('/maptest');
+    router.push('/jobs');
   }
 });
 
@@ -59,21 +93,85 @@ const goBack = () => {
 };
 
 // Carousell-style Chat function
-const startChat = () => {
+const startChat = async () => {
   if (!isLoggedIn.value) {
-    alert('Please log in to chat with the job poster');
     router.push('/login');
     return;
   }
   
-  // Here you would typically open a chat interface
-  // For now, we'll simulate it with an alert
-  alert(`Starting chat with ${job.value.postedBy} about "${job.value.name}"...`);
+  const currentUserId = localStorage.getItem('userId');
+  const jobPosterId = job.value.userId;
   
-  // In a real implementation, you might:
-  // 1. Create a chat room in your database
-  // 2. Navigate to a chat page
-  // 3. Open a chat modal/sidebar
+  console.log('=== STARTING CHAT ===');
+  console.log('Current user ID:', currentUserId);
+  console.log('Job poster ID:', jobPosterId);
+  console.log('Job ID:', job.value.id);
+  
+  // Check if user is trying to chat with themselves
+  if (currentUserId === jobPosterId) {
+    console.log('Cannot chat with yourself');
+    return;
+  }
+  
+  if (!jobPosterId) {
+    console.error('Job poster ID is missing!');
+    return;
+  }
+  
+  try {
+    // Check if chat already exists
+    const { data: existingChat, error: searchError } = await supabase
+      .from('chats')
+      .select('id')
+      .eq('job_id', job.value.id)
+      .eq('job_poster_id', jobPosterId)
+      .eq('job_seeker_id', currentUserId)
+      .maybeSingle();
+    
+    if (searchError) {
+      console.error('Error searching for chat:', searchError);
+      throw searchError;
+    }
+    
+    let chatId;
+    
+    if (existingChat) {
+      // Chat exists, use existing chat
+      chatId = existingChat.id;
+      console.log('Using existing chat:', chatId);
+    } else {
+      // Create new chat
+      console.log('Creating new chat...');
+      const { data: newChat, error: createError } = await supabase
+        .from('chats')
+        .insert([{
+          job_id: job.value.id,
+          job_poster_id: jobPosterId,
+          job_seeker_id: currentUserId,
+          last_message: 'Chat started',
+          last_message_time: new Date().toISOString()
+        }])
+        .select()
+        .single();
+      
+      if (createError) {
+        console.error('Error creating chat:', createError);
+        console.error('Error details:', JSON.stringify(createError, null, 2));
+        throw createError;
+      }
+      
+      chatId = newChat.id;
+      console.log('Created new chat:', chatId);
+    }
+    
+    // Navigate to chat conversation
+    console.log('Navigating to chat:', chatId);
+    router.push(`/chat/${chatId}`);
+    
+  } catch (error) {
+    console.error('Error starting chat:', error);
+    console.error('Full error:', JSON.stringify(error, null, 2));
+  }
 };
 
 // Carousell-style Make Offer function

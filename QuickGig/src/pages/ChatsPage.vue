@@ -1,0 +1,427 @@
+<template>
+  <div class="chats-page">
+    <div class="container">
+      <div class="page-header">
+        <h1 class="page-title">Messages</h1>
+        <p class="page-subtitle">Your conversations</p>
+      </div>
+
+      <!-- Empty State -->
+      <div v-if="!isLoading && chats.length === 0" class="empty-state">
+        <div class="empty-icon">💬</div>
+        <h2>No messages yet</h2>
+        <p>Start a conversation by chatting with job posters</p>
+        <router-link to="/jobs" class="browse-jobs-btn">
+          Browse Jobs
+        </router-link>
+      </div>
+
+      <!-- Loading State -->
+      <div v-if="isLoading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading chats...</p>
+      </div>
+
+      <!-- Chat List -->
+      <div v-if="!isLoading && chats.length > 0" class="chats-container">
+        <div class="chats-grid">
+          <div 
+            v-for="chat in chats" 
+            :key="chat.id" 
+            class="chat-card"
+            @click="openChat(chat)"
+          >
+            <!-- User Avatar -->
+            <div class="chat-avatar">
+              {{ chat.otherUserName.charAt(0).toUpperCase() }}
+            </div>
+
+            <!-- Chat Info -->
+            <div class="chat-info">
+              <div class="chat-header">
+                <h3 class="chat-name">{{ chat.otherUserName }}</h3>
+                <span class="chat-time">{{ chat.lastMessageTime }}</span>
+              </div>
+              
+              <div class="chat-details">
+                <p class="job-title">{{ chat.jobTitle }}</p>
+                <p class="last-message" :class="{ unread: chat.unread }">
+                  {{ chat.lastMessage }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Unread Badge -->
+            <div v-if="chat.unread" class="unread-badge">
+              {{ chat.unreadCount }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { supabase } from '../supabase/config';
+
+const router = useRouter();
+const chats = ref([]);
+const isLoading = ref(true);
+
+onMounted(async () => {
+  // Check if user is logged in
+  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+  if (!isLoggedIn) {
+    router.push('/login');
+    return;
+  }
+
+  await fetchChats();
+});
+
+const fetchChats = async () => {
+  try {
+    isLoading.value = true;
+    const currentUserId = localStorage.getItem('userId');
+    
+    console.log('Fetching chats for user:', currentUserId);
+    
+    // Fetch all chats where user is either job poster or job seeker
+    const { data: chatsData, error: chatsError } = await supabase
+      .from('chats')
+      .select(`
+        id,
+        job_id,
+        job_poster_id,
+        job_seeker_id,
+        last_message,
+        last_message_time,
+        created_at
+      `)
+      .or(`job_poster_id.eq.${currentUserId},job_seeker_id.eq.${currentUserId}`)
+      .order('last_message_time', { ascending: false });
+    
+    if (chatsError) throw chatsError;
+    
+    console.log('Chats fetched:', chatsData);
+    
+    // For each chat, get the other user's info and job info
+    const enrichedChats = await Promise.all(chatsData.map(async (chat) => {
+      // Determine who the "other user" is
+      const otherUserId = chat.job_poster_id === currentUserId 
+        ? chat.job_seeker_id 
+        : chat.job_poster_id;
+      
+      // Fetch other user's info
+      const { data: userData } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', otherUserId)
+        .single();
+      
+      // Fetch job info
+      const { data: jobData } = await supabase
+        .from('User-Job-Request')
+        .select('title')
+        .eq('id', chat.job_id)
+        .single();
+      
+      // Check for unread messages (simplified - you can enhance this)
+      const { data: recentMessages } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('chat_id', chat.id)
+        .neq('sender_id', currentUserId)
+        .gte('created_at', chat.last_message_time || new Date().toISOString())
+        .limit(10);
+      
+      const unreadCount = recentMessages?.length || 0;
+      
+      return {
+        id: chat.id,
+        otherUserName: userData?.username || 'Unknown User',
+        jobTitle: jobData?.title || 'Deleted Job',
+        lastMessage: chat.last_message || 'No messages yet',
+        lastMessageTime: formatTime(chat.last_message_time),
+        unread: unreadCount > 0,
+        unreadCount: unreadCount
+      };
+    }));
+    
+    chats.value = enrichedChats;
+    console.log('Enriched chats:', chats.value);
+    
+  } catch (error) {
+    console.error('Error fetching chats:', error);
+    chats.value = [];
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const formatTime = (timestamp) => {
+  if (!timestamp) return 'Just now';
+  
+  const now = new Date();
+  const messageTime = new Date(timestamp);
+  const diffMs = now - messageTime;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  
+  return messageTime.toLocaleDateString();
+};
+
+const openChat = (chat) => {
+  router.push(`/chat/${chat.id}`);
+};
+</script>
+
+<style scoped>
+.chats-page {
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding: 2rem 1rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: 2rem;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.page-subtitle {
+  font-size: 1rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  color: #6b7280;
+}
+
+.spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.empty-state h2 {
+  font-size: 1.5rem;
+  color: #111827;
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-state p {
+  color: #6b7280;
+  margin: 0 0 1.5rem 0;
+}
+
+.browse-jobs-btn {
+  padding: 0.875rem 1.5rem;
+  background: #2563eb;
+  color: white;
+  text-decoration: none;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.browse-jobs-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-2px);
+}
+
+/* Chats Container */
+.chats-container {
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.chats-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Chat Card */
+.chat-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.chat-card:last-child {
+  border-bottom: none;
+}
+
+.chat-card:hover {
+  background: #f9fafb;
+}
+
+.chat-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.chat-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.25rem;
+}
+
+.chat-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.chat-time {
+  font-size: 0.875rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.chat-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.job-title {
+  font-size: 0.875rem;
+  color: #2563eb;
+  font-weight: 500;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.last-message {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.last-message.unread {
+  color: #111827;
+  font-weight: 600;
+}
+
+.unread-badge {
+  background: #2563eb;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 0 1rem;
+  }
+
+  .page-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .page-title {
+    font-size: 1.75rem;
+  }
+
+  .chat-card {
+    padding: 1rem;
+  }
+
+  .chat-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 1.25rem;
+  }
+
+  .chat-name {
+    font-size: 0.95rem;
+  }
+}
+</style>
