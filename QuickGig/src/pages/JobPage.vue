@@ -54,7 +54,7 @@ const fetchJobs = async () => {
       if (job.user_id) {
         const { data: userData, error: userError } = await supabase
           .from('users')
-          .select('username, email')
+          .select('username')
           .eq('id', job.user_id)
           .single();
         
@@ -62,7 +62,7 @@ const fetchJobs = async () => {
         
         if (!userError && userData) {
           postedBy = userData.username || 'Anonymous';
-          contactEmail = userData.email || 'N/A';
+          contactEmail = 'Contact via chat'; // Don't expose email publicly
         }
       }
       
@@ -75,6 +75,8 @@ const fetchJobs = async () => {
         budget: `$${job.payment}`,
         skills: ['General'],
         location: job.location,
+        postal_code: job.postal_code, // ADDED: Pass postal code for map
+        coordinates: job.coordinates, // ADDED: Pass coordinates from database
         date: new Date(job.created_at).toLocaleDateString('en-GB'),
         category: job.category || 'Other',
         fullDescription: job.description,
