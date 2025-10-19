@@ -12,6 +12,13 @@
           <!-- Show Dashboard link only when logged in -->
           <router-link v-if="isLoggedIn" to="/dashboard" class="nav-link">Dashboard</router-link>
           
+          <!-- Chat Button (only when logged in) -->
+          <router-link v-if="isLoggedIn" to="/chats" class="chat-button" title="Chats">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </router-link>
+          
           <!-- Show different buttons based on login status -->
           <router-link v-if="!isLoggedIn" to="/login" class="nav-button">Log In</router-link>
           
@@ -266,6 +273,34 @@ export default {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* Chat Button */
+.chat-button {
+  background: white;
+  color: #2563EB;
+  padding: 0.75rem;
+  border-radius: 50%;
+  text-decoration: none;
+  transition: all 0.3s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+}
+
+.helpers-page .chat-button {
+  color: #6C5B7F;
+}
+
+.chat-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.chat-button.router-link-active {
+  background: rgba(255, 255, 255, 0.9);
+}
+
 /* Profile Dropdown Styles */
 .profile-dropdown {
   position: relative;
@@ -311,6 +346,10 @@ export default {
   font-size: 1rem;
   font-weight: 700;
   color: #2563EB;
+}
+
+.helpers-page .avatar-placeholder {
+  color: #6C5B7F;
 }
 
 .profile-username {
@@ -395,6 +434,12 @@ export default {
     font-size: 0.9rem;
   }
 
+  .chat-button {
+    width: 40px;
+    height: 40px;
+    padding: 0.6rem;
+  }
+
   .profile-username {
     display: none;
   }
@@ -430,6 +475,12 @@ export default {
   .nav-button {
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
+  }
+
+  .chat-button {
+    width: 36px;
+    height: 36px;
+    padding: 0.5rem;
   }
 }
 </style>
