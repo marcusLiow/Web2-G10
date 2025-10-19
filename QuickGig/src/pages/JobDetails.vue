@@ -9,7 +9,7 @@ const route = useRoute();
 const router = useRouter();
 
 const job = ref(null);
-const showMap = ref(false);
+const showMap = ref(true);
 const jobCoordinates = ref(null);
 const showMapInfoWindow = ref(false);
 const offerAmount = ref('');
