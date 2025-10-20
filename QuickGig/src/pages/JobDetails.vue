@@ -16,6 +16,7 @@ const offerAmount = ref('');
 const offerMessage = ref('');
 const showOfferModal = ref(false);
 const isLoggedIn = ref(false);
+const isSubmitting = ref(false);
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -188,23 +189,132 @@ const openOfferModal = () => {
   showOfferModal.value = true;
 };
 
-const submitOffer = () => {
+const submitOffer = async () => {
   if (!offerAmount.value || offerAmount.value <= 0) {
     alert('Please enter a valid offer amount');
     return;
   }
   
-  // Here you would typically:
-  // 1. Save the offer to your database
-  // 2. Notify the job poster
-  // 3. Create a negotiation thread
+  if (isSubmitting.value) return;
   
-  alert(`Offer submitted!\n\nAmount: $${offerAmount.value}\nMessage: ${offerMessage.value || 'No message'}\n\nThe job poster will be notified of your offer.`);
-  
-  // Reset and close modal
-  showOfferModal.value = false;
-  offerAmount.value = '';
-  offerMessage.value = '';
+  try {
+    isSubmitting.value = true;
+    
+    const currentUserId = localStorage.getItem('userId');
+    const jobPosterId = job.value.userId;
+    
+    console.log('=== SUBMITTING OFFER ===');
+    console.log('Offer amount:', offerAmount.value);
+    console.log('Offer message:', offerMessage.value);
+    
+    // Step 1: Check if chat already exists or create new one
+    const { data: existingChat, error: searchError } = await supabase
+      .from('chats')
+      .select('id')
+      .eq('job_id', job.value.id)
+      .eq('job_poster_id', jobPosterId)
+      .eq('job_seeker_id', currentUserId)
+      .maybeSingle();
+    
+    if (searchError) {
+      console.error('Error searching for chat:', searchError);
+      throw searchError;
+    }
+    
+    let chatId;
+    
+    if (existingChat) {
+      chatId = existingChat.id;
+      console.log('Using existing chat:', chatId);
+    } else {
+      // Create new chat
+      console.log('Creating new chat for offer...');
+      const { data: newChat, error: createError } = await supabase
+        .from('chats')
+        .insert([{
+          job_id: job.value.id,
+          job_poster_id: jobPosterId,
+          job_seeker_id: currentUserId,
+          last_message: `Offered $${offerAmount.value}`,
+          last_message_time: new Date().toISOString()
+        }])
+        .select()
+        .single();
+      
+      if (createError) {
+        console.error('Error creating chat:', createError);
+        throw createError;
+      }
+      
+      chatId = newChat.id;
+      console.log('Created new chat:', chatId);
+    }
+    
+    // Step 2: Send the offer message
+    const offerMessageText = `Offered $${offerAmount.value}`;
+    
+    const { error: offerMsgError } = await supabase
+      .from('messages')
+      .insert([{
+        chat_id: chatId,
+        sender_id: currentUserId,
+        message: offerMessageText,
+        read: false
+      }]);
+    
+    if (offerMsgError) {
+      console.error('Error sending offer message:', offerMsgError);
+      throw offerMsgError;
+    }
+    
+    console.log('Offer message sent');
+    
+    // Step 3: Send additional message if provided
+    let lastMessage = offerMessageText;
+    
+    if (offerMessage.value.trim()) {
+      const { error: additionalMsgError } = await supabase
+        .from('messages')
+        .insert([{
+          chat_id: chatId,
+          sender_id: currentUserId,
+          message: offerMessage.value.trim(),
+          read: false
+        }]);
+      
+      if (additionalMsgError) {
+        console.error('Error sending additional message:', additionalMsgError);
+        throw additionalMsgError;
+      }
+      
+      console.log('Additional message sent');
+      lastMessage = offerMessage.value.trim();
+    }
+    
+    // Step 4: Update chat's last message
+    await supabase
+      .from('chats')
+      .update({
+        last_message: lastMessage,
+        last_message_time: new Date().toISOString()
+      })
+      .eq('id', chatId);
+    
+    // Reset modal
+    showOfferModal.value = false;
+    offerAmount.value = '';
+    offerMessage.value = '';
+    
+    // Navigate to the chat
+    console.log('Navigating to chat:', chatId);
+    router.push(`/chat/${chatId}`);
+    
+  } catch (error) {
+    console.error('Error submitting offer:', error);
+    alert('Failed to submit offer. Please try again.');
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 
 const closeOfferModal = () => {
@@ -397,6 +507,7 @@ const closeOfferModal = () => {
               class="offer-input"
               placeholder="Enter your offer amount"
               min="1"
+              :disabled="isSubmitting"
             />
           </div>
 
@@ -407,12 +518,17 @@ const closeOfferModal = () => {
               class="offer-textarea"
               placeholder="Add a message to the job poster..."
               rows="4"
+              :disabled="isSubmitting"
             ></textarea>
           </div>
 
           <div class="modal-actions">
-            <button @click="closeOfferModal" class="cancel-btn">Cancel</button>
-            <button @click="submitOffer" class="submit-offer-btn">Send Offer</button>
+            <button @click="closeOfferModal" class="cancel-btn" :disabled="isSubmitting">
+              Cancel
+            </button>
+            <button @click="submitOffer" class="submit-offer-btn" :disabled="isSubmitting">
+              {{ isSubmitting ? 'Sending...' : 'Send Offer' }}
+            </button>
           </div>
         </div>
       </div>
@@ -421,6 +537,20 @@ const closeOfferModal = () => {
 </template>
 
 <style scoped>
+/* All previous styles remain the same - just adding disabled state */
+.submit-offer-btn:disabled,
+.cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.offer-input:disabled,
+.offer-textarea:disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
+}
+
+/* Rest of the styles remain exactly the same as before */
 .page-wrapper {
   min-height: 100vh;
   background: #f5f5f5;
@@ -969,5 +1099,27 @@ const closeOfferModal = () => {
 .submit-offer-btn:hover {
   background: #b91c1c;
   transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .page-wrapper {
+    padding: 0.5rem;
+  }
+
+  .job-title {
+    font-size: 1.5rem;
+  }
+
+  .job-header {
+    flex-direction: column;
+  }
+
+  .action-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-content {
+    margin: 1rem;
+  }
 }
 </style>
