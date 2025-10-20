@@ -65,7 +65,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, onActivated } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
 
@@ -88,6 +88,11 @@ onMounted(async () => {
   refreshInterval = setInterval(() => {
     fetchChats();
   }, 10000);
+});
+
+// Refresh chats when navigating back to this page
+onActivated(async () => {
+  await fetchChats();
 });
 
 onUnmounted(() => {
@@ -142,22 +147,16 @@ const fetchChats = async () => {
         .eq('id', chat.job_id)
         .single();
       
-      // Count unread messages for this chat - WITH DEBUGGING
+      // Count unread messages for this chat
       console.log(`Checking unread for chat ${chat.id}...`);
-      
-      const { data: unreadMessages, count: unreadCount, error: unreadError } = await supabase
+      const { count: unreadCount } = await supabase
         .from('messages')
-        .select('*', { count: 'exact' })
+        .select('id', { count: 'exact', head: true })
         .eq('chat_id', chat.id)
         .neq('sender_id', currentUserId)
         .eq('read', false);
       
-      console.log(`Chat ${chat.id} unread count:`, unreadCount);
-      console.log(`Unread messages:`, unreadMessages);
-      
-      if (unreadError) {
-        console.error(`Error fetching unread for chat ${chat.id}:`, unreadError);
-      }
+      console.log(`Chat ${chat.id} unread count: ${unreadCount}`);
       
       return {
         id: chat.id,

@@ -70,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
 
@@ -86,6 +86,7 @@ const currentUserId = ref(null);
 const isLoading = ref(true);
 const isSending = ref(false);
 const messagesContainer = ref(null);
+let messageChannel = null;
 
 onMounted(async () => {
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
@@ -97,10 +98,18 @@ onMounted(async () => {
   currentUserId.value = localStorage.getItem('userId');
   await loadChatData();
   await loadMessages();
+  await markMessagesAsRead(); // Mark messages as read when opening chat
   scrollToBottom();
   
   // Subscribe to new messages
   subscribeToMessages();
+});
+
+onUnmounted(() => {
+  // Clean up subscription
+  if (messageChannel) {
+    supabase.removeChannel(messageChannel);
+  }
 });
 
 const loadChatData = async () => {
@@ -184,6 +193,30 @@ const loadMessages = async () => {
   }
 };
 
+const markMessagesAsRead = async () => {
+  try {
+    const chatId = route.params.id;
+    
+    // Mark all messages in this chat as read (except ones sent by current user)
+    const { error } = await supabase
+      .from('messages')
+      .update({ read: true })
+      .eq('chat_id', chatId)
+      .neq('sender_id', currentUserId.value)
+      .eq('read', false);
+    
+    if (error) {
+      console.error('Error marking messages as read:', error);
+    } else {
+      console.log('Messages marked as read');
+      // Dispatch event to update navbar badge
+      window.dispatchEvent(new Event('chat-read'));
+    }
+  } catch (error) {
+    console.error('Error in markMessagesAsRead:', error);
+  }
+};
+
 const sendMessage = async () => {
   if (!newMessage.value.trim() || isSending.value) return;
   
@@ -194,13 +227,14 @@ const sendMessage = async () => {
     
     console.log('Sending message:', messageText);
     
-    // Insert message
+    // Insert message with read = false by default
     const { data, error } = await supabase
       .from('messages')
       .insert([{
         chat_id: chatId,
         sender_id: currentUserId.value,
-        message: messageText
+        message: messageText,
+        read: false
       }])
       .select()
       .single();
@@ -238,7 +272,7 @@ const sendMessage = async () => {
 const subscribeToMessages = () => {
   const chatId = route.params.id;
   
-  const channel = supabase
+  messageChannel = supabase
     .channel(`chat-${chatId}`)
     .on(
       'postgres_changes',
@@ -248,12 +282,22 @@ const subscribeToMessages = () => {
         table: 'messages',
         filter: `chat_id=eq.${chatId}`
       },
-      (payload) => {
+      async (payload) => {
         console.log('New message received:', payload.new);
         // Only add if not from current user (to avoid duplicates)
         if (payload.new.sender_id !== currentUserId.value) {
           messages.value.push(payload.new);
-          nextTick(() => scrollToBottom());
+          await nextTick();
+          scrollToBottom();
+          
+          // Mark this new message as read immediately since user is viewing the chat
+          await supabase
+            .from('messages')
+            .update({ read: true })
+            .eq('id', payload.new.id);
+          
+          // Update navbar badge
+          window.dispatchEvent(new Event('chat-read'));
         }
       }
     )
