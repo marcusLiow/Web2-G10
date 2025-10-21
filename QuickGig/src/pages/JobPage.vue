@@ -116,7 +116,8 @@ const filteredJobs = computed(() => {
     result = result.filter(
       job =>
         job.name.toLowerCase().includes(term) ||
-        job.description.toLowerCase().includes(term)
+        job.description.toLowerCase().includes(term) ||
+        job.location.toLowerCase().includes(term) // <-- ADD THIS LINE
     );
   }
 
