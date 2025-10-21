@@ -9,7 +9,7 @@ import JobPage from "../pages/JobPage.vue"
 import Onboarding from '@/pages/Onboarding.vue'
 import AdventurerSignUp from '@/pages/AdventurerSignUp.vue'
 import maptest from '@/pages/maptest.vue'
-import HelpersPage from '../pages/HelpersPage.vue'  // Add this line
+import HelpersPage from '../pages/HelpersPage.vue'  
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),

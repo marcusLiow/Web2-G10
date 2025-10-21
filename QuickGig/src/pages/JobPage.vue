@@ -75,15 +75,16 @@ const fetchJobs = async () => {
         budget: `$${job.payment}`,
         skills: ['General'],
         location: job.location,
-        postal_code: job.postal_code, // ADDED: Pass postal code for map
-        coordinates: job.coordinates, // ADDED: Pass coordinates from database
+        postal_code: job.postal_code,
+        coordinates: job.coordinates,
         date: new Date(job.created_at).toLocaleDateString('en-GB'),
         category: job.category || 'Other',
         fullDescription: job.description,
         requirements: ['Contact poster for details'],
         postedBy: postedBy,
         contactEmail: contactEmail,
-        userId: job.user_id
+        userId: job.user_id,
+        images: job.images || [] // Include images array
       };
     }));
 
@@ -215,10 +216,20 @@ const viewJobDetails = (job) => {
           
           <p class="job-description">{{ job.description }}</p>
           
+          <!-- Images Included Indicator -->
+          <div v-if="job.images && job.images.length > 0" class="images-indicator">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <span>Images included</span>
+          </div>
+          
           <div class="job-meta">
             <div class="meta-item">
               <span class="meta-label">Price:</span>
-              <span class="meta-text">{{ job.budget }}</span>
+              <span class="meta-text price-highlight">{{ job.budget }}</span>
             </div>
             <div class="meta-item">
               <span class="icon">📍</span>
@@ -485,9 +496,33 @@ const viewJobDetails = (job) => {
 .job-description {
   color: #6b7280;
   line-height: 1.6;
-  margin: 0 0 1.5rem 0;
+  margin: 0 0 1rem 0;
   font-size: 0.95rem;
   flex-grow: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Images Indicator */
+.images-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.375rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: #1e40af;
+  font-weight: 500;
+}
+
+.images-indicator svg {
+  flex-shrink: 0;
+  color: #2563eb;
 }
 
 .job-meta {
@@ -519,6 +554,12 @@ const viewJobDetails = (job) => {
 
 .meta-text {
   font-weight: 500;
+}
+
+.price-highlight {
+  color: #059669;
+  font-weight: 700;
+  font-size: 1.1rem;
 }
 
 .view-details-btn {

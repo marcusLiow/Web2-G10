@@ -1,6 +1,6 @@
 <!-- JobDetails.vue - Place this in src/pages/JobDetails.vue -->
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { GoogleMap, Marker, InfoWindow } from 'vue3-google-map';
 import { supabase } from '../supabase/config';
@@ -18,6 +18,10 @@ const showOfferModal = ref(false);
 const isLoggedIn = ref(false);
 const isSubmitting = ref(false);
 
+// Image gallery state
+const selectedImageIndex = ref(0);
+const showImageModal = ref(false);
+
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 // Check if user is logged in
@@ -25,8 +29,42 @@ const checkLoginStatus = () => {
   isLoggedIn.value = localStorage.getItem('isLoggedIn') === 'true';
 };
 
+// Image gallery functions
+const openImageModal = (index) => {
+  selectedImageIndex.value = index;
+  showImageModal.value = true;
+};
+
+const closeImageModal = () => {
+  showImageModal.value = false;
+};
+
+const nextImage = () => {
+  if (job.value.images && selectedImageIndex.value < job.value.images.length - 1) {
+    selectedImageIndex.value++;
+  }
+};
+
+const prevImage = () => {
+  if (selectedImageIndex.value > 0) {
+    selectedImageIndex.value--;
+  }
+};
+
+// Handle keyboard navigation for image modal
+const handleKeydown = (e) => {
+  if (!showImageModal.value) return;
+  
+  if (e.key === 'ArrowRight') nextImage();
+  if (e.key === 'ArrowLeft') prevImage();
+  if (e.key === 'Escape') closeImageModal();
+};
+
 onMounted(async () => {
   checkLoginStatus();
+  
+  // Add keyboard event listener
+  window.addEventListener('keydown', handleKeydown);
   
   // Get job data from localStorage
   const storedJob = localStorage.getItem('selectedJob');
@@ -76,6 +114,11 @@ onMounted(async () => {
     // If no job data, redirect back to listings
     router.push('/jobs');
   }
+});
+
+// Cleanup event listener
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown);
 });
 
 const mapCenter = computed(() => 
@@ -342,16 +385,90 @@ const closeOfferModal = () => {
         <div class="content-grid">
           <!-- Left Column - Job Details -->
           <div class="main-content">
-            <!-- Job Header Card -->
-            <div class="job-header-card">
-              <div class="job-header">
-                <h1 class="job-title">{{ job.name }}</h1>
-                <span class="job-category-badge">{{ job.category }}</span>
+            <!-- Combined Overview Card -->
+            <div class="job-overview-card">
+              <!-- Image Gallery Section - NEW LAYOUT -->
+              <div v-if="job.images && job.images.length > 0" class="image-gallery-wrapper">
+                <div class="image-gallery-grid">
+                  <!-- Main Large Image (Left) -->
+                  <div class="main-image-container" @click="openImageModal(0)">
+                    <img 
+                      :src="job.images[0]" 
+                      :alt="`${job.name} - Image 1`"
+                      class="main-image"
+                    />
+                  </div>
+                  
+                  <!-- Right Column with 2 Images -->
+                  <div class="side-images-column">
+                    <!-- Top Right Image -->
+                    <div 
+                      v-if="job.images.length > 1"
+                      class="side-image-container" 
+                      @click="openImageModal(1)"
+                    >
+                      <img 
+                        :src="job.images[1]" 
+                        :alt="`${job.name} - Image 2`"
+                        class="side-image"
+                      />
+                    </div>
+                    
+                    <!-- Bottom Right Image -->
+                    <div 
+                      v-if="job.images.length > 2"
+                      class="side-image-container side-image-last" 
+                      @click="openImageModal(2)"
+                    >
+                      <img 
+                        :src="job.images[2]" 
+                        :alt="`${job.name} - Image 3`"
+                        class="side-image"
+                      />
+                    </div>
+                    
+                    <!-- Placeholder if less than 3 images -->
+                    <div 
+                      v-else-if="job.images.length === 2"
+                      class="side-image-container side-image-last placeholder"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Show All Images Button -->
+                <button class="show-all-btn" @click="openImageModal(0)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                  <span>Show all {{ job.images.length }} {{ job.images.length === 1 ? 'photo' : 'photos' }}</span>
+                </button>
               </div>
-              
-              <div class="price-section">
-                <span class="price-label">Budget</span>
-                <span class="price-amount">{{ job.budget }}</span>
+
+              <!-- Title, Category & Budget Section -->
+              <div class="header-section">
+                <div class="job-header">
+                  <h1 class="job-title">{{ job.name }}</h1>
+                  <span class="job-category-badge">{{ job.category }}</span>
+                </div>
+                
+                <div class="price-section">
+                  <span class="price-label">Budget</span>
+                  <span class="price-amount">{{ job.budget }}</span>
+                </div>
+              </div>
+
+              <!-- Description Section -->
+              <div class="description-section">
+                <h2 class="section-title">Description</h2>
+                <p class="description-text">{{ job.fullDescription }}</p>
               </div>
             </div>
 
@@ -381,12 +498,6 @@ const closeOfferModal = () => {
                   </div>
                 </div>
               </div>
-            </div>
-
-            <!-- Description Card -->
-            <div class="description-card">
-              <h2 class="section-title">Description</h2>
-              <p class="description-text">{{ job.fullDescription }}</p>
             </div>
 
             <!-- Skills Card -->
@@ -485,6 +596,49 @@ const closeOfferModal = () => {
       </div>
     </div>
 
+    <!-- Image Modal/Lightbox -->
+    <div v-if="showImageModal && job.images" class="image-modal-overlay" @click="closeImageModal">
+      <div class="image-modal-content" @click.stop>
+        <button class="modal-close-btn" @click="closeImageModal">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+        
+        <button 
+          v-if="selectedImageIndex > 0"
+          class="modal-nav-btn prev-btn" 
+          @click="prevImage"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        
+        <div class="modal-image-container">
+          <img 
+            :src="job.images[selectedImageIndex]" 
+            :alt="`${job.name} - Image ${selectedImageIndex + 1}`"
+            class="modal-image"
+          />
+          <div class="image-counter">
+            {{ selectedImageIndex + 1 }} / {{ job.images.length }}
+          </div>
+        </div>
+        
+        <button 
+          v-if="selectedImageIndex < job.images.length - 1"
+          class="modal-nav-btn next-btn" 
+          @click="nextImage"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <!-- Make Offer Modal -->
     <div v-if="showOfferModal" class="modal-overlay" @click="closeOfferModal">
       <div class="modal-content" @click.stop>
@@ -537,7 +691,8 @@ const closeOfferModal = () => {
 </template>
 
 <style scoped>
-/* All previous styles remain the same - just adding disabled state */
+/* Keep all previous styles and add these NEW styles */
+
 .submit-offer-btn:disabled,
 .cancel-btn:disabled {
   opacity: 0.6;
@@ -550,7 +705,6 @@ const closeOfferModal = () => {
   cursor: not-allowed;
 }
 
-/* Rest of the styles remain exactly the same as before */
 .page-wrapper {
   min-height: 100vh;
   background: #f5f5f5;
@@ -619,12 +773,138 @@ const closeOfferModal = () => {
   gap: 1.5rem;
 }
 
-/* Job Header Card */
-.job-header-card {
+/* Combined Overview Card */
+.job-overview-card {
   background: white;
   border-radius: 0.75rem;
-  padding: 1.5rem;
+  overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* NEW Airbnb-Style Image Gallery */
+.image-gallery-wrapper {
+  position: relative;
+  width: 100%;
+  height: 450px;
+  overflow: hidden;
+}
+
+.image-gallery-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 0.5rem;
+  height: 100%;
+}
+
+@media (max-width: 768px) {
+  .image-gallery-wrapper {
+    height: 300px;
+  }
+  
+  .image-gallery-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .side-images-column {
+    display: none;
+  }
+}
+
+/* Main Large Image (Left Side) */
+.main-image-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: pointer;
+  background: #f3f4f6;
+}
+
+.main-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.main-image-container:hover .main-image {
+  transform: scale(1.05);
+}
+
+/* Right Column with 2 Images */
+.side-images-column {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 0.5rem;
+  height: 100%;
+}
+
+.side-image-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: pointer;
+  background: #f3f4f6;
+}
+
+.side-image-container.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+
+.side-image-container.placeholder svg {
+  color: #d1d5db;
+}
+
+.side-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.side-image-container:hover .side-image {
+  transform: scale(1.05);
+}
+
+/* Show All Images Button */
+.show-all-btn {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+.show-all-btn:hover {
+  background: #f9fafb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.show-all-btn svg {
+  flex-shrink: 0;
+}
+
+/* Header Section (Title + Category + Budget) */
+.header-section {
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .job-header {
@@ -632,7 +912,7 @@ const closeOfferModal = () => {
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .job-title {
@@ -641,6 +921,7 @@ const closeOfferModal = () => {
   color: #111827;
   margin: 0;
   line-height: 1.3;
+  flex: 1;
 }
 
 .job-category-badge {
@@ -655,12 +936,12 @@ const closeOfferModal = () => {
 
 .price-section {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: baseline;
+  gap: 0.75rem;
 }
 
 .price-label {
-  font-size: 0.875rem;
+  font-size: 1rem;
   color: #6b7280;
   font-weight: 500;
 }
@@ -671,12 +952,9 @@ const closeOfferModal = () => {
   color: #059669;
 }
 
-/* Info Card */
-.info-card, .description-card, .skills-card, .map-card {
-  background: white;
-  border-radius: 0.75rem;
+/* Description Section */
+.description-section {
   padding: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .section-title {
@@ -684,6 +962,20 @@ const closeOfferModal = () => {
   font-weight: 600;
   color: #111827;
   margin: 0 0 1rem 0;
+}
+
+.description-text {
+  color: #4b5563;
+  line-height: 1.7;
+  margin: 0;
+}
+
+/* Info Card */
+.info-card, .skills-card, .map-card {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .info-grid {
@@ -715,12 +1007,6 @@ const closeOfferModal = () => {
   display: block;
   font-weight: 600;
   color: #111827;
-}
-
-.description-text {
-  color: #4b5563;
-  line-height: 1.7;
-  margin: 0;
 }
 
 /* Skills */
@@ -799,6 +1085,137 @@ const closeOfferModal = () => {
   margin: 0;
   color: #6b7280;
   font-size: 0.875rem;
+}
+
+/* Image Modal/Lightbox */
+.image-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease;
+}
+
+.image-modal-content {
+  position: relative;
+  width: 90%;
+  max-width: 1200px;
+  height: 90vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: -3rem;
+  right: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.modal-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.modal-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.prev-btn {
+  left: -70px;
+}
+
+.next-btn {
+  right: -70px;
+}
+
+@media (max-width: 768px) {
+  .prev-btn {
+    left: 10px;
+  }
+  
+  .next-btn {
+    right: 10px;
+  }
+  
+  .modal-close-btn {
+    top: 10px;
+    right: 10px;
+  }
+  
+  .job-title {
+    font-size: 1.5rem;
+  }
+
+  .job-header {
+    flex-direction: column;
+  }
+}
+
+.modal-image-container {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-image {
+  max-width: 100%;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 0.5rem;
+}
+
+.image-counter {
+  position: absolute;
+  bottom: -2.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 /* Sidebar */
@@ -1104,14 +1521,6 @@ const closeOfferModal = () => {
 @media (max-width: 768px) {
   .page-wrapper {
     padding: 0.5rem;
-  }
-
-  .job-title {
-    font-size: 1.5rem;
-  }
-
-  .job-header {
-    flex-direction: column;
   }
 
   .action-buttons {

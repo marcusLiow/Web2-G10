@@ -31,6 +31,68 @@
               ></textarea>
             </div>
 
+            <!-- IMAGE UPLOAD SECTION -->
+            <div class="form-group">
+              <label class="form-label">
+                Images (Optional)
+                <span class="label-hint">Up to 5 images, max 5MB each</span>
+              </label>
+              
+              <div 
+                class="image-upload-area"
+                :class="{ 'drag-over': isDragging }"
+                @dragover.prevent="handleDragOver"
+                @dragleave.prevent="handleDragLeave"
+                @drop.prevent="handleDrop"
+              >
+                <input 
+                  type="file" 
+                  ref="fileInput"
+                  @change="handleFileSelect"
+                  accept="image/*"
+                  multiple
+                  style="display: none;"
+                />
+                
+                <div v-if="selectedImages.length === 0" class="upload-placeholder" @click="triggerFileInput">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                  <p class="upload-text">Click to upload or drag and drop</p>
+                  <p class="upload-subtext">PNG, JPG, GIF up to 5MB</p>
+                </div>
+
+                <div v-else class="image-preview-grid">
+                  <div v-for="(image, index) in selectedImages" :key="index" class="image-preview-item">
+                    <img :src="image.preview" :alt="`Preview ${index + 1}`" />
+                    <button type="button" class="remove-image-btn" @click="removeImage(index)">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                    <div v-if="image.uploading" class="upload-overlay">
+                      <div class="spinner-small"></div>
+                    </div>
+                  </div>
+                  
+                  <div v-if="selectedImages.length < 5" class="add-more-btn" @click="triggerFileInput">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <p>Add more</p>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="imageError" class="error-message">
+                {{ imageError }}
+              </div>
+            </div>
+
             <div class="form-group">
               <label for="category" class="form-label">Category</label>
               <select 
@@ -147,14 +209,127 @@ export default {
       postalCodeStatus: 'Required for accurate map location',
       isSubmitting: false,
       submitError: null,
-      apiKey: import.meta.env.VITE_GOOGLE_GEOCODING_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+      apiKey: import.meta.env.VITE_GOOGLE_GEOCODING_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+      
+      // Image upload data
+      selectedImages: [],
+      isDragging: false,
+      imageError: null,
+      uploadedImageUrls: []
     };
   },
   methods: {
+    // Image upload methods
+    triggerFileInput() {
+      this.$refs.fileInput.click();
+    },
+    
+    handleDragOver(e) {
+      this.isDragging = true;
+    },
+    
+    handleDragLeave(e) {
+      this.isDragging = false;
+    },
+    
+    handleDrop(e) {
+      this.isDragging = false;
+      const files = Array.from(e.dataTransfer.files);
+      this.processFiles(files);
+    },
+    
+    handleFileSelect(e) {
+      const files = Array.from(e.target.files);
+      this.processFiles(files);
+    },
+    
+    processFiles(files) {
+      this.imageError = null;
+      
+      const imageFiles = files.filter(file => file.type.startsWith('image/'));
+      
+      if (imageFiles.length === 0) {
+        this.imageError = 'Please select valid image files';
+        return;
+      }
+      
+      const remainingSlots = 5 - this.selectedImages.length;
+      if (imageFiles.length > remainingSlots) {
+        this.imageError = `You can only upload ${remainingSlots} more image(s)`;
+        return;
+      }
+      
+      imageFiles.forEach(file => {
+        // Check file size (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+          this.imageError = `${file.name} is too large. Max size is 5MB`;
+          return;
+        }
+        
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          this.selectedImages.push({
+            file: file,
+            preview: e.target.result,
+            uploading: false
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+    },
+    
+    removeImage(index) {
+      this.selectedImages.splice(index, 1);
+      this.imageError = null;
+    },
+    
+    async uploadImages() {
+      const uploadedUrls = [];
+      
+      for (let i = 0; i < this.selectedImages.length; i++) {
+        const imageData = this.selectedImages[i];
+        imageData.uploading = true;
+        
+        try {
+          const file = imageData.file;
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+          const filePath = `${fileName}`;
+          
+          console.log('Uploading image:', filePath);
+          
+          const { data, error } = await supabase.storage
+            .from('job-images')
+            .upload(filePath, file, {
+              cacheControl: '3600',
+              upsert: false
+            });
+          
+          if (error) throw error;
+          
+          // Get public URL
+          const { data: urlData } = supabase.storage
+            .from('job-images')
+            .getPublicUrl(filePath);
+          
+          uploadedUrls.push(urlData.publicUrl);
+          console.log('Image uploaded successfully:', urlData.publicUrl);
+          
+        } catch (error) {
+          console.error('Error uploading image:', error);
+          throw new Error(`Failed to upload image: ${error.message}`);
+        } finally {
+          imageData.uploading = false;
+        }
+      }
+      
+      return uploadedUrls;
+    },
+    
     async validatePostalCode() {
       const postalCode = this.formData.postalCode;
       
-      // Reset validation if postal code is empty or invalid
       if (!postalCode || postalCode.length !== 6 || !/^\d{6}$/.test(postalCode)) {
         this.postalCodeValidated = false;
         this.coordinates = null;
@@ -169,7 +344,7 @@ export default {
     async geocodePostalCode(postalCode) {
       if (!this.apiKey) {
         this.postalCodeStatus = '⚠️ Map location may not be accurate (API key missing)';
-        this.postalCodeValidated = true; // Allow submission anyway
+        this.postalCodeValidated = true;
         return;
       }
       
@@ -186,7 +361,6 @@ export default {
         if (data.status === 'OK' && data.results.length > 0) {
           const result = data.results[0];
           
-          // Store coordinates for map display (using postal code only)
           this.coordinates = {
             lat: result.geometry.location.lat,
             lng: result.geometry.location.lng
@@ -204,12 +378,11 @@ export default {
       } catch (error) {
         console.error('Geocoding error:', error);
         this.postalCodeStatus = '⚠️ Could not validate postal code - you may continue';
-        this.postalCodeValidated = true; // Allow submission even if validation fails
+        this.postalCodeValidated = true;
       }
     },
     
     async handleSubmit() {
-      // Final validation before submit
       if (!this.postalCodeValidated) {
         await this.validatePostalCode();
         if (!this.postalCodeValidated) {
@@ -224,17 +397,28 @@ export default {
       try {
         const userId = localStorage.getItem('userId');
         
+        // Upload images first if any are selected
+        let imageUrls = [];
+        if (this.selectedImages.length > 0) {
+          console.log('Uploading images...');
+          imageUrls = await this.uploadImages();
+          console.log('All images uploaded:', imageUrls);
+        }
+        
         const requestData = {
           title: this.formData.title,
           description: this.formData.description,
           category: this.formData.category,
           postal_code: this.formData.postalCode,
-          location: this.formData.location, // User-entered address for display
-          coordinates: this.coordinates, // Accurate coordinates from postal code
+          location: this.formData.location,
+          coordinates: this.coordinates,
           payment: parseFloat(this.formData.payment),
           status: 'open',
-          user_id: userId
+          user_id: userId,
+          images: imageUrls // Add images array
         };
+
+        console.log('Creating job request with data:', requestData);
 
         const { data, error } = await supabase
           .from('User-Job-Request')
@@ -244,14 +428,13 @@ export default {
         if (error) throw error;
         
         console.log('Request created:', data);
-        alert('Job posted successfully! Map will use postal code for precise location.');
+        alert('Job posted successfully!');
         
-        // Redirect to job board page
         this.$router.push('/jobs');
         
       } catch (error) {
         console.error('Error adding request:', error);
-        this.submitError = 'Failed to post request. Please try again.';
+        this.submitError = error.message || 'Failed to post request. Please try again.';
       } finally {
         this.isSubmitting = false;
       }
@@ -259,7 +442,6 @@ export default {
   },
   watch: {
     'formData.postalCode': function(newVal) {
-      // Reset validation when postal code changes
       if (this.postalCodeValidated) {
         this.postalCodeValidated = false;
         this.postalCodeStatus = 'Required for accurate map location';
@@ -270,7 +452,6 @@ export default {
 </script>
 
 <style scoped>
-/* Keep all your existing styles plus these additions */
 * {
   margin: 0;
   padding: 0;
@@ -337,6 +518,15 @@ export default {
   font-size: 1rem;
   font-weight: 600;
   color: #1a1a1a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.label-hint {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: #6b7280;
 }
 
 .form-input,
@@ -356,7 +546,141 @@ export default {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-/* New location section styles */
+/* IMAGE UPLOAD STYLES */
+.image-upload-area {
+  border: 2px dashed #e5e7eb;
+  border-radius: 12px;
+  padding: 2rem;
+  transition: all 0.3s ease;
+  background: #f9fafb;
+}
+
+.image-upload-area.drag-over {
+  border-color: #2563EB;
+  background: #eff6ff;
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 2rem;
+  color: #6b7280;
+}
+
+.upload-placeholder svg {
+  margin-bottom: 1rem;
+  color: #9ca3af;
+}
+
+.upload-text {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.25rem;
+}
+
+.upload-subtext {
+  font-size: 0.875rem;
+  color: #9ca3af;
+}
+
+.image-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1rem;
+}
+
+.image-preview-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid #e5e7eb;
+}
+
+.image-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: rgba(220, 38, 38, 0.9);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.remove-image-btn:hover {
+  background: rgb(220, 38, 38);
+  transform: scale(1.1);
+}
+
+.upload-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner-small {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #2563EB;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.add-more-btn {
+  aspect-ratio: 1;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #6b7280;
+  background: white;
+}
+
+.add-more-btn:hover {
+  border-color: #2563EB;
+  color: #2563EB;
+  background: #eff6ff;
+}
+
+.add-more-btn p {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Location section styles */
 .location-section {
   background: #f9fafb;
   padding: 1.5rem;
@@ -507,6 +831,10 @@ select.form-input {
   .request-form {
     gap: 1.5rem;
   }
+  
+  .image-preview-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
 }
 
 @media (max-width: 480px) {
@@ -536,6 +864,11 @@ select.form-input {
   
   .location-section {
     padding: 1rem;
+  }
+  
+  .image-preview-grid {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 0.75rem;
   }
 }
 </style>
