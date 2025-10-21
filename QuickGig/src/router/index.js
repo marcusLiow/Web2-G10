@@ -4,12 +4,13 @@ import request from '../pages/request.vue'
 import LoginPage from '../pages/LoginPage.vue'
 import SignupPage from '../pages/SignupPage.vue'
 import ProfilePage from '../pages/ProfilePage.vue'
-import AnalyticsDashboard from "../pages/Dashboard.vue";
+import Earnings from "../pages/Earnings.vue";
 import JobPage from "../pages/JobPage.vue"
 import Onboarding from '@/pages/Onboarding.vue'
 import AdventurerSignUp from '@/pages/AdventurerSignUp.vue'
 import maptest from '@/pages/maptest.vue'
-import HelpersPage from '../pages/HelpersPage.vue'  // Add this line
+import HelpersPage from '../pages/HelpersPage.vue'
+import Spending from '../pages/Spending.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -40,9 +41,14 @@ const router = createRouter({
       component: () => import('../pages/ProfilePage.vue')
     },
     {
-      path: '/dashboard',
-      name: 'Dashboard',
-      component: () => import('../pages/Dashboard.vue')
+      path: '/earnings',
+      name: 'earnings',
+      component: () => import('../pages/Earnings.vue')
+    },
+    {
+      path: '/spending',
+      name: 'spending',
+      component: () => import('../pages/Spending.vue')
     },
     {
       path: '/jobs',
