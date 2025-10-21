@@ -10,6 +10,7 @@ import Onboarding from '@/pages/Onboarding.vue'
 import AdventurerSignUp from '@/pages/AdventurerSignUp.vue'
 import maptest from '@/pages/maptest.vue'
 import HelpersPage from '../pages/HelpersPage.vue'  
+import editjob from '@/pages/editjob.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -92,6 +93,11 @@ const router = createRouter({
       path: '/chat/:id',
       name: 'ChatConversation',
       component: () => import('../pages/ChatConversation.vue')
+    },
+    {
+      path: '/edit-job/:id',
+      name: 'EditJob',
+      component: () => import('../pages/editjob.vue')
     }
 
   ]

@@ -17,12 +17,41 @@ const offerMessage = ref('');
 const showOfferModal = ref(false);
 const isLoggedIn = ref(false);
 const isSubmitting = ref(false);
+const showDeleteModal = ref(false);
+
+// Toast notification state
+const toasts = ref([]);
+let toastId = 0;
 
 // Image gallery state
 const selectedImageIndex = ref(0);
 const showImageModal = ref(false);
 
 const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+// Toast notification function
+const showToast = (message, type = 'info') => {
+  const id = toastId++;
+  toasts.value.push({ id, message, type });
+  
+  // Auto remove after 4 seconds
+  setTimeout(() => {
+    removeToast(id);
+  }, 4000);
+};
+
+const removeToast = (id) => {
+  const index = toasts.value.findIndex(t => t.id === id);
+  if (index > -1) {
+    toasts.value.splice(index, 1);
+  }
+};
+
+// Check if current user is the job poster
+const isOwnListing = computed(() => {
+  const currentUserId = localStorage.getItem('userId');
+  return currentUserId && job.value && currentUserId === job.value.userId;
+});
 
 // Check if user is logged in
 const checkLoginStatus = () => {
@@ -136,6 +165,114 @@ const goBack = () => {
   router.back();
 };
 
+// View all chats for this listing (for job poster)
+const viewChats = async () => {
+  try {
+    const currentUserId = localStorage.getItem('userId');
+    
+    // Navigate to chats page with filter for this job
+    router.push(`/chats?jobId=${job.value.id}`);
+    
+  } catch (error) {
+    console.error('Error viewing chats:', error);
+    showToast('Failed to view chats', 'error');
+  }
+};
+
+// Edit listing
+const editListing = () => {
+  // Store job data for editing
+  localStorage.setItem('editingJob', JSON.stringify(job.value));
+  router.push(`/edit-job/${job.value.id}`);
+};
+
+// Delete listing with confirmation
+const confirmDelete = () => {
+  showDeleteModal.value = true;
+};
+
+const deleteListing = async () => {
+  try {
+    isSubmitting.value = true;
+    
+    console.log('=== DELETING JOB ===');
+    console.log('Job ID:', job.value.id);
+    console.log('User ID:', localStorage.getItem('userId'));
+    
+    const currentUserId = localStorage.getItem('userId');
+    
+    // First, verify the job exists and user owns it
+    const { data: existingJob, error: fetchError } = await supabase
+      .from('User-Job-Request')
+      .select('*')
+      .eq('id', job.value.id)
+      .eq('user_id', currentUserId)
+      .single();
+    
+    if (fetchError) {
+      console.error('Error fetching job to verify:', fetchError);
+      console.error('Fetch error details:', JSON.stringify(fetchError, null, 2));
+      
+      if (fetchError.code === 'PGRST116') {
+        showToast('Job not found or you do not have permission to delete it', 'error');
+      } else {
+        showToast(`Unable to verify job ownership: ${fetchError.message}`, 'error');
+      }
+      return;
+    }
+    
+    console.log('Job verified, proceeding with delete:', existingJob);
+    
+    // Delete the job from database
+    const { data: deleteData, error: deleteError } = await supabase
+      .from('User-Job-Request')
+      .delete()
+      .eq('id', job.value.id)
+      .eq('user_id', currentUserId)
+      .select();
+    
+    if (deleteError) {
+      console.error('Error deleting job:', deleteError);
+      console.error('Delete error details:', JSON.stringify(deleteError, null, 2));
+      
+      // Check if it's a permission error
+      if (deleteError.code === 'PGRST301' || deleteError.message?.includes('permission')) {
+        showToast('You do not have permission to delete this listing', 'error');
+      } else if (deleteError.code === '42P01') {
+        showToast('Database table not found. Please contact support', 'error');
+      } else {
+        showToast(`Failed to delete listing: ${deleteError.message}`, 'error');
+      }
+      return;
+    }
+    
+    console.log('Job deleted successfully:', deleteData);
+    
+    // Clear from localStorage
+    localStorage.removeItem('selectedJob');
+    
+    // Show success message
+    showToast('Listing deleted successfully', 'success');
+    
+    // Navigate back to jobs page after a short delay
+    setTimeout(() => {
+      router.push('/jobs');
+    }, 1000);
+    
+  } catch (error) {
+    console.error('Unexpected error deleting listing:', error);
+    console.error('Full error:', JSON.stringify(error, null, 2));
+    showToast('An unexpected error occurred. Please try again', 'error');
+  } finally {
+    isSubmitting.value = false;
+    showDeleteModal.value = false;
+  }
+};
+
+const closeDeleteModal = () => {
+  showDeleteModal.value = false;
+};
+
 // Carousell-style Chat function
 const startChat = async () => {
   if (!isLoggedIn.value) {
@@ -159,6 +296,7 @@ const startChat = async () => {
   
   if (!jobPosterId) {
     console.error('Job poster ID is missing!');
+    showToast('Unable to start chat: Job poster information missing', 'error');
     return;
   }
   
@@ -215,13 +353,14 @@ const startChat = async () => {
   } catch (error) {
     console.error('Error starting chat:', error);
     console.error('Full error:', JSON.stringify(error, null, 2));
+    showToast('Failed to start chat. Please try again', 'error');
   }
 };
 
 // Carousell-style Make Offer function
 const openOfferModal = () => {
   if (!isLoggedIn.value) {
-    alert('Please log in to make an offer');
+    showToast('Please log in to make an offer', 'warning');
     router.push('/login');
     return;
   }
@@ -234,7 +373,7 @@ const openOfferModal = () => {
 
 const submitOffer = async () => {
   if (!offerAmount.value || offerAmount.value <= 0) {
-    alert('Please enter a valid offer amount');
+    showToast('Please enter a valid offer amount', 'warning');
     return;
   }
   
@@ -348,13 +487,18 @@ const submitOffer = async () => {
     offerAmount.value = '';
     offerMessage.value = '';
     
-    // Navigate to the chat
-    console.log('Navigating to chat:', chatId);
-    router.push(`/chat/${chatId}`);
+    // Show success toast
+    showToast('Offer sent successfully!', 'success');
+    
+    // Navigate to the chat after a brief delay
+    setTimeout(() => {
+      console.log('Navigating to chat:', chatId);
+      router.push(`/chat/${chatId}`);
+    }, 500);
     
   } catch (error) {
     console.error('Error submitting offer:', error);
-    alert('Failed to submit offer. Please try again.');
+    showToast('Failed to submit offer. Please try again', 'error');
   } finally {
     isSubmitting.value = false;
   }
@@ -369,6 +513,42 @@ const closeOfferModal = () => {
 
 <template>
   <div class="page-wrapper">
+    <!-- Toast Notifications -->
+    <div class="toast-container">
+      <transition-group name="toast">
+        <div 
+          v-for="toast in toasts" 
+          :key="toast.id"
+          :class="['toast', `toast-${toast.type}`]"
+          @click="removeToast(toast.id)"
+        >
+          <div class="toast-icon">
+            <svg v-if="toast.type === 'success'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            <svg v-else-if="toast.type === 'error'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="15" y1="9" x2="9" y2="15"></line>
+              <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+            <svg v-else-if="toast.type === 'warning'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          </div>
+          <span class="toast-message">{{ toast.message }}</span>
+          <button class="toast-close" @click.stop="removeToast(toast.id)">✕</button>
+        </div>
+      </transition-group>
+    </div>
+
     <div class="container">
       <!-- Header with back button -->
       <div class="header">
@@ -387,7 +567,7 @@ const closeOfferModal = () => {
           <div class="main-content">
             <!-- Combined Overview Card -->
             <div class="job-overview-card">
-              <!-- Image Gallery Section - NEW LAYOUT -->
+              <!-- Image Gallery Section -->
               <div v-if="job.images && job.images.length > 0" class="image-gallery-wrapper">
                 <div class="image-gallery-grid">
                   <!-- Main Large Image (Left) -->
@@ -561,12 +741,36 @@ const closeOfferModal = () => {
               </div>
 
               <div class="price-highlight">
-                <span class="price-label">Asking Price</span>
+                <span class="price-label">{{ isOwnListing ? 'Your Asking Price' : 'Asking Price' }}</span>
                 <span class="price-large">{{ job.budget }}</span>
               </div>
 
-              <!-- Carousell-style Action Buttons -->
-              <div class="action-buttons">
+              <!-- Action Buttons - Different for own listing vs others -->
+              <div v-if="isOwnListing" class="action-buttons-own">
+                <button @click="viewChats" class="view-chats-btn">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  View Chats
+                </button>
+                <button @click="editListing" class="edit-btn">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                  Edit Listing
+                </button>
+                <button @click="confirmDelete" class="delete-btn">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  Delete
+                </button>
+              </div>
+
+              <!-- Carousell-style Action Buttons for non-owners -->
+              <div v-else class="action-buttons">
                 <button @click="startChat" class="chat-btn">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -687,12 +891,289 @@ const closeOfferModal = () => {
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div v-if="showDeleteModal" class="modal-overlay" @click="closeDeleteModal">
+      <div class="modal-content delete-modal" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">Delete Listing</h2>
+          <button @click="closeDeleteModal" class="close-btn">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="delete-warning">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <p class="delete-message">Are you sure you want to delete this listing?</p>
+            <p class="delete-submessage">This action cannot be undone. All related chats will remain but the listing will be permanently removed.</p>
+          </div>
+
+          <div class="modal-actions">
+            <button @click="closeDeleteModal" class="cancel-btn" :disabled="isSubmitting">
+              Cancel
+            </button>
+            <button @click="deleteListing" class="confirm-delete-btn" :disabled="isSubmitting">
+              {{ isSubmitting ? 'Deleting...' : 'Delete Listing' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-/* Keep all previous styles and add these NEW styles */
+/* Toast Notification Styles */
+.toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+}
 
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 300px;
+  max-width: 400px;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.toast:hover {
+  transform: translateX(-4px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.toast-success {
+  border-left: 4px solid #10b981;
+}
+
+.toast-error {
+  border-left: 4px solid #ef4444;
+}
+
+.toast-warning {
+  border-left: 4px solid #f59e0b;
+}
+
+.toast-info {
+  border-left: 4px solid #3b82f6;
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toast-success .toast-icon {
+  color: #10b981;
+}
+
+.toast-error .toast-icon {
+  color: #ef4444;
+}
+
+.toast-warning .toast-icon {
+  color: #f59e0b;
+}
+
+.toast-info .toast-icon {
+  color: #3b82f6;
+}
+
+.toast-message {
+  flex: 1;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 1.125rem;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.toast-close:hover {
+  color: #6b7280;
+}
+
+/* Toast Animations */
+.toast-enter-active {
+  animation: toastSlideIn 0.3s ease;
+}
+
+.toast-leave-active {
+  animation: toastSlideOut 0.3s ease;
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toastSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 640px) {
+  .toast-container {
+    top: 0.5rem;
+    right: 0.5rem;
+    left: 0.5rem;
+  }
+  
+  .toast {
+    min-width: auto;
+    max-width: none;
+  }
+}
+
+/* All other styles */
+.action-buttons-own {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.view-chats-btn,
+.edit-btn,
+.delete-btn {
+  padding: 0.875rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+}
+
+.view-chats-btn {
+  background: #3b82f6;
+  color: white;
+}
+
+.view-chats-btn:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.edit-btn {
+  background: white;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+}
+
+.edit-btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  transform: translateY(-1px);
+}
+
+.delete-btn {
+  background: white;
+  color: #dc2626;
+  border: 2px solid #fecaca;
+}
+
+.delete-btn:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  transform: translateY(-1px);
+}
+
+.delete-modal .modal-body {
+  padding: 1.5rem;
+}
+
+.delete-warning {
+  text-align: center;
+  padding: 1rem;
+}
+
+.delete-warning svg {
+  margin: 0 auto 1rem;
+}
+
+.delete-message {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.5rem 0;
+}
+
+.delete-submessage {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.confirm-delete-btn {
+  flex: 1;
+  padding: 0.875rem;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: #dc2626;
+  color: white;
+}
+
+.confirm-delete-btn:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.confirm-delete-btn:disabled,
 .submit-offer-btn:disabled,
 .cancel-btn:disabled {
   opacity: 0.6;
@@ -773,7 +1254,6 @@ const closeOfferModal = () => {
   gap: 1.5rem;
 }
 
-/* Combined Overview Card */
 .job-overview-card {
   background: white;
   border-radius: 0.75rem;
@@ -781,7 +1261,6 @@ const closeOfferModal = () => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* NEW Airbnb-Style Image Gallery */
 .image-gallery-wrapper {
   position: relative;
   width: 100%;
@@ -810,7 +1289,6 @@ const closeOfferModal = () => {
   }
 }
 
-/* Main Large Image (Left Side) */
 .main-image-container {
   position: relative;
   width: 100%;
@@ -831,7 +1309,6 @@ const closeOfferModal = () => {
   transform: scale(1.05);
 }
 
-/* Right Column with 2 Images */
 .side-images-column {
   display: grid;
   grid-template-rows: 1fr 1fr;
@@ -870,7 +1347,6 @@ const closeOfferModal = () => {
   transform: scale(1.05);
 }
 
-/* Show All Images Button */
 .show-all-btn {
   position: absolute;
   bottom: 1rem;
@@ -901,7 +1377,6 @@ const closeOfferModal = () => {
   flex-shrink: 0;
 }
 
-/* Header Section (Title + Category + Budget) */
 .header-section {
   padding: 1.5rem;
   border-bottom: 1px solid #e5e7eb;
@@ -952,7 +1427,6 @@ const closeOfferModal = () => {
   color: #059669;
 }
 
-/* Description Section */
 .description-section {
   padding: 1.5rem;
 }
@@ -970,7 +1444,6 @@ const closeOfferModal = () => {
   margin: 0;
 }
 
-/* Info Card */
 .info-card, .skills-card, .map-card {
   background: white;
   border-radius: 0.75rem;
@@ -1009,7 +1482,6 @@ const closeOfferModal = () => {
   color: #111827;
 }
 
-/* Skills */
 .skills-list {
   display: flex;
   flex-wrap: wrap;
@@ -1025,7 +1497,6 @@ const closeOfferModal = () => {
   font-weight: 500;
 }
 
-/* Map */
 .map-toggle-btn {
   width: 100%;
   padding: 0.875rem;
@@ -1087,7 +1558,6 @@ const closeOfferModal = () => {
   font-size: 0.875rem;
 }
 
-/* Image Modal/Lightbox */
 .image-modal-overlay {
   position: fixed;
   top: 0;
@@ -1218,7 +1688,6 @@ const closeOfferModal = () => {
   font-weight: 500;
 }
 
-/* Sidebar */
 .sidebar {
   position: sticky;
   top: 1rem;
@@ -1282,7 +1751,6 @@ const closeOfferModal = () => {
   margin-top: 0.25rem;
 }
 
-/* Carousell-style Action Buttons */
 .action-buttons {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1300,8 +1768,7 @@ const closeOfferModal = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  border: none;
+  gap: 0.
 }
 
 .chat-btn {
@@ -1525,6 +1992,11 @@ const closeOfferModal = () => {
 
   .action-buttons {
     grid-template-columns: 1fr;
+  }
+  
+  .action-buttons-own {
+    display: flex;
+    flex-direction: column;
   }
 
   .modal-content {
