@@ -3,10 +3,15 @@
     <section class="request-section">
       <div class="container">
         <div class="form-wrapper">
-          <h1 class="form-title">What do you need help with?</h1>
-          <p class="form-subtitle">Tell us about your task and we'll connect you with the right helper</p>
+          <h1 class="form-title">Edit Your Listing</h1>
+          <p class="form-subtitle">Update the details of your job request</p>
           
-          <form @submit.prevent="handleSubmit" class="request-form">
+          <div v-if="loading" class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading job details...</p>
+          </div>
+
+          <form v-else-if="jobLoaded" @submit.prevent="handleSubmit" class="request-form">
             <div class="form-group">
               <label for="title" class="form-label">Title</label>
               <input 
@@ -175,17 +180,66 @@
               {{ submitError }}
             </div>
 
-            <button type="submit" class="submit-button" :disabled="isSubmitting || !postalCodeValidated">
-              {{ isSubmitting ? 'Posting...' : 'Post Request' }}
-            </button>
+            <div class="button-group">
+              <button type="button" @click="cancelEdit" class="cancel-button">
+                Cancel
+              </button>
+              <button type="submit" class="submit-button" :disabled="isSubmitting || !postalCodeValidated">
+                {{ isSubmitting ? 'Updating...' : 'Update Listing' }}
+              </button>
+            </div>
             
             <small v-if="!postalCodeValidated" class="submit-hint">
               Please enter a valid postal code to continue
             </small>
           </form>
+
+          <div v-else class="error-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <h2>Failed to Load Job</h2>
+            <p>{{ loadError }}</p>
+            <button @click="$router.push('/jobs')" class="back-button-error">
+              Back to Listings
+            </button>
+          </div>
         </div>
       </div>
     </section>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container">
+      <transition-group name="toast">
+        <div 
+          v-for="toast in toasts" 
+          :key="toast.id"
+          :class="['toast', `toast-${toast.type}`]"
+          @click="removeToast(toast.id)"
+        >
+          <div class="toast-icon">
+            <svg v-if="toast.type === 'success'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            <svg v-else-if="toast.type === 'error'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="15" y1="9" x2="9" y2="15"></line>
+              <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          </div>
+          <span class="toast-message">{{ toast.message }}</span>
+          <button class="toast-close" @click.stop="removeToast(toast.id)">✕</button>
+        </div>
+      </transition-group>
+    </div>
   </div>
 </template>
 
@@ -193,9 +247,14 @@
 import { supabase } from '../supabase/config'
 
 export default {
-  name: 'RequestPage',
+  name: 'EditJobPage',
   data() {
     return {
+      jobId: null,
+      originalJobData: null,
+      loading: true,
+      jobLoaded: false,
+      loadError: null,
       formData: {
         title: '',
         description: '',
@@ -215,10 +274,100 @@ export default {
       selectedImages: [],
       isDragging: false,
       imageError: null,
-      uploadedImageUrls: []
+      existingImageUrls: [],
+      
+      // Toast notifications
+      toasts: [],
+      toastId: 0
     };
   },
+  async mounted() {
+    this.jobId = this.$route.params.id;
+    
+    if (!this.jobId) {
+      this.loadError = 'No job ID provided';
+      this.loading = false;
+      return;
+    }
+    
+    await this.loadJobData();
+  },
   methods: {
+    // Toast notification methods
+    showToast(message, type = 'info') {
+      const id = this.toastId++;
+      this.toasts.push({ id, message, type });
+      
+      setTimeout(() => {
+        this.removeToast(id);
+      }, 4000);
+    },
+    
+    removeToast(id) {
+      const index = this.toasts.findIndex(t => t.id === id);
+      if (index > -1) {
+        this.toasts.splice(index, 1);
+      }
+    },
+    
+    async loadJobData() {
+      try {
+        const currentUserId = localStorage.getItem('userId');
+        
+        const { data, error } = await supabase
+          .from('User-Job-Request')
+          .select('*')
+          .eq('id', this.jobId)
+          .eq('user_id', currentUserId)
+          .single();
+        
+        if (error) throw error;
+        
+        if (!data) {
+          throw new Error('Job not found or you do not have permission to edit it');
+        }
+        
+        this.originalJobData = data;
+        
+        // Populate form with existing data
+        this.formData = {
+          title: data.title || '',
+          description: data.description || '',
+          category: data.category || '',
+          postalCode: data.postal_code || '',
+          location: data.location || '',
+          payment: data.payment || ''
+        };
+        
+        // Load coordinates if available
+        if (data.coordinates) {
+          this.coordinates = data.coordinates;
+          this.postalCodeValidated = true;
+          this.postalCodeStatus = '✓ Valid postal code - map location confirmed';
+        }
+        
+        // Load existing images
+        if (data.images && data.images.length > 0) {
+          this.existingImageUrls = [...data.images];
+          this.selectedImages = data.images.map((url, index) => ({
+            preview: url,
+            url: url,
+            isExisting: true
+          }));
+        }
+        
+        this.jobLoaded = true;
+        console.log('Job data loaded:', data);
+        
+      } catch (error) {
+        console.error('Error loading job:', error);
+        this.loadError = error.message || 'Failed to load job data';
+        this.showToast(this.loadError, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+    
     // Image upload methods
     triggerFileInput() {
       this.$refs.fileInput.click();
@@ -272,7 +421,8 @@ export default {
           this.selectedImages.push({
             file: file,
             preview: e.target.result,
-            uploading: false
+            uploading: false,
+            isExisting: false
           });
         };
         reader.readAsDataURL(file);
@@ -284,11 +434,18 @@ export default {
       this.imageError = null;
     },
     
-    async uploadImages() {
+    async uploadNewImages() {
       const uploadedUrls = [];
       
-      for (let i = 0; i < this.selectedImages.length; i++) {
-        const imageData = this.selectedImages[i];
+      // Keep existing images
+      const existingImages = this.selectedImages.filter(img => img.isExisting);
+      uploadedUrls.push(...existingImages.map(img => img.url));
+      
+      // Upload new images
+      const newImages = this.selectedImages.filter(img => !img.isExisting);
+      
+      for (let i = 0; i < newImages.length; i++) {
+        const imageData = newImages[i];
         imageData.uploading = true;
         
         try {
@@ -297,7 +454,7 @@ export default {
           const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
           const filePath = `${fileName}`;
           
-          console.log('Uploading image:', filePath);
+          console.log('Uploading new image:', filePath);
           
           const { data, error } = await supabase.storage
             .from('job-images')
@@ -314,7 +471,7 @@ export default {
             .getPublicUrl(filePath);
           
           uploadedUrls.push(urlData.publicUrl);
-          console.log('Image uploaded successfully:', urlData.publicUrl);
+          console.log('New image uploaded successfully:', urlData.publicUrl);
           
         } catch (error) {
           console.error('Error uploading image:', error);
@@ -382,11 +539,18 @@ export default {
       }
     },
     
+    cancelEdit() {
+      if (confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+        this.$router.back();
+      }
+    },
+    
     async handleSubmit() {
       if (!this.postalCodeValidated) {
         await this.validatePostalCode();
         if (!this.postalCodeValidated) {
           this.submitError = 'Please enter a valid postal code';
+          this.showToast('Please enter a valid postal code', 'error');
           return;
         }
       }
@@ -395,17 +559,15 @@ export default {
       this.submitError = null;
 
       try {
-        const userId = localStorage.getItem('userId');
-        
-        // Upload images first if any are selected
+        // Upload new images if any
         let imageUrls = [];
         if (this.selectedImages.length > 0) {
-          console.log('Uploading images...');
-          imageUrls = await this.uploadImages();
-          console.log('All images uploaded:', imageUrls);
+          console.log('Processing images...');
+          imageUrls = await this.uploadNewImages();
+          console.log('Final image URLs:', imageUrls);
         }
         
-        const requestData = {
+        const updateData = {
           title: this.formData.title,
           description: this.formData.description,
           category: this.formData.category,
@@ -413,28 +575,31 @@ export default {
           location: this.formData.location,
           coordinates: this.coordinates,
           payment: parseFloat(this.formData.payment),
-          status: 'open',
-          user_id: userId,
-          images: imageUrls // Add images array
+          images: imageUrls
         };
 
-        console.log('Creating job request with data:', requestData);
+        console.log('Updating job with data:', updateData);
 
         const { data, error } = await supabase
           .from('User-Job-Request')
-          .insert([requestData])
+          .update(updateData)
+          .eq('id', this.jobId)
           .select();
 
         if (error) throw error;
         
-        console.log('Request created:', data);
-        alert('Job posted successfully!');
+        console.log('Job updated:', data);
+        this.showToast('Listing updated successfully!', 'success');
         
-        this.$router.push('/jobs');
+        // Navigate back after a short delay
+        setTimeout(() => {
+          this.$router.push('/jobs');
+        }, 1000);
         
       } catch (error) {
-        console.error('Error adding request:', error);
-        this.submitError = error.message || 'Failed to post request. Please try again.';
+        console.error('Error updating job:', error);
+        this.submitError = error.message || 'Failed to update listing. Please try again.';
+        this.showToast(this.submitError, 'error');
       } finally {
         this.isSubmitting = false;
       }
@@ -442,7 +607,7 @@ export default {
   },
   watch: {
     'formData.postalCode': function(newVal) {
-      if (this.postalCodeValidated) {
+      if (this.postalCodeValidated && newVal !== this.originalJobData?.postal_code) {
         this.postalCodeValidated = false;
         this.postalCodeStatus = 'Required for accurate map location';
       }
@@ -452,6 +617,7 @@ export default {
 </script>
 
 <style scoped>
+/* All styles from request-form.vue */
 * {
   margin: 0;
   padding: 0;
@@ -500,6 +666,73 @@ export default {
   text-align: center;
   margin-bottom: 3rem;
   line-height: 1.6;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  color: #6b7280;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e5e7eb;
+  border-top-color: #2563EB;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error State */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.error-state svg {
+  color: #dc2626;
+  margin-bottom: 1.5rem;
+}
+
+.error-state h2 {
+  font-size: 1.5rem;
+  color: #1a1a1a;
+  margin-bottom: 0.5rem;
+}
+
+.error-state p {
+  color: #6b7280;
+  margin-bottom: 2rem;
+}
+
+.back-button-error {
+  background: #2563EB;
+  color: white;
+  padding: 0.875rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-button-error:hover {
+  background: #1d4ed8;
+  transform: translateY(-2px);
 }
 
 .request-form {
@@ -650,10 +883,6 @@ export default {
   animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 .add-more-btn {
   aspect-ratio: 1;
   border: 2px dashed #d1d5db;
@@ -766,9 +995,16 @@ select.form-input {
   padding-left: 2.5rem;
 }
 
-.submit-button {
-  background: #2563EB;
-  color: white;
+/* Button Group */
+.button-group {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.submit-button,
+.cancel-button {
   padding: 1.25rem 2rem;
   border: none;
   border-radius: 12px;
@@ -776,7 +1012,11 @@ select.form-input {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  margin-top: 1rem;
+}
+
+.submit-button {
+  background: #2563EB;
+  color: white;
 }
 
 .submit-button:hover:not(:disabled) {
@@ -796,6 +1036,18 @@ select.form-input {
   opacity: 0.6;
 }
 
+.cancel-button {
+  background: white;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+}
+
+.cancel-button:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  transform: translateY(-2px);
+}
+
 .error-message {
   background: #fee2e2;
   color: #dc2626;
@@ -803,6 +1055,128 @@ select.form-input {
   border-radius: 8px;
   font-size: 0.95rem;
   text-align: center;
+}
+
+/* Toast Notifications */
+.toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 300px;
+  max-width: 400px;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.toast:hover {
+  transform: translateX(-4px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.toast-success {
+  border-left: 4px solid #10b981;
+}
+
+.toast-error {
+  border-left: 4px solid #ef4444;
+}
+
+.toast-info {
+  border-left: 4px solid #3b82f6;
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toast-success .toast-icon {
+  color: #10b981;
+}
+
+.toast-error .toast-icon {
+  color: #ef4444;
+}
+
+.toast-info .toast-icon {
+  color: #3b82f6;
+}
+
+.toast-message {
+  flex: 1;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 1.125rem;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.toast-close:hover {
+  color: #6b7280;
+}
+
+/* Toast Animations */
+.toast-enter-active {
+  animation: toastSlideIn 0.3s ease;
+}
+
+.toast-leave-active {
+  animation: toastSlideOut 0.3s ease;
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toastSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
 }
 
 /* Responsive Design */
@@ -835,6 +1209,21 @@ select.form-input {
   .image-preview-grid {
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   }
+  
+  .button-group {
+    grid-template-columns: 1fr;
+  }
+  
+  .toast-container {
+    top: 0.5rem;
+    right: 0.5rem;
+    left: 0.5rem;
+  }
+  
+  .toast {
+    min-width: auto;
+    max-width: none;
+  }
 }
 
 @media (max-width: 480px) {
@@ -857,7 +1246,8 @@ select.form-input {
     font-size: 0.95rem;
   }
 
-  .submit-button {
+  .submit-button,
+  .cancel-button {
     padding: 1rem 1.5rem;
     font-size: 1rem;
   }
