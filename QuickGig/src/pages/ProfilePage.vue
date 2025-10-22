@@ -84,7 +84,7 @@
           <div class="stat-card stat-card-listings">
             <div class="stat-content">
               <div>
-                <p class="stat-number">{{ userListings.length }}</p>
+                <p class="stat-number">{{ activeListingsCount }}</p>
                 <p class="stat-label">Active Listings</p>
               </div>
             </div>
@@ -192,22 +192,26 @@
               <p class="subtitle">Recent completed jobs</p>
             </div>
             <div class="content-body">
-              <div v-if="user.recentJobs.length > 0" class="jobs-list">
-                <div v-for="job in user.recentJobs" :key="job.id" class="job-card">
+              <div v-if="loadingCompletedJobs" class="loading-container">
+                <div class="spinner"></div>
+                <p>Loading completed jobs...</p>
+              </div>
+              <div v-else-if="completedJobs.length > 0" class="jobs-list">
+                <div v-for="job in completedJobs" :key="job.id" class="job-card">
                   <div>
                     <h3>{{ job.title }}</h3>
-                    <p class="job-client">Client: {{ job.client }}</p>
-                    <p class="job-date">{{ job.date }}</p>
+                    <p class="job-description">{{ job.description }}</p>
+                    <p class="job-date">Posted: {{ formatDateShort(job.created_at) }}</p>
                   </div>
                   <div class="job-right">
-                    <p class="job-amount">${{ job.amount }}</p>
-                    <span class="status-badge">{{ job.status }}</span>
+                    <p class="job-amount">${{ job.payment }}</p>
+                    <span class="status-badge status-completed">COMPLETED</span>
                   </div>
                 </div>
               </div>
               <div v-else class="empty-state">
                 <div class="empty-icon-text">No Jobs</div>
-                <p class="empty-title">No jobs yet</p>
+                <p class="empty-title">No completed jobs yet</p>
                 <p class="empty-text">Your completed jobs will appear here</p>
               </div>
             </div>
@@ -217,15 +221,15 @@
           <div v-if="activeTab === 'listings'" class="tab-content">
             <div class="content-header">
               <h2>My Job Listings</h2>
-              <p class="subtitle">{{ userListings.length }} total listings</p>
+              <p class="subtitle">{{ activeListingsCount }} active listings</p>
             </div>
             <div class="content-body">
               <div v-if="loadingListings" class="loading-container">
                 <div class="spinner"></div>
                 <p>Loading listings...</p>
               </div>
-              <div v-else-if="userListings.length > 0" class="listings-list">
-                <div v-for="listing in userListings" :key="listing.id" class="listing-card">
+              <div v-else-if="activeListings.length > 0" class="listings-list">
+                <div v-for="listing in activeListings" :key="listing.id" class="listing-card">
                   <div class="listing-main">
                     <div class="listing-header-row">
                       <h3>{{ listing.title }}</h3>
@@ -255,6 +259,9 @@
                   <div class="listing-footer">
                     <p class="listing-payment">${{ listing.payment }}</p>
                     <div class="listing-actions">
+                      <button @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete">
+                        Mark as Completed
+                      </button>
                       <button @click="editListing(listing)" class="btn-action btn-action-edit">
                         Edit
                       </button>
@@ -375,7 +382,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { supabase } from '../supabase/config';
 import { useRouter } from 'vue-router';
 
@@ -384,6 +391,7 @@ const activeTab = ref('about');
 const showEditModal = ref(false);
 const isLoading = ref(true);
 const loadingListings = ref(false);
+const loadingCompletedJobs = ref(false);
 
 const tabs = [
   { label: 'About', value: 'about' },
@@ -433,10 +441,21 @@ const errors = reactive({
 });
 
 const userListings = ref([]);
+const completedJobs = ref([]);
+
+// Computed properties for filtering listings
+const activeListings = computed(() => {
+  return userListings.value.filter(listing => listing.status === 'open');
+});
+
+const activeListingsCount = computed(() => {
+  return activeListings.value.length;
+});
 
 onMounted(async () => {
   await loadUserData();
   await loadUserListings();
+  await loadCompletedJobs();
 });
 
 const loadUserData = async () => {
@@ -528,6 +547,7 @@ const loadUserListings = async () => {
       .from('User-Job-Request')
       .select('*')
       .eq('user_id', userId)
+      .eq('status', 'open')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -543,6 +563,40 @@ const loadUserListings = async () => {
     alert('Failed to load listings: ' + (error.message || 'Unknown error'));
   } finally {
     loadingListings.value = false;
+  }
+};
+
+const loadCompletedJobs = async () => {
+  try {
+    loadingCompletedJobs.value = true;
+    
+    const userId = localStorage.getItem('userId');
+    
+    if (!userId) {
+      return;
+    }
+
+    console.log('Loading completed jobs for userId:', userId);
+
+    const { data: jobs, error } = await supabase
+      .from('User-Job-Request')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading completed jobs:', error);
+      throw error;
+    }
+
+    console.log('Completed jobs loaded:', jobs);
+    completedJobs.value = jobs || [];
+
+  } catch (error) {
+    console.error('Error loading completed jobs:', error);
+  } finally {
+    loadingCompletedJobs.value = false;
   }
 };
 
@@ -660,6 +714,37 @@ const editListing = (listing) => {
   router.push(`/edit-job/${listing.id}`);
 };
 
+// NEW FUNCTION: Mark as Completed
+const markAsCompleted = async (listingId) => {
+  if (!confirm('Are you sure you want to mark this job as completed? It will be moved to your Job History.')) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('User-Job-Request')
+      .update({ 
+        status: 'completed'
+        // Removed updated_at since the column doesn't exist
+      })
+      .eq('id', listingId);
+
+    if (error) throw error;
+
+    // Reload listings and completed jobs
+    await loadUserListings();
+    await loadCompletedJobs();
+    
+    alert('Job marked as completed successfully!');
+    
+    // Switch to Job History tab to show the completed job
+    activeTab.value = 'jobs';
+  } catch (error) {
+    console.error('Error marking job as completed:', error);
+    alert('Failed to mark job as completed. Please try again.');
+  }
+};
+
 const deleteListing = async (listingId) => {
   if (!confirm('Are you sure you want to delete this listing? This action cannot be undone.')) {
     return;
@@ -725,6 +810,7 @@ const getStatusClass = (status) => {
 };
 </script>
 
+<style scoped>
 <style scoped>
 .profile-page {
   min-height: 100vh;
@@ -1764,4 +1850,28 @@ const getStatusClass = (status) => {
     min-width: 100%;
   }
 }
+
+
+/* Mark as Completed button styling */
+.btn-action-complete {
+  background: #059669;
+  color: white;
+}
+
+.btn-action-complete:hover {
+  background: #047857;
+}
+
+.job-description {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+  line-height: 1.5;
+}
+
+.status-completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
 </style>
