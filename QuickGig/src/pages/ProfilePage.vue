@@ -811,7 +811,6 @@ const getStatusClass = (status) => {
 </script>
 
 <style scoped>
-<style scoped>
 .profile-page {
   min-height: 100vh;
   background-color: #fafafa;
