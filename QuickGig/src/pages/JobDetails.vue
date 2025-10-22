@@ -1,4 +1,3 @@
-<!-- JobDetails.vue - Place this in src/pages/JobDetails.vue -->
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -432,7 +431,7 @@ const submitOffer = async () => {
       console.log('Created new chat:', chatId);
     }
     
-    // Step 2: Send the offer message
+    // Step 2: Send the offer message WITH METADATA
     const offerMessageText = `Offered $${offerAmount.value}`;
     
     const { error: offerMsgError } = await supabase
@@ -441,6 +440,9 @@ const submitOffer = async () => {
         chat_id: chatId,
         sender_id: currentUserId,
         message: offerMessageText,
+        message_type: 'offer',           // ✅ NEW: Mark as offer
+        offer_amount: offerAmount.value,  // ✅ NEW: Store amount
+        offer_status: 'pending',          // ✅ NEW: Initial status
         read: false
       }]);
     
@@ -451,7 +453,7 @@ const submitOffer = async () => {
     
     console.log('Offer message sent');
     
-    // Step 3: Send additional message if provided
+    // Step 3: Send additional message if provided (as regular message)
     let lastMessage = offerMessageText;
     
     if (offerMessage.value.trim()) {
@@ -461,6 +463,7 @@ const submitOffer = async () => {
           chat_id: chatId,
           sender_id: currentUserId,
           message: offerMessage.value.trim(),
+          message_type: 'regular',  // ✅ Regular message
           read: false
         }]);
       
