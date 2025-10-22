@@ -327,6 +327,42 @@
             <label>Bio</label>
             <textarea v-model="editForm.bio" rows="4" placeholder="Tell people about yourself and your skills..."></textarea>
           </div>
+
+          <!-- Skills Section -->
+          <div class="form-section">
+            <div class="section-header">
+              <label>Skills & Expertise</label>
+              <button @click="addSkill" type="button" class="btn-add-skill">+ Add Skill</button>
+            </div>
+            
+            <div v-if="editForm.skills.length === 0" class="empty-skills-message">
+              <p>No skills added yet. Click "Add Skill" to get started.</p>
+            </div>
+            
+            <div v-else class="skills-editor-list">
+              <div v-for="(skill, index) in editForm.skills" :key="index" class="skill-editor-item">
+                <div class="skill-inputs">
+                  <div class="skill-input-group">
+                    <input 
+                      v-model="skill.name" 
+                      type="text" 
+                      placeholder="Skill name (e.g., Plumbing, House Cleaning)"
+                      class="skill-name-input"
+                    />
+                  </div>
+                  <div class="skill-input-group">
+                    <select v-model="skill.level" class="skill-level-select">
+                      <option value="Beginner">Beginner</option>
+                      <option value="Intermediate">Intermediate</option>
+                      <option value="Advanced">Advanced</option>
+                      <option value="Expert">Expert</option>
+                    </select>
+                  </div>
+                </div>
+                <button @click="removeSkill(index)" type="button" class="btn-remove-skill">×</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="modal-footer">
@@ -388,6 +424,7 @@ const editForm = reactive({
   email: '',
   phone: '',
   bio: '',
+  skills: [],
 });
 
 const errors = reactive({
@@ -540,6 +577,12 @@ const openEditModal = () => {
   editForm.email = user.email;
   editForm.phone = user.phone;
   editForm.bio = user.bio;
+  // Deep copy skills array
+  editForm.skills = user.skills.map(skill => ({
+    name: skill.name,
+    level: skill.level || 'Beginner',
+    jobs: skill.jobs || 0
+  }));
   errors.username = '';
   errors.email = '';
   showEditModal.value = true;
@@ -547,6 +590,18 @@ const openEditModal = () => {
 
 const closeEditModal = () => {
   showEditModal.value = false;
+};
+
+const addSkill = () => {
+  editForm.skills.push({
+    name: '',
+    level: 'Beginner',
+    jobs: 0
+  });
+};
+
+const removeSkill = (index) => {
+  editForm.skills.splice(index, 1);
 };
 
 const saveProfile = async () => {
@@ -557,6 +612,9 @@ const saveProfile = async () => {
     return;
   }
   
+  // Filter out empty skills
+  const validSkills = editForm.skills.filter(skill => skill.name.trim() !== '');
+  
   try {
     const { error } = await supabase
       .from('users')
@@ -566,6 +624,7 @@ const saveProfile = async () => {
         location: editForm.location,
         phone: editForm.phone,
         bio: editForm.bio,
+        skills: validSkills,
         updated_at: new Date().toISOString()
       })
       .eq('id', user.id);
@@ -577,6 +636,7 @@ const saveProfile = async () => {
     user.location = editForm.location;
     user.phone = editForm.phone;
     user.bio = editForm.bio;
+    user.skills = validSkills;
 
     localStorage.setItem('username', user.username);
     if (user.avatar_url) {
@@ -1481,6 +1541,133 @@ const getStatusClass = (status) => {
   margin-top: 0.25rem;
 }
 
+/* Skills Editor Styles */
+.form-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-header label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.btn-add-skill {
+  padding: 0.5rem 1rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-add-skill:hover {
+  background: #1d4ed8;
+}
+
+.empty-skills-message {
+  padding: 2rem;
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 0.375rem;
+  text-align: center;
+}
+
+.empty-skills-message p {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.skills-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.skill-editor-item {
+  display: flex;
+  gap: 0.5rem;
+  align-items: start;
+  padding: 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+}
+
+.skill-inputs {
+  flex: 1;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.skill-input-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.skill-name-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.skill-name-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.skill-level-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background: white;
+}
+
+.skill-level-select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.btn-remove-skill {
+  padding: 0.25rem;
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 1.5rem;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-remove-skill:hover {
+  background: #fee2e2;
+}
+
 .modal-footer {
   padding: 1.5rem;
   border-top: 1px solid #e5e7eb;
@@ -1561,6 +1748,20 @@ const getStatusClass = (status) => {
   .btn-action {
     flex: 1;
     justify-content: center;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .skill-inputs {
+    flex-direction: column;
+  }
+
+  .skill-input-group {
+    min-width: 100%;
   }
 }
 </style>
