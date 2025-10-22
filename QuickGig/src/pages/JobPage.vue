@@ -500,7 +500,7 @@ const viewJobDetails = (job) => {
   font-size: 0.95rem;
   flex-grow: 1;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 3;  
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

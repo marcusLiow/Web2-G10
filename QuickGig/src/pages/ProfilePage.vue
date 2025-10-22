@@ -1,9 +1,9 @@
 <template>
   <div class="profile-page">
-    
     <main class="container">
       <!-- Show loading state while data loads -->
       <div v-if="isLoading" class="loading-container">
+        <div class="spinner"></div>
         <p>Loading profile...</p>
       </div>
 
@@ -107,14 +107,11 @@
           <!-- About Tab -->
           <div v-if="activeTab === 'about'" class="tab-content">
             <div class="content-body">
-              <!-- Header without border -->
               <h2 class="content-title">About Me</h2>
               
-              <!-- Bio FIRST - before any lines -->
               <p v-if="user.bio" class="text-normal">{{ user.bio }}</p>
               <p v-else class="text-placeholder">No bio added yet. Click "Edit Profile" to add one.</p>
               
-              <!-- Then info list with border on top -->
               <div v-if="user.created_at" class="info-list-section">
                 <div class="info-list">
                   <p><span class="label">Member since:</span> {{ formatDate(user.created_at) }}</p>
@@ -224,6 +221,7 @@
             </div>
             <div class="content-body">
               <div v-if="loadingListings" class="loading-container">
+                <div class="spinner"></div>
                 <p>Loading listings...</p>
               </div>
               <div v-else-if="userListings.length > 0" class="listings-list">
@@ -278,7 +276,7 @@
       </template>
     </main>
 
-    <!-- Edit Profile Modal -->
+    <!-- Edit Profile Modal (Keep this one - it's for editing user profile) -->
     <div v-if="showEditModal" class="modal-overlay" @click="closeEditModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
@@ -337,80 +335,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Edit Listing Modal -->
-    <div v-if="showEditListingModal" class="modal-overlay" @click="closeEditListingModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h2>Edit Listing</h2>
-          <button @click="closeEditListingModal" class="close-btn">×</button>
-        </div>
-        
-        <div class="modal-body">
-          <div class="form-group">
-            <label>Title *</label>
-            <input 
-              v-model="editListingForm.title" 
-              type="text" 
-              placeholder="Job title"
-            />
-          </div>
-
-          <div class="form-group">
-            <label>Description *</label>
-            <textarea 
-              v-model="editListingForm.description" 
-              rows="4" 
-              placeholder="Describe the job in detail..."
-            ></textarea>
-          </div>
-
-          <div class="form-group">
-            <label>Location *</label>
-            <input 
-              v-model="editListingForm.location" 
-              type="text" 
-              placeholder="Job location"
-            />
-          </div>
-
-          <div class="form-group">
-            <label>Category</label>
-            <input 
-              v-model="editListingForm.category" 
-              type="text" 
-              placeholder="e.g., Cleaning, Moving, Repair"
-            />
-          </div>
-
-          <div class="form-group">
-            <label>Payment ($) *</label>
-            <input 
-              v-model.number="editListingForm.payment" 
-              type="number" 
-              min="0" 
-              step="0.01"
-              placeholder="0.00"
-            />
-          </div>
-
-          <div class="form-group">
-            <label>Status *</label>
-            <select v-model="editListingForm.status">
-              <option value="open">Open</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button @click="closeEditListingModal" class="btn-cancel">Cancel</button>
-          <button @click="saveListingChanges" class="btn-save">Save Changes</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -422,7 +346,6 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const activeTab = ref('about');
 const showEditModal = ref(false);
-const showEditListingModal = ref(false);
 const isLoading = ref(true);
 const loadingListings = ref(false);
 
@@ -465,16 +388,6 @@ const editForm = reactive({
   email: '',
   phone: '',
   bio: '',
-});
-
-const editListingForm = reactive({
-  id: null,
-  title: '',
-  description: '',
-  location: '',
-  category: '',
-  payment: 0,
-  status: 'open',
 });
 
 const errors = reactive({
@@ -681,58 +594,10 @@ const saveProfile = async () => {
 };
 
 const editListing = (listing) => {
-  editListingForm.id = listing.id;
-  editListingForm.title = listing.title;
-  editListingForm.description = listing.description;
-  editListingForm.location = listing.location;
-  editListingForm.category = listing.category || '';
-  editListingForm.payment = listing.payment;
-  editListingForm.status = listing.status;
-  showEditListingModal.value = true;
-};
-
-const closeEditListingModal = () => {
-  showEditListingModal.value = false;
-  // Reset form
-  editListingForm.id = null;
-  editListingForm.title = '';
-  editListingForm.description = '';
-  editListingForm.location = '';
-  editListingForm.category = '';
-  editListingForm.payment = 0;
-  editListingForm.status = 'open';
-};
-
-const saveListingChanges = async () => {
-  if (!editListingForm.title || !editListingForm.description || !editListingForm.location) {
-    alert('Please fill in all required fields');
-    return;
-  }
-
-  try {
-    const { error } = await supabase
-      .from('User-Job-Request')
-      .update({
-        title: editListingForm.title,
-        description: editListingForm.description,
-        location: editListingForm.location,
-        category: editListingForm.category,
-        payment: editListingForm.payment,
-        status: editListingForm.status,
-      })
-      .eq('id', editListingForm.id);
-
-    if (error) throw error;
-
-    // Reload listings
-    await loadUserListings();
-    
-    closeEditListingModal();
-    alert('Listing updated successfully!');
-  } catch (error) {
-    console.error('Error updating listing:', error);
-    alert('Failed to update listing. Please try again.');
-  }
+  // Store the listing data in localStorage for the edit page to use
+  localStorage.setItem('editingJob', JSON.stringify(listing));
+  // Navigate to the edit job page
+  router.push(`/edit-job/${listing.id}`);
 };
 
 const deleteListing = async (listingId) => {
@@ -801,7 +666,6 @@ const getStatusClass = (status) => {
 </script>
 
 <style scoped>
-/* Keep ALL your original styles here */
 .profile-page {
   min-height: 100vh;
   background-color: #fafafa;
@@ -811,6 +675,30 @@ const getStatusClass = (status) => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem 1rem;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 50vh;
+  font-size: 1.2rem;
+  color: #6b7280;
+  gap: 1rem;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .profile-header {
@@ -1098,7 +986,6 @@ const getStatusClass = (status) => {
   font-weight: 600;
 }
 
-/* Logout Button */
 .logout-container {
   margin-top: 2rem;
   padding-top: 2rem;
@@ -1317,7 +1204,6 @@ const getStatusClass = (status) => {
   font-weight: 500;
 }
 
-/* Listings Styles */
 .listings-list {
   display: flex;
   flex-direction: column;
@@ -1554,8 +1440,7 @@ const getStatusClass = (status) => {
 }
 
 .form-group input,
-.form-group textarea,
-.form-group select {
+.form-group textarea {
   width: 100%;
   padding: 0.5rem 0.75rem;
   border: 1px solid #d1d5db;
@@ -1565,8 +1450,7 @@ const getStatusClass = (status) => {
 }
 
 .form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
+.form-group textarea:focus {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
@@ -1633,15 +1517,6 @@ const getStatusClass = (status) => {
 
 .btn-save:hover {
   background: #1d4ed8;
-}
-
-.loading-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 50vh;
-  font-size: 1.2rem;
-  color: #6b7280;
 }
 
 @media (max-width: 768px) {
