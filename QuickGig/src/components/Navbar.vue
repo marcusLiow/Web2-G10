@@ -12,6 +12,19 @@
           <!-- Show Dashboard link only when logged in -->
           <router-link v-if="isLoggedIn" to="/dashboard" class="nav-link">Dashboard</router-link>
           
+          <!-- Chat Button (only when logged in) with notification badge -->
+          <router-link v-if="isLoggedIn" to="/chats" class="chat-button-wrapper" title="Chats">
+            <div class="chat-button">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <!-- Notification Badge -->
+              <span v-if="unreadChatsCount > 0" class="notification-badge">
+                {{ unreadChatsCount > 99 ? '99+' : unreadChatsCount }}
+              </span>
+            </div>
+          </router-link>
+          
           <!-- Show different buttons based on login status -->
           <router-link v-if="!isLoggedIn" to="/login" class="nav-button">Log In</router-link>
           
@@ -65,7 +78,9 @@ export default {
       userEmail: '',
       avatarUrl: '',
       isDropdownOpen: false,
-      isHelpersPage: false
+      isHelpersPage: false,
+      unreadChatsCount: 0,
+      unreadCheckInterval: null
     };
   },
   mounted() {
@@ -73,21 +88,39 @@ export default {
     this.checkCurrentRoute();
     window.addEventListener('user-logged-in', this.checkLoginStatus);
     window.addEventListener('user-logged-out', this.checkLoginStatus);
+    window.addEventListener('chat-read', this.fetchUnreadChatsCount);
     this.checkSupabaseSession();
     
     // Add global click handler with a small delay
     setTimeout(() => {
       document.addEventListener('click', this.handleDocumentClick);
     }, 100);
+
+    // Start checking for unread chats
+    if (this.isLoggedIn) {
+      this.fetchUnreadChatsCount();
+      this.startUnreadCheck();
+    }
   },
   beforeUnmount() {
     window.removeEventListener('user-logged-in', this.checkLoginStatus);
     window.removeEventListener('user-logged-out', this.checkLoginStatus);
+    window.removeEventListener('chat-read', this.fetchUnreadChatsCount);
     document.removeEventListener('click', this.handleDocumentClick);
+    this.stopUnreadCheck();
   },
   watch: {
     '$route'(to) {
       this.isHelpersPage = to.path === '/helpers';
+    },
+    isLoggedIn(newVal) {
+      if (newVal) {
+        this.fetchUnreadChatsCount();
+        this.startUnreadCheck();
+      } else {
+        this.stopUnreadCheck();
+        this.unreadChatsCount = 0;
+      }
     }
   },
   methods: {
@@ -103,12 +136,14 @@ export default {
         this.isLoggedIn = true;
         localStorage.setItem('isLoggedIn', 'true');
         await this.loadUserData();
+        await this.fetchUnreadChatsCount();
       }
     },
     checkLoginStatus() {
       this.isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
       if (this.isLoggedIn) {
         this.loadUserData();
+        this.fetchUnreadChatsCount();
       }
     },
     async loadUserData() {
@@ -135,6 +170,62 @@ export default {
             console.error('Error fetching avatar:', err);
           }
         }
+      }
+      
+      // Fetch unread count after loading user data
+      await this.fetchUnreadChatsCount();
+    },
+    async fetchUnreadChatsCount() {
+      if (!this.isLoggedIn) return;
+      
+      try {
+        const currentUserId = localStorage.getItem('userId');
+        if (!currentUserId) return;
+
+        // Fetch all chats for this user
+        const { data: chatsData, error: chatsError } = await supabase
+          .from('chats')
+          .select('id')
+          .or(`job_poster_id.eq.${currentUserId},job_seeker_id.eq.${currentUserId}`);
+        
+        if (chatsError) throw chatsError;
+        
+        if (!chatsData || chatsData.length === 0) {
+          this.unreadChatsCount = 0;
+          return;
+        }
+
+        // For each chat, check if there are unread messages
+        let totalUnreadChats = 0;
+        
+        for (const chat of chatsData) {
+          const { count } = await supabase
+            .from('messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('chat_id', chat.id)
+            .neq('sender_id', currentUserId)
+            .eq('read', false);
+          
+          if (count > 0) {
+            totalUnreadChats++;
+          }
+        }
+        
+        this.unreadChatsCount = totalUnreadChats;
+      } catch (error) {
+        console.error('Error fetching unread chats count:', error);
+      }
+    },
+    startUnreadCheck() {
+      // Check for unread messages every 30 seconds
+      this.unreadCheckInterval = setInterval(() => {
+        this.fetchUnreadChatsCount();
+      }, 30000);
+    },
+    stopUnreadCheck() {
+      if (this.unreadCheckInterval) {
+        clearInterval(this.unreadCheckInterval);
+        this.unreadCheckInterval = null;
       }
     },
     handleProfileClick(event) {
@@ -266,6 +357,70 @@ export default {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* Chat Button Wrapper */
+.chat-button-wrapper {
+  position: relative;
+  text-decoration: none;
+}
+
+/* Chat Button */
+.chat-button {
+  background: white;
+  color: #2563EB;
+  padding: 0.75rem;
+  border-radius: 50%;
+  text-decoration: none;
+  transition: all 0.3s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  position: relative;
+}
+
+.helpers-page .chat-button {
+  color: #6C5B7F;
+}
+
+.chat-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.chat-button-wrapper.router-link-active .chat-button {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* Notification Badge */
+.notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.35rem;
+  border-radius: 10px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
 /* Profile Dropdown Styles */
 .profile-dropdown {
   position: relative;
@@ -311,6 +466,10 @@ export default {
   font-size: 1rem;
   font-weight: 700;
   color: #2563EB;
+}
+
+.helpers-page .avatar-placeholder {
+  color: #6C5B7F;
 }
 
 .profile-username {
@@ -395,6 +554,20 @@ export default {
     font-size: 0.9rem;
   }
 
+  .chat-button {
+    width: 40px;
+    height: 40px;
+    padding: 0.6rem;
+  }
+
+  .notification-badge {
+    font-size: 0.6rem;
+    min-width: 16px;
+    height: 16px;
+    top: -3px;
+    right: -3px;
+  }
+
   .profile-username {
     display: none;
   }
@@ -430,6 +603,12 @@ export default {
   .nav-button {
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
+  }
+
+  .chat-button {
+    width: 36px;
+    height: 36px;
+    padding: 0.5rem;
   }
 }
 </style>

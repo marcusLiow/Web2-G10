@@ -51,16 +51,45 @@
               </select>
             </div>
 
-            <div class="form-group">
-              <label for="location" class="form-label">Location</label>
-              <input 
-                type="text" 
-                id="location" 
-                v-model="formData.location"
-                class="form-input"
-                placeholder="e.g., Bedok, Singapore"
-                required
-              />
+            <!-- Location Fields - Both Postal Code and Address -->
+            <div class="location-section">
+              <h3 class="section-header">Location Details</h3>
+              
+              <div class="location-grid">
+                <div class="form-group">
+                  <label for="postalCode" class="form-label">Postal Code</label>
+                  <input 
+                    type="text" 
+                    id="postalCode" 
+                    v-model="formData.postalCode"
+                    @blur="validatePostalCode"
+                    class="form-input"
+                    :class="{ 'validated': postalCodeValidated }"
+                    placeholder="e.g., 238823"
+                    maxlength="6"
+                    pattern="[0-9]{6}"
+                    required
+                  />
+                  <small class="helper-text" :class="{ 'success': postalCodeValidated }">
+                    {{ postalCodeStatus }}
+                  </small>
+                </div>
+
+                <div class="form-group">
+                  <label for="location" class="form-label">Street Address</label>
+                  <input 
+                    type="text" 
+                    id="location" 
+                    v-model="formData.location"
+                    class="form-input"
+                    placeholder="e.g., Blk 123 Bedok North Street 1"
+                    required
+                  />
+                  <small class="helper-text">
+                    Enter your full address for display (map will use postal code for accuracy)
+                  </small>
+                </div>
+              </div>
             </div>
 
             <div class="form-group">
@@ -84,9 +113,13 @@
               {{ submitError }}
             </div>
 
-            <button type="submit" class="submit-button" :disabled="isSubmitting">
+            <button type="submit" class="submit-button" :disabled="isSubmitting || !postalCodeValidated">
               {{ isSubmitting ? 'Posting...' : 'Post Request' }}
             </button>
+            
+            <small v-if="!postalCodeValidated" class="submit-hint">
+              Please enter a valid postal code to continue
+            </small>
           </form>
         </div>
       </div>
@@ -105,15 +138,86 @@ export default {
         title: '',
         description: '',
         category: '',
+        postalCode: '',
         location: '',
         payment: ''
       },
+      coordinates: null,
+      postalCodeValidated: false,
+      postalCodeStatus: 'Required for accurate map location',
       isSubmitting: false,
-      submitError: null
+      submitError: null,
+      apiKey: import.meta.env.VITE_GOOGLE_GEOCODING_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY
     };
   },
   methods: {
+    async validatePostalCode() {
+      const postalCode = this.formData.postalCode;
+      
+      // Reset validation if postal code is empty or invalid
+      if (!postalCode || postalCode.length !== 6 || !/^\d{6}$/.test(postalCode)) {
+        this.postalCodeValidated = false;
+        this.coordinates = null;
+        this.postalCodeStatus = 'Please enter a valid 6-digit postal code';
+        return;
+      }
+      
+      this.postalCodeStatus = 'Validating postal code...';
+      await this.geocodePostalCode(postalCode);
+    },
+    
+    async geocodePostalCode(postalCode) {
+      if (!this.apiKey) {
+        this.postalCodeStatus = '⚠️ Map location may not be accurate (API key missing)';
+        this.postalCodeValidated = true; // Allow submission anyway
+        return;
+      }
+      
+      try {
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?` +
+          `address=${postalCode}+Singapore&` +
+          `region=sg&` +
+          `key=${this.apiKey}`
+        );
+        
+        const data = await response.json();
+        
+        if (data.status === 'OK' && data.results.length > 0) {
+          const result = data.results[0];
+          
+          // Store coordinates for map display (using postal code only)
+          this.coordinates = {
+            lat: result.geometry.location.lat,
+            lng: result.geometry.location.lng
+          };
+          
+          this.postalCodeValidated = true;
+          this.postalCodeStatus = '✓ Valid postal code - map location confirmed';
+          
+          console.log('Postal code validated with coordinates:', this.coordinates);
+        } else {
+          this.postalCodeStatus = '⚠️ Postal code not recognized - please verify';
+          this.postalCodeValidated = false;
+          this.coordinates = null;
+        }
+      } catch (error) {
+        console.error('Geocoding error:', error);
+        this.postalCodeStatus = '⚠️ Could not validate postal code - you may continue';
+        this.postalCodeValidated = true; // Allow submission even if validation fails
+      }
+    },
+    
     async handleSubmit() {
+      // Final validation before submit
+      if (!this.postalCodeValidated) {
+        await this.validatePostalCode();
+        if (!this.postalCodeValidated) {
+          this.submitError = 'Please enter a valid postal code';
+          return;
+        }
+      }
+      
       this.isSubmitting = true;
       this.submitError = null;
 
@@ -124,7 +228,9 @@ export default {
           title: this.formData.title,
           description: this.formData.description,
           category: this.formData.category,
-          location: this.formData.location,
+          postal_code: this.formData.postalCode,
+          location: this.formData.location, // User-entered address for display
+          coordinates: this.coordinates, // Accurate coordinates from postal code
           payment: parseFloat(this.formData.payment),
           status: 'open',
           user_id: userId
@@ -138,7 +244,7 @@ export default {
         if (error) throw error;
         
         console.log('Request created:', data);
-        alert('Job posted successfully!');
+        alert('Job posted successfully! Map will use postal code for precise location.');
         
         // Redirect to job board page
         this.$router.push('/jobs');
@@ -150,12 +256,21 @@ export default {
         this.isSubmitting = false;
       }
     }
+  },
+  watch: {
+    'formData.postalCode': function(newVal) {
+      // Reset validation when postal code changes
+      if (this.postalCodeValidated) {
+        this.postalCodeValidated = false;
+        this.postalCodeStatus = 'Required for accurate map location';
+      }
+    }
   }
 };
 </script>
 
 <style scoped>
-/* Keep all your existing styles */
+/* Keep all your existing styles plus these additions */
 * {
   margin: 0;
   padding: 0;
@@ -241,6 +356,59 @@ export default {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
+/* New location section styles */
+.location-section {
+  background: #f9fafb;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.section-header {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.location-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .location-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-input.validated {
+  border-color: #10b981;
+  background-color: #f0fdf4;
+}
+
+.helper-text {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.helper-text.success {
+  color: #059669;
+  font-weight: 500;
+}
+
+.submit-hint {
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin-top: -0.5rem;
+}
+
 select.form-input {
   cursor: pointer;
   appearance: none;
@@ -287,7 +455,7 @@ select.form-input {
   margin-top: 1rem;
 }
 
-.submit-button:hover {
+.submit-button:hover:not(:disabled) {
   background: #1d4ed8;
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
@@ -301,6 +469,7 @@ select.form-input {
   background: #9ca3af;
   cursor: not-allowed;
   transform: none;
+  opacity: 0.6;
 }
 
 .error-message {
@@ -363,6 +532,10 @@ select.form-input {
   .submit-button {
     padding: 1rem 1.5rem;
     font-size: 1rem;
+  }
+  
+  .location-section {
+    padding: 1rem;
   }
 }
 </style>

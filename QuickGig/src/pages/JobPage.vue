@@ -1,21 +1,14 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
-import { GoogleMap, Marker, InfoWindow } from 'vue3-google-map';
-import { geocodeAddress } from '../utils/geocoding';
 
+const router = useRouter();
 const jobs = ref([]);
 const searchTerm = ref('');
 const selectedCategory = ref('');
-const selectedJob = ref(null);
-const showModal = ref(false);
 const isLoading = ref(true);
 const isLoggedIn = ref(false);
-const showMap = ref(false);
-const jobCoordinates = ref(null);
-const showMapInfoWindow = ref(false);
-
-const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 // Categories list
 const categories = [
@@ -61,7 +54,7 @@ const fetchJobs = async () => {
       if (job.user_id) {
         const { data: userData, error: userError } = await supabase
           .from('users')
-          .select('username, email')
+          .select('username')
           .eq('id', job.user_id)
           .single();
         
@@ -69,7 +62,7 @@ const fetchJobs = async () => {
         
         if (!userError && userData) {
           postedBy = userData.username || 'Anonymous';
-          contactEmail = userData.email || 'N/A';
+          contactEmail = 'Contact via chat'; // Don't expose email publicly
         }
       }
       
@@ -82,12 +75,15 @@ const fetchJobs = async () => {
         budget: `$${job.payment}`,
         skills: ['General'],
         location: job.location,
+        postal_code: job.postal_code, // ADDED: Pass postal code for map
+        coordinates: job.coordinates, // ADDED: Pass coordinates from database
         date: new Date(job.created_at).toLocaleDateString('en-GB'),
         category: job.category || 'Other',
         fullDescription: job.description,
         requirements: ['Contact poster for details'],
         postedBy: postedBy,
-        contactEmail: contactEmail
+        contactEmail: contactEmail,
+        userId: job.user_id
       };
     }));
 
@@ -120,7 +116,8 @@ const filteredJobs = computed(() => {
     result = result.filter(
       job =>
         job.name.toLowerCase().includes(term) ||
-        job.description.toLowerCase().includes(term)
+        job.description.toLowerCase().includes(term) ||
+        job.location.toLowerCase().includes(term) // <-- ADD THIS LINE
     );
   }
 
@@ -136,40 +133,12 @@ const clearFilters = () => {
   selectedCategory.value = '';
 };
 
-const viewJobDetails = async (job) => {
-  selectedJob.value = job;
-  showModal.value = true;
-  showMap.value = false;
-  jobCoordinates.value = null;
-  
-  // Geocode the location
-  if (job.location && apiKey) {
-    const coords = await geocodeAddress(job.location);
-    jobCoordinates.value = coords;
-  }
-};
-
-const closeModal = () => {
-  showModal.value = false;
-  selectedJob.value = null;
-  showMap.value = false;
-  jobCoordinates.value = null;
-};
-
-const toggleMap = () => {
-  showMap.value = !showMap.value;
-  if (showMap.value) {
-    showMapInfoWindow.value = true;
-  }
-};
-
-const mapCenter = computed(() => 
-  jobCoordinates.value || { lat: 1.3521, lng: 103.8198 } // Default to Singapore
-);
-
-const applyForJob = () => {
-  alert(`Application submitted for: ${selectedJob.value.name}\n\nYou will be contacted at your registered email.`);
-  closeModal();
+// Navigate to job details page instead of opening modal
+const viewJobDetails = (job) => {
+  // Store job data in localStorage temporarily for the details page
+  localStorage.setItem('selectedJob', JSON.stringify(job));
+  // Navigate to job details page with job ID
+  router.push(`/job/${job.id}`);
 };
 </script>
 
@@ -274,167 +243,10 @@ const applyForJob = () => {
       <span class="plus-icon">+</span>
       <span class="btn-text">Post Job</span>
     </router-link>
-
-    <!-- Modal -->
-    <div v-if="showModal" class="modal-overlay" @click="closeModal">
-      <div class="modal-content" @click.stop>
-        <button class="close-btn" @click="closeModal">✕</button>
-        
-        <div v-if="selectedJob">
-          <div class="modal-header">
-            <h2 class="modal-title">{{ selectedJob.name }}</h2>
-            <span class="job-category">{{ selectedJob.category }}</span>
-          </div>
-
-          <div class="modal-meta">
-            <div class="meta-item">
-              <span class="meta-label">Price:</span>
-              <strong>{{ selectedJob.budget }}</strong>
-            </div>
-            <div class="meta-item">
-              <span class="icon">📍</span>
-              <span>{{ selectedJob.location }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Date:</span>
-              <span>{{ selectedJob.date }}</span>
-            </div>
-          </div>
-
-          <div class="modal-section">
-            <h3 class="section-title">Job Description</h3>
-            <p class="section-text">{{ selectedJob.fullDescription }}</p>
-          </div>
-
-          <div class="modal-section">
-            <h3 class="section-title">Required Skills</h3>
-            <div class="skills-list">
-              <span
-                v-for="skill in selectedJob.skills"
-                :key="skill"
-                class="skill-tag"
-              >
-                {{ skill }}
-              </span>
-            </div>
-          </div>
-
-          <div class="modal-section">
-            <h3 class="section-title">Requirements</h3>
-            <ul class="requirements-list">
-              <li v-for="(req, index) in selectedJob.requirements" :key="index">
-                {{ req }}
-              </li>
-            </ul>
-          </div>
-
-          <div class="modal-section">
-            <h3 class="section-title">Contact Information</h3>
-            <p class="section-text">
-              <strong>Posted by:</strong> {{ selectedJob.postedBy }}<br>
-              <strong>Email:</strong> {{ selectedJob.contactEmail }}
-            </p>
-          </div>
-
-          <!-- Map Section -->
-          <div class="modal-section">
-            <button @click="toggleMap" class="map-toggle-btn">
-              {{ showMap ? '📍 Hide Location Map' : '📍 Show Location Map' }}
-            </button>
-            
-            <div v-if="showMap" class="map-container">
-              <div v-if="!jobCoordinates" class="map-loading">
-                Loading map...
-              </div>
-              <GoogleMap
-                v-else
-                :api-key="apiKey"
-                style="width: 100%; height: 400px; border-radius: 0.75rem;"
-                :center="mapCenter"
-                :zoom="15"
-              >
-                <Marker 
-                  :options="{ position: mapCenter }"
-                  @click="showMapInfoWindow = true"
-                />
-                <InfoWindow
-                  v-if="showMapInfoWindow"
-                  :options="{ position: mapCenter }"
-                  @closeclick="showMapInfoWindow = false"
-                >
-                  <div class="map-info-window">
-                    <h4>{{ selectedJob.name }}</h4>
-                    <p>{{ selectedJob.location }}</p>
-                  </div>
-                </InfoWindow>
-              </GoogleMap>
-            </div>
-          </div>
-
-          <button class="apply-btn" @click="applyForJob">
-            Apply for This Job
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <style scoped>
-.map-toggle-btn {
-  width: 100%;
-  padding: 0.875rem;
-  background: #f3f4f6;
-  color: #374151;
-  border: 2px solid #e5e7eb;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 1rem;
-}
-
-.map-toggle-btn:hover {
-  background: #e5e7eb;
-  border-color: #d1d5db;
-}
-
-.map-container {
-  margin-top: 1rem;
-  border-radius: 0.75rem;
-  overflow: hidden;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.map-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 400px;
-  background: #f9fafb;
-  color: #6b7280;
-  font-size: 1rem;
-  border-radius: 0.75rem;
-}
-
-.map-info-window {
-  padding: 0.5rem;
-  min-width: 200px;
-}
-
-.map-info-window h4 {
-  margin: 0 0 0.25rem 0;
-  color: #111827;
-  font-size: 1rem;
-}
-
-.map-info-window p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -564,17 +376,6 @@ const applyForJob = () => {
 .remove-filter:hover {
   transform: scale(1.2);
   color: #1d4ed8;
-}
-
-.skill-tag {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  background: #dbeafe;
-  color: #1e40af;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border: 1px solid #93c5fd;
 }
 
 .clear-btn {
@@ -737,161 +538,6 @@ const applyForJob = () => {
 .view-details-btn:hover {
   background: #111827;
   transform: translateY(-1px);
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  padding: 1rem;
-  animation: fadeIn 0.2s;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal-content {
-  background: white;
-  border-radius: 1rem;
-  padding: 2rem;
-  max-width: 700px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-  animation: slideUp 0.3s;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-}
-
-@keyframes slideUp {
-  from { 
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to { 
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.close-btn {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: #f3f4f6;
-  border: none;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  font-size: 1.5rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  color: #6b7280;
-}
-
-.close-btn:hover {
-  background: #e5e7eb;
-  color: #111827;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding-right: 2rem;
-}
-
-.modal-title {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: #111827;
-  margin: 0;
-  flex: 1;
-}
-
-.modal-meta {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
-  background: #f9fafb;
-  border-radius: 0.75rem;
-}
-
-@media (max-width: 640px) {
-  .modal-meta {
-    grid-template-columns: 1fr;
-  }
-}
-
-.modal-section {
-  margin-bottom: 2rem;
-}
-
-.section-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0 0 1rem 0;
-}
-
-.section-text {
-  color: #4b5563;
-  line-height: 1.7;
-  margin: 0;
-}
-
-.skills-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.requirements-list {
-  margin: 0;
-  padding-left: 1.5rem;
-  color: #4b5563;
-  line-height: 1.8;
-}
-
-.requirements-list li {
-  margin-bottom: 0.5rem;
-}
-
-.apply-btn {
-  width: 100%;
-  padding: 1rem;
-  background: #2563eb;
-  color: white;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 1.125rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-top: 1rem;
-}
-
-.apply-btn:hover {
-  background: #1d4ed8;
-  transform: translateY(-1px);
-  box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
 }
 
 /* Post Job Button (Fixed) */
