@@ -104,7 +104,20 @@ const router = createRouter({
       path: '/edit-job/:id',
       name: 'EditJob',
       component: () => import('../pages/editjob.vue')
-    }
+    },
+    {
+      path: '/pay/:jobId', // Use jobId in the path
+      name: 'PaymentPage',
+      component: () => import('../pages/PaymentPage.vue'),
+      // props: true // We are using query params now, so props:true might not be needed unless you use jobId prop
+    },
+    // Add a route to handle the return_url from Stripe
+    {
+      path: '/payment-success',
+      name: 'PaymentSuccess',
+      // Create a simple component or reuse ChatConversation to handle this
+      component: () => import('../pages/PaymentSuccessHandler.vue'), // You'll need to create this component
+    },
 
   ]
 })
