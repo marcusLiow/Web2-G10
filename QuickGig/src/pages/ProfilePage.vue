@@ -1,26 +1,35 @@
 <template>
   <div class="profile-page">
     <main class="container">
-      <!-- Show loading state while data loads -->
+      <!-- Error / Not logged in / Loading states -->
+      <div v-if="errorMessage" class="error-banner">
+        <p>{{ errorMessage }}</p>
+        <button @click="retryLoad" class="btn-retry">Retry</button>
+      </div>
+
+      <div v-else-if="!currentUserId && !isLoading" class="not-logged-in">
+        <p>You are not logged in. Please <router-link to="/login">log in</router-link> to view your profile.</p>
+      </div>
+
       <div v-if="isLoading" class="loading-container">
         <div class="spinner"></div>
         <p>Loading profile...</p>
       </div>
 
-      <!-- Only show profile once data is loaded -->
+      <!-- Profile -->
       <template v-else>
-        <!-- Profile Header -->
         <div class="profile-header">
           <div class="profile-content">
             <div class="avatar-container">
               <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.username" class="avatar" />
-              <div v-else class="avatar-placeholder">{{ user.username.charAt(0).toUpperCase() }}</div>
+              <div v-else class="avatar-placeholder">{{ user.username ? user.username.charAt(0).toUpperCase() : '?' }}</div>
             </div>
-            
+
             <div class="profile-info">
               <div class="profile-top">
                 <div>
-                  <h1 class="profile-name">{{ user.username }}</h1>
+                  <h1 class="profile-name">{{ user.username || 'Anonymous' }}</h1>
+
                   <div class="contact-info">
                     <div v-if="user.location" class="contact-item">
                       <span class="contact-label">Location:</span> {{ user.location }}
@@ -32,342 +41,268 @@
                       <span class="contact-label">Phone:</span> {{ user.phone }}
                     </div>
                   </div>
+
                   <div v-if="user.reviewCount > 0" class="rating-container">
                     <div class="stars">
-                      <span v-for="star in 5" :key="star" :class="star <= user.rating ? 'star-filled' : 'star-empty'">★</span>
+                      <span v-for="n in 5" :key="n" :class="n <= Math.round(user.rating) ? 'star-filled' : 'star-empty'">★</span>
                     </div>
-                    <span class="rating-number">{{ user.rating }}</span>
+                    <span class="rating-number">{{ user.rating.toFixed(1) }}</span>
                     <span class="review-count">({{ user.reviewCount }} reviews)</span>
                   </div>
                 </div>
-                
-                <button @click="openEditModal" class="btn-edit">
-                  Edit Profile
-                </button>
+
+                <div>
+                  <button @click="openEditModal" class="btn-edit">Edit Profile</button>
+                </div>
               </div>
-              
+
               <p v-if="user.bio" class="bio">{{ user.bio }}</p>
               <p v-else class="bio-placeholder">Add a bio to tell people about yourself...</p>
             </div>
           </div>
         </div>
 
-        <!-- Stats Cards -->
+        <!-- Stats -->
         <div class="stats-grid">
-          <div class="stat-card stat-card-jobs">
-            <div class="stat-content">
-              <div>
-                <p class="stat-number">{{ user.stats.jobsCompleted }}</p>
-                <p class="stat-label">Jobs Completed</p>
-              </div>
-            </div>
+          <div class="stat-card">
+            <p class="stat-number">{{ user.stats.jobsCompleted }}</p>
+            <p class="stat-label">Jobs Completed</p>
           </div>
-          
-          <div class="stat-card stat-card-earnings">
-            <div class="stat-content">
-              <div>
-                <p class="stat-number">${{ user.stats.earnings.toLocaleString() }}</p>
-                <p class="stat-label">Total Earnings</p>
-              </div>
-            </div>
+          <div class="stat-card">
+            <p class="stat-number">${{ user.stats.earnings.toLocaleString() }}</p>
+            <p class="stat-label">Total Earnings</p>
           </div>
-          
-          <div class="stat-card stat-card-rating">
-            <div class="stat-content">
-              <div>
-                <p class="stat-number">{{ user.rating.toFixed(1) }}</p>
-                <p class="stat-label">Average Rating</p>
-              </div>
-            </div>
+          <div class="stat-card">
+            <p class="stat-number">{{ user.rating.toFixed(1) }}</p>
+            <p class="stat-label">Average Rating</p>
           </div>
-          
-          <div class="stat-card stat-card-listings">
-            <div class="stat-content">
-              <div>
-                <p class="stat-number">{{ activeListingsCount }}</p>
-                <p class="stat-label">Active Listings</p>
-              </div>
-            </div>
+          <div class="stat-card">
+            <p class="stat-number">{{ activeListingsCount }}</p>
+            <p class="stat-label">Active Listings</p>
           </div>
         </div>
 
-        <!-- Tabs Section -->
+        <!-- Tabs -->
         <div class="tabs-section">
           <div class="tabs-header">
-            <button
-              v-for="tab in tabs"
-              :key="tab.value"
-              @click="activeTab = tab.value"
-              :class="['tab-button', { active: activeTab === tab.value }]"
-            >
+            <button v-for="tab in tabs" :key="tab.value" @click="activeTab = tab.value" :class="['tab-button', { active: activeTab === tab.value }]">
               {{ tab.label }}
             </button>
           </div>
 
-          <!-- About Tab -->
           <div v-if="activeTab === 'about'" class="tab-content">
             <div class="content-body">
-              <h2 class="content-title">About Me</h2>
-              
-              <p v-if="user.bio" class="text-normal">{{ user.bio }}</p>
+              <h2>About Me</h2>
+              <p v-if="user.bio">{{ user.bio }}</p>
               <p v-else class="text-placeholder">No bio added yet. Click "Edit Profile" to add one.</p>
-              
-              <div v-if="user.created_at" class="info-list-section">
-                <div class="info-list">
-                  <p><span class="label">Member since:</span> {{ formatDate(user.created_at) }}</p>
-                </div>
-              </div>
-              
-              <!-- Logout Button in About Tab -->
-              <div class="logout-container">
-                <button @click="handleLogout" class="btn-logout-inline">
-                  Logout
-                </button>
-              </div>
             </div>
           </div>
 
-          <!-- Skills Tab -->
           <div v-if="activeTab === 'skills'" class="tab-content">
-            <div class="content-header">
-              <h2>Skills & Expertise</h2>
-              <p class="subtitle">Services I offer to the community</p>
-            </div>
             <div class="content-body">
-              <div v-if="user.skills.length > 0" class="skills-list">
-                <div v-for="(skill, index) in user.skills" :key="index" class="skill-card">
+              <h2>Skills & Expertise</h2>
+              <div v-if="user.skills && user.skills.length">
+                <div v-for="(skill, i) in user.skills" :key="i" class="skill-card">
                   <div class="skill-header">
                     <h3>{{ skill.name }}</h3>
-                    <span :class="['badge', getBadgeClass(skill.level)]">{{ skill.level }}</span>
+                    <span class="badge" :class="getBadgeClass(skill.level)">{{ skill.level }}</span>
                   </div>
-                  <p class="skill-jobs">{{ skill.jobs }} jobs completed</p>
+                  <p class="skill-jobs">{{ skill.jobs || 0 }} jobs completed</p>
                 </div>
               </div>
               <p v-else class="text-placeholder">No skills added yet.</p>
             </div>
           </div>
 
-          <!-- Reviews Tab -->
           <div v-if="activeTab === 'reviews'" class="tab-content">
-            <div class="content-header">
-              <h2>Customer Reviews</h2>
-              <p class="subtitle">{{ user.reviewCount }} total reviews</p>
-            </div>
             <div class="content-body">
-              <div v-if="user.reviews.length > 0" class="reviews-list">
-                <div v-for="review in user.reviews" :key="review.id" class="review-card">
-                  <div class="review-content">
-                    <div class="review-avatar">
-                      <img v-if="review.avatar" :src="review.avatar" :alt="review.author" />
-                      <div v-else class="avatar-placeholder-small">{{ review.author.charAt(0).toUpperCase() }}</div>
-                    </div>
-                    <div class="review-body">
-                      <div class="review-header">
-                        <div>
-                          <p class="review-author">{{ review.author }}</p>
-                          <p class="review-date">{{ review.date }}</p>
-                        </div>
-                        <div class="stars">
-                          <span v-for="star in 5" :key="star" :class="star <= review.rating ? 'star-filled' : 'star-empty'">★</span>
-                        </div>
-                      </div>
-                      <span class="service-badge">{{ review.service }}</span>
-                      <p class="review-text">{{ review.comment }}</p>
-                    </div>
+              <h2>Customer Reviews</h2>
+              <div v-if="user.reviews && user.reviews.length">
+                <div v-for="r in user.reviews" :key="r.id" class="review-card">
+                  <div class="review-header">
+                    <strong>{{ r.author }}</strong> — <small>{{ r.date }}</small>
+                    <div class="stars-inline">{{ renderStars(r.rating) }} <span class="rating-number-small">{{ r.rating }}</span></div>
                   </div>
+                  <p class="review-text">{{ r.comment }}</p>
                 </div>
               </div>
               <div v-else class="empty-state">
-                <div class="empty-icon-text">No Reviews</div>
-                <p class="empty-title">No reviews yet</p>
-                <p class="empty-text">Reviews will appear here when customers rate your service</p>
+                <p>No reviews yet</p>
               </div>
             </div>
           </div>
 
-          <!-- Jobs Tab -->
           <div v-if="activeTab === 'jobs'" class="tab-content">
-            <div class="content-header">
-              <h2>Job History</h2>
-              <p class="subtitle">Recent completed jobs</p>
-            </div>
             <div class="content-body">
-              <div v-if="loadingCompletedJobs" class="loading-container">
-                <div class="spinner"></div>
-                <p>Loading completed jobs...</p>
-              </div>
-              <div v-else-if="completedJobs.length > 0" class="jobs-list">
+              <h2>Job History</h2>
+              <div v-if="completedJobs.length">
                 <div v-for="job in completedJobs" :key="job.id" class="job-card">
                   <div>
-                    <h3>{{ job.title }}</h3>
-                    <p class="job-description">{{ job.description }}</p>
-                    <p class="job-date">Posted: {{ formatDateShort(job.created_at) }}</p>
+                    <h3>{{ job.title || 'Job' }}</h3>
+                    <p class="job-date">{{ formatDateShort(job.created_at) }}</p>
                   </div>
-                  <div class="job-right">
-                    <p class="job-amount">${{ job.payment }}</p>
+                  <div>
                     <span class="status-badge status-completed">COMPLETED</span>
                   </div>
                 </div>
               </div>
-              <div v-else class="empty-state">
-                <div class="empty-icon-text">No Jobs</div>
-                <p class="empty-title">No completed jobs yet</p>
-                <p class="empty-text">Your completed jobs will appear here</p>
-              </div>
+              <div v-else><p>No completed jobs yet.</p></div>
             </div>
           </div>
 
-          <!-- My Listings Tab -->
           <div v-if="activeTab === 'listings'" class="tab-content">
-            <div class="content-header">
-              <h2>My Job Listings</h2>
-              <p class="subtitle">{{ activeListingsCount }} active listings</p>
-            </div>
             <div class="content-body">
-              <div v-if="loadingListings" class="loading-container">
-                <div class="spinner"></div>
-                <p>Loading listings...</p>
-              </div>
-              <div v-else-if="activeListings.length > 0" class="listings-list">
-                <div v-for="listing in activeListings" :key="listing.id" class="listing-card">
-                  <div class="listing-main">
-                    <div class="listing-header-row">
-                      <h3>{{ listing.title }}</h3>
-                      <span :class="['listing-status-badge', getStatusClass(listing.status)]">
-                        {{ listing.status.toUpperCase() }}
-                      </span>
-                    </div>
-                    
-                    <p class="listing-description">{{ listing.description }}</p>
-                    
-                    <div class="listing-details">
-                      <div class="listing-detail-item">
-                        <span class="detail-label">Location:</span>
-                        <span>{{ listing.location }}</span>
-                      </div>
-                      <div v-if="listing.category" class="listing-detail-item">
-                        <span class="detail-label">Category:</span>
-                        <span>{{ listing.category }}</span>
-                      </div>
-                      <div class="listing-detail-item">
-                        <span class="detail-label">Posted:</span>
-                        <span>{{ formatDateShort(listing.created_at) }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="listing-footer">
-                    <p class="listing-payment">${{ listing.payment }}</p>
-                    <div class="listing-actions">
-                      <button @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete">
-                        Mark as Completed
-                      </button>
-                      <button @click="editListing(listing)" class="btn-action btn-action-edit">
-                        Edit
-                      </button>
-                      <button @click="deleteListing(listing.id)" class="btn-action btn-action-delete">
-                        Delete
-                      </button>
-                    </div>
-                  </div>
+              <h2>My Listings</h2>
+              <div v-if="activeListings.length">
+                <div v-for="l in activeListings" :key="l.id" class="listing-card">
+                  <h3>{{ l.title }}</h3>
+                  <p>{{ l.description }}</p>
                 </div>
               </div>
-              <div v-else class="empty-state">
-                <div class="empty-icon-text">No Listings</div>
-                <p class="empty-title">No listings yet</p>
-                <p class="empty-text">You haven't created any job listings yet. Start posting to find help!</p>
-              </div>
+              <div v-else><p>No active listings.</p></div>
             </div>
           </div>
         </div>
       </template>
     </main>
 
-    <!-- Edit Profile Modal (Keep this one - it's for editing user profile) -->
+    <!-- Edit Profile Modal -->
     <div v-if="showEditModal" class="modal-overlay" @click="closeEditModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h2>Edit Profile</h2>
           <button @click="closeEditModal" class="close-btn">×</button>
         </div>
-        
+
         <div class="modal-body">
-          <div class="form-group">
-            <label>Profile Photo URL</label>
-            <input v-model="editForm.avatar_url" type="text" placeholder="https://example.com/photo.jpg" />
-            <p class="hint">Enter a URL to your profile photo</p>
-          </div>
-
-          <div class="form-group">
+          <!-- Basic user fields -->
+          <div class="form-row">
             <label>Username *</label>
-            <input 
-              v-model="editForm.username" 
-              type="text" 
-              placeholder="Your username"
-              :class="{ 'input-error': errors.username }"
-            />
-            <p v-if="errors.username" class="error-message">{{ errors.username }}</p>
+            <input v-model="editForm.username" type="text" />
           </div>
 
-          <div class="form-group">
-            <label>Location</label>
-            <input v-model="editForm.location" type="text" placeholder="City, Country" />
-          </div>
-
-          <div class="form-group">
-            <label>Email *</label>
-            <input 
-              v-model="editForm.email" 
-              type="email" 
-              placeholder="your.email@example.com"
-              disabled
-            />
-            <p class="hint">Email cannot be changed</p>
-          </div>
-
-          <div class="form-group">
-            <label>Phone</label>
-            <input v-model="editForm.phone" type="tel" placeholder="+65 1234 5678" />
-          </div>
-
-          <div class="form-group">
+          <div class="form-row">
             <label>Bio</label>
-            <textarea v-model="editForm.bio" rows="4" placeholder="Tell people about yourself and your skills..."></textarea>
+            <textarea v-model="editForm.bio" rows="3"></textarea>
           </div>
 
-          <!-- Skills Section -->
-          <div class="form-section">
-            <div class="section-header">
-              <label>Skills & Expertise</label>
-              <button @click="addSkill" type="button" class="btn-add-skill">+ Add Skill</button>
+          <!-- Location selection (user-level retained) -->
+          <div class="form-row">
+            <label>Your general location (optional)</label>
+            <select v-model="editForm.location_select">
+              <option value="">-- Select Location --</option>
+              <option v-for="loc in locationOptions" :key="loc" :value="loc">{{ loc }}</option>
+              <option value="Other">Other...</option>
+            </select>
+            <input v-if="editForm.location_select === 'Other'" v-model="editForm.location_custom" placeholder="Enter your city or area" />
+          </div>
+
+          <!-- Nicer helper toggle button -->
+          <div class="form-row helper-toggle-row">
+            <div>
+              <label class="helper-toggle-label">List myself as a helper</label>
+              <p class="hint">Make your profile discoverable in Browse Helpers.</p>
             </div>
-            
-            <div v-if="editForm.skills.length === 0" class="empty-skills-message">
-              <p>No skills added yet. Click "Add Skill" to get started.</p>
+            <button
+              type="button"
+              :class="['helper-toggle-btn', { active: editForm.is_helper }]"
+              @click="editForm.is_helper = !editForm.is_helper"
+              aria-pressed="editForm.is_helper"
+            >
+              <span v-if="!editForm.is_helper">Become a helper</span>
+              <span v-else>Listed as helper ✓</span>
+            </button>
+          </div>
+
+          <!-- Helper-specific form (visible when editForm.is_helper is true) -->
+          <div v-if="editForm.is_helper" class="helper-form-section">
+            <h3>Helper Profile</h3>
+
+            <div class="form-row">
+              <label>Helper Title</label>
+              <input v-model="editForm.helper_title" type="text" placeholder="e.g., Car Washer" />
             </div>
-            
-            <div v-else class="skills-editor-list">
-              <div v-for="(skill, index) in editForm.skills" :key="index" class="skill-editor-item">
-                <div class="skill-inputs">
-                  <div class="skill-input-group">
-                    <input 
-                      v-model="skill.name" 
-                      type="text" 
-                      placeholder="Skill name (e.g., Plumbing, House Cleaning)"
-                      class="skill-name-input"
-                    />
-                  </div>
-                  <div class="skill-input-group">
-                    <select v-model="skill.level" class="skill-level-select">
-                      <option value="Beginner">Beginner</option>
-                      <option value="Intermediate">Intermediate</option>
-                      <option value="Advanced">Advanced</option>
-                      <option value="Expert">Expert</option>
-                    </select>
-                  </div>
+
+            <div class="form-row">
+              <label>Short Description</label>
+              <input v-model="editForm.helper_description" type="text" placeholder="Short description for listing" />
+            </div>
+
+            <!-- Helper location (neighbourhood dropdown for Singapore) -->
+            <div class="form-row">
+              <label>Neighbourhood (where you serve)</label>
+              <select v-model="editForm.helper_location">
+                <option value="">-- Select neighbourhood --</option>
+                <option v-for="n in sgNeighbourhoods" :key="n" :value="n">{{ n }}</option>
+                <option value="Other">Other...</option>
+              </select>
+              <input v-if="editForm.helper_location === 'Other'" v-model="editForm.helper_location_custom" placeholder="Enter neighbourhood" />
+            </div>
+
+            <!-- Availability: day & time dropdowns -->
+            <div class="form-row availability-row">
+              <label>Availability (days)</label>
+              <select v-model="editForm.availability_day">
+                <option value="">-- Select days --</option>
+                <option v-for="d in availabilityDayOptions" :key="d" :value="d">{{ d }}</option>
+                <option value="Custom">Custom...</option>
+              </select>
+              <input v-if="editForm.availability_day === 'Custom'" v-model="editForm.availability_day_custom" placeholder="e.g., Mon, Wed, Fri" />
+            </div>
+
+            <div class="form-row availability-row">
+              <label>Availability (time)</label>
+              <select v-model="editForm.availability_time">
+                <option value="">-- Select time --</option>
+                <option v-for="t in availabilityTimeOptions" :key="t" :value="t">{{ t }}</option>
+                <option value="Custom">Custom...</option>
+              </select>
+              <input v-if="editForm.availability_time === 'Custom'" v-model="editForm.availability_time_custom" placeholder="e.g., 9:00 - 17:00" />
+            </div>
+
+            <div class="form-row">
+              <label>Response Time</label>
+              <select v-model="editForm.response_time">
+                <option value="">-- Select response time --</option>
+                <option>Within 1 hour</option>
+                <option>Within 2 hours</option>
+                <option>Within 4 hours</option>
+                <option>Within 24 hours</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <label>Public Helper Bio</label>
+              <textarea v-model="editForm.helper_bio" rows="3" placeholder="Detailed bio shown on your helper profile"></textarea>
+            </div>
+
+            <!-- Helper-specific skills: manage list of structured skills -->
+            <div class="form-row">
+              <label>Helper-specific Skills</label>
+              <div class="skills-editor-list">
+                <div v-for="(s, i) in editForm.helper_skills" :key="i" class="skill-editor-item">
+                  <input v-model="s.name" placeholder="Skill name (e.g., Car Washing)" />
+                  <select v-model="s.level">
+                    <option>Beginner</option>
+                    <option>Intermediate</option>
+                    <option>Advanced</option>
+                    <option>Expert</option>
+                  </select>
+                  <input v-model.number="s.jobs" type="number" min="0" class="small-input" placeholder="jobs" />
+                  <button @click="removeHelperSkill(i)" type="button" class="btn-remove-skill">×</button>
                 </div>
-                <button @click="removeSkill(index)" type="button" class="btn-remove-skill">×</button>
+                <button @click="addHelperSkill" type="button" class="btn-add-skill">+ Add helper skill</button>
               </div>
+            </div>
+
+            <!-- Experience list -->
+            <div class="form-row">
+              <label>Experience / Qualifications</label>
+              <div v-for="(exp, idx) in editForm.experience" :key="idx" class="experience-editor-row">
+                <input v-model="editForm.experience[idx]" placeholder="e.g., 5 years car washing experience" />
+                <button @click="removeExperience(idx)" type="button" class="btn-remove-skill">×</button>
+              </div>
+              <button @click="addExperience()" type="button" class="btn-add-skill">+ Add experience</button>
             </div>
           </div>
         </div>
@@ -387,12 +322,12 @@ import { supabase } from '../supabase/config';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-const activeTab = ref('about');
-const showEditModal = ref(false);
-const isLoading = ref(true);
-const loadingListings = ref(false);
-const loadingCompletedJobs = ref(false);
 
+const isLoading = ref(true);
+const errorMessage = ref('');
+const currentUserId = ref(null);
+
+const activeTab = ref('about');
 const tabs = [
   { label: 'About', value: 'about' },
   { label: 'Skills & Expertise', value: 'skills' },
@@ -400,6 +335,8 @@ const tabs = [
   { label: 'Job History', value: 'jobs' },
   { label: 'My Listings', value: 'listings' }
 ];
+
+const showEditModal = ref(false);
 
 const user = reactive({
   id: '',
@@ -412,78 +349,118 @@ const user = reactive({
   phone: '',
   bio: '',
   created_at: '',
-  role: '',
-  experienceLevel: '',
-  hourlyRate: null,
-  stats: {
-    jobsCompleted: 0,
-    earnings: 0,
-    rating: 0,
-  },
+  stats: { jobsCompleted: 0, earnings: 0, rating: 0 },
   skills: [],
   reviews: [],
   recentJobs: [],
+  is_helper: false,
+  helper_profile: null
 });
 
+/* Edit form */
 const editForm = reactive({
   username: '',
-  avatar_url: '',
-  location: '',
-  email: '',
-  phone: '',
   bio: '',
-  skills: [],
+  location_select: '',
+  location_custom: '',
+  location: '',
+
+  is_helper: false,
+
+  helper_title: '',
+  helper_description: '',
+  helper_location: '',
+  helper_location_custom: '',
+  availability_day: '',
+  availability_day_custom: '',
+  availability_time: '',
+  availability_time_custom: '',
+  response_time: '',
+  helper_bio: '',
+  helper_skills: [], // [{ name, level, jobs }]
+  experience: []
 });
 
-const errors = reactive({
-  username: '',
-  email: '',
-});
+/* Options */
+const locationOptions = [
+  'Downtown','Marina Bay','Orchard','Newton','Tanglin','Bukit Timah',
+  'Holland Village','Kallang','Geylang','Bugis','Rochor','Tanjong Pagar',
+  'Chinatown','Outram','Tiong Bahru','Toa Payoh','Bishan','Serangoon',
+  'Ang Mo Kio','Hougang','Punggol','Sengkang','Pasir Ris','Tampines',
+  'Changi','Jurong East','Jurong West','Clementi','West Coast','Queenstown',
+  'Bukit Merah','Alexandra','Redhill','Bedok','Upper East Coast','Upper Bukit Timah'
+];
+
+const sgNeighbourhoods = locationOptions; // reuse for helper location dropdown
+
+const availabilityDayOptions = [
+  'Weekdays','Weekends','Weekdays & Weekends','Mon-Fri','Sat-Sun'
+];
+
+const availabilityTimeOptions = [
+  'Morning (8am - 12pm)','Afternoon (12pm - 5pm)','Evening (5pm - 9pm)','Anytime','Specific hours'
+];
 
 const userListings = ref([]);
 const completedJobs = ref([]);
+const userIdFromSession = ref(null);
 
-// Computed properties for filtering listings
-const activeListings = computed(() => {
-  return userListings.value.filter(listing => listing.status === 'open');
-});
+const activeListings = computed(() => userListings.value.filter(l => l.status === 'open'));
+const activeListingsCount = computed(() => activeListings.value.length);
 
-const activeListingsCount = computed(() => {
-  return activeListings.value.length;
-});
+function renderStars(n) {
+  const full = Math.floor(n);
+  return '★'.repeat(full);
+}
+function formatDateShort(dateString) {
+  if (!dateString) return '';
+  const d = new Date(dateString);
+  return d.toLocaleDateString();
+}
+function getBadgeClass(level) {
+  if (!level) return 'beginner';
+  const l = level.toLowerCase();
+  if (l.includes('expert') || l.includes('advanced')) return 'expert';
+  if (l.includes('intermediate')) return 'intermediate';
+  return 'beginner';
+}
+function retryLoad() {
+  errorMessage.value = '';
+  loadAll();
+}
 
-onMounted(async () => {
-  await loadUserData();
-  await loadUserListings();
-  await loadCompletedJobs();
-});
-
-const loadUserData = async () => {
+async function getCurrentUserId() {
   try {
-    isLoading.value = true;
-    
-    const userId = localStorage.getItem('userId');
-    
-    if (!userId) {
-      router.push('/login');
-      return;
-    }
+    const { data } = await supabase.auth.getSession();
+    const id = data?.session?.user?.id;
+    if (id) return id;
+  } catch (e) {
+    console.warn('supabase.auth.getSession failed', e);
+  }
+  return localStorage.getItem('userId');
+}
 
-    console.log('Loading user data for userId:', userId);
+/* ---------- load / refresh logic ---------- */
+async function loadAll() {
+  isLoading.value = true;
+  errorMessage.value = '';
+  try {
+    const uid = await getCurrentUserId();
+    currentUserId.value = uid || null;
+    if (!uid) { isLoading.value = false; return; }
+    userIdFromSession.value = uid;
 
+    // load users row
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
-      .eq('id', userId)
-      .single();
+      .eq('id', uid)
+      .maybeSingle();
 
-    if (userError) {
-      console.error('Error loading user data:', userError);
-      throw userError;
-    }
+    if (userError) throw userError;
+    if (!userData) throw new Error('User row not found');
 
-    console.log('User data loaded:', userData);
-
+    // populate local user
     user.id = userData.id;
     user.username = userData.username || '';
     user.email = userData.email || '';
@@ -492,325 +469,511 @@ const loadUserData = async () => {
     user.bio = userData.bio || '';
     user.avatar_url = userData.avatar_url || '';
     user.created_at = userData.created_at || '';
-    user.role = userData.user_role || '';
-    user.experienceLevel = userData.expertise_level || '';
-    user.hourlyRate = userData.hourly_rate || null;
-    
+    user.is_helper = userData.is_helper || false;
+
+    // normalize skills
     if (userData.skills) {
-      console.log('Raw skills data:', userData.skills);
-      
       let skillsArray = [];
-      
-      if (Array.isArray(userData.skills)) {
-        skillsArray = userData.skills;
-      } else if (typeof userData.skills === 'object') {
-        skillsArray = Object.values(userData.skills);
-      }
-      
-      console.log('Skills array:', skillsArray);
-      
-      user.skills = skillsArray.map(skill => {
-        if (typeof skill === 'object' && skill.name) {
-          return skill;
+      if (Array.isArray(userData.skills)) skillsArray = userData.skills;
+      else if (typeof userData.skills === 'string') {
+        try { skillsArray = JSON.parse(userData.skills); } catch { skillsArray = [userData.skills]; }
+      } else if (typeof userData.skills === 'object') skillsArray = Object.values(userData.skills);
+      user.skills = skillsArray.map(s => (typeof s === 'object' ? s : { name: String(s), level: 'Beginner', jobs: 0 }));
+    } else user.skills = [];
+
+    // load helper_profiles (maybe single)
+    const { data: profileData, error: profileError } = await supabase
+      .from('helper_profiles')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle();
+
+    if (!profileError && profileData) {
+      user.helper_profile = profileData;
+      // reflect in edit form
+      editForm.is_helper = true;
+
+      // availability parsing (stored as "DAY • TIME")
+      if (profileData.availability) {
+        const parts = String(profileData.availability).split('•').map(p => p.trim());
+        if (parts.length === 2) {
+          editForm.availability_day = availabilityDayOptions.includes(parts[0]) ? parts[0] : '';
+          if (!editForm.availability_day) editForm.availability_day_custom = parts[0];
+          editForm.availability_time = availabilityTimeOptions.includes(parts[1]) ? parts[1] : '';
+          if (!editForm.availability_time) editForm.availability_time_custom = parts[1];
+        } else {
+          editForm.availability_day_custom = profileData.availability;
         }
-        return {
-          name: typeof skill === 'string' ? skill : String(skill),
-          level: userData.expertise_level || 'Beginner',
-          jobs: 0
-        };
-      });
-      
-      console.log('Transformed skills:', user.skills);
+      }
+
+      editForm.helper_title = profileData.title || '';
+      editForm.helper_description = profileData.description || '';
+      editForm.helper_location = profileData.location || '';
+      if (editForm.helper_location && !sgNeighbourhoods.includes(editForm.helper_location)) editForm.helper_location = 'Other';
+      if (editForm.helper_location === 'Other') editForm.helper_location_custom = profileData.location || '';
+      editForm.response_time = profileData.response_time || '';
+      editForm.helper_bio = profileData.bio || '';
+      editForm.experience = Array.isArray(profileData.experience) ? profileData.experience.slice() : [];
+      editForm.helper_skills = Array.isArray(profileData.skills)
+        ? profileData.skills.map(s => ({ name: s.name || s, level: s.level || 'Beginner', jobs: s.jobs || 0 }))
+        : [];
+      // set location_select from user's location if present
+      editForm.location_select = user.location && locationOptions.includes(user.location) ? user.location : (user.location ? 'Other' : '');
+      if (editForm.location_select === 'Other') editForm.location_custom = user.location;
+    } else {
+      // no profile
+      editForm.is_helper = user.is_helper;
+      editForm.helper_title = userData.helper_title || '';
+      editForm.helper_description = userData.helper_bio || '';
+      editForm.helper_skills = user.skills.map(s => ({ name: s.name || s, level: s.level || 'Beginner', jobs: s.jobs || 0 }));
+      editForm.experience = [];
+      editForm.location_select = user.location && locationOptions.includes(user.location) ? user.location : (user.location ? 'Other' : '');
+      if (editForm.location_select === 'Other') editForm.location_custom = user.location;
     }
 
-  } catch (error) {
-    console.error('Error loading user data:', error);
-    alert('Failed to load profile data: ' + (error.message || 'Unknown error'));
+    // aggregated stats via RPC if helper
+    if (user.is_helper) {
+      try {
+        const { data: statsData } = await supabase.rpc('get_helper_stats_for', { helper_uuid: uid });
+        const row = Array.isArray(statsData) ? statsData[0] : statsData;
+        if (row) {
+          user.rating = Number(row.avg_rating) || 0;
+          user.reviewCount = Number(row.review_count) || 0;
+          user.stats.jobsCompleted = Number(row.completed_jobs) || 0;
+        }
+      } catch (e) {
+        console.warn('Could not fetch helper stats RPC', e);
+      }
+    } else {
+      user.rating = 0;
+      user.reviewCount = 0;
+    }
+
+    // load reviews, listings, jobs
+    await loadUserReviews(uid);
+    await loadUserListings(uid);
+    await loadCompletedJobs(uid);
+  } catch (err) {
+    console.error('Error loading profile:', err);
+    errorMessage.value = String(err.message || err);
   } finally {
     isLoading.value = false;
   }
-};
+}
 
-const loadUserListings = async () => {
+/* ---------- Reviews / listings / jobs loaders ---------- */
+async function loadUserReviews(helperId) {
   try {
-    loadingListings.value = true;
-    
-    const userId = localStorage.getItem('userId');
-    
-    if (!userId) {
-      return;
-    }
-
-    console.log('Loading listings for userId:', userId);
-
-    const { data: listings, error } = await supabase
-      .from('User-Job-Request')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'open')
+    if (!helperId) { user.reviews = []; return; }
+    const { data: reviewsData, error } = await supabase
+      .from('reviews')
+      .select(`id, rating, comment, job_title, created_at, reviewer:users(id, username, avatar_url)`)
+      .eq('helper_id', helperId)
       .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error loading listings:', error);
-      throw error;
-    }
-
-    console.log('Listings loaded:', listings);
-    userListings.value = listings || [];
-
-  } catch (error) {
-    console.error('Error loading listings:', error);
-    alert('Failed to load listings: ' + (error.message || 'Unknown error'));
-  } finally {
-    loadingListings.value = false;
+    if (error) { console.warn('reviews fetch error', error); user.reviews = []; return; }
+    user.reviews = (reviewsData || []).map(r => ({
+      id: r.id,
+      rating: r.rating,
+      comment: r.comment,
+      service: r.job_title,
+      date: r.created_at ? new Date(r.created_at).toLocaleDateString() : '',
+      author: r.reviewer?.username || 'Anonymous',
+      avatar: r.reviewer?.avatar_url || ''
+    }));
+  } catch (e) {
+    console.error('loadUserReviews error', e);
+    user.reviews = [];
   }
-};
+}
 
-const loadCompletedJobs = async () => {
+async function loadUserListings(uid) {
   try {
-    loadingCompletedJobs.value = true;
-    
-    const userId = localStorage.getItem('userId');
-    
-    if (!userId) {
-      return;
-    }
-
-    console.log('Loading completed jobs for userId:', userId);
-
-    const { data: jobs, error } = await supabase
+    if (!uid) return;
+    const { data, error } = await supabase
       .from('User-Job-Request')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false });
+    if (error) { console.warn('listings fetch error', error); userListings.value = []; return; }
+    userListings.value = data || [];
+  } catch (e) {
+    console.error('loadUserListings error', e);
+    userListings.value = [];
+  }
+}
+
+async function loadCompletedJobs(uid) {
+  try {
+    if (!uid) return;
+    const { data, error } = await supabase
+      .from('User-Job-Request')
+      .select('*')
+      .eq('user_id', uid)
       .eq('status', 'completed')
       .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error loading completed jobs:', error);
-      throw error;
-    }
-
-    console.log('Completed jobs loaded:', jobs);
-    completedJobs.value = jobs || [];
-
-  } catch (error) {
-    console.error('Error loading completed jobs:', error);
-  } finally {
-    loadingCompletedJobs.value = false;
+    if (error) { console.warn('completed jobs fetch error', error); completedJobs.value = []; return; }
+    completedJobs.value = data || [];
+    user.stats.jobsCompleted = completedJobs.value.length;
+  } catch (e) {
+    console.error('loadCompletedJobs error', e);
+    completedJobs.value = [];
   }
-};
+}
 
-const formatDate = (dateString) => {
-  if (!dateString) return 'Unknown';
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'long'
-  });
-};
-
-const formatDateShort = (dateString) => {
-  if (!dateString) return 'Unknown';
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffTime = Math.abs(now - date);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
-  return `${Math.floor(diffDays / 365)} years ago`;
-};
-
-const openEditModal = () => {
+/* ---------- Edit modal helpers ---------- */
+function openEditModal() {
   editForm.username = user.username;
-  editForm.avatar_url = user.avatar_url;
-  editForm.location = user.location;
-  editForm.email = user.email;
-  editForm.phone = user.phone;
   editForm.bio = user.bio;
-  // Deep copy skills array
-  editForm.skills = user.skills.map(skill => ({
-    name: skill.name,
-    level: skill.level || 'Beginner',
-    jobs: skill.jobs || 0
-  }));
-  errors.username = '';
-  errors.email = '';
+  editForm.location = user.location;
+  // helper fields already populated by loadAll
   showEditModal.value = true;
-};
+}
 
-const closeEditModal = () => {
+function closeEditModal() {
   showEditModal.value = false;
-};
+}
 
-const addSkill = () => {
-  editForm.skills.push({
-    name: '',
-    level: 'Beginner',
-    jobs: 0
-  });
-};
+function addHelperSkill() {
+  editForm.helper_skills.push({ name: '', level: 'Beginner', jobs: 0 });
+}
+function removeHelperSkill(i) {
+  editForm.helper_skills.splice(i, 1);
+}
+function addExperience() {
+  editForm.experience.push('');
+}
+function removeExperience(i) {
+  editForm.experience.splice(i, 1);
+}
 
-const removeSkill = (index) => {
-  editForm.skills.splice(index, 1);
-};
-
-const saveProfile = async () => {
-  errors.username = '';
-  
-  if (!editForm.username || !editForm.username.trim()) {
-    errors.username = 'Username is required';
-    return;
-  }
-  
-  // Filter out empty skills
-  const validSkills = editForm.skills.filter(skill => skill.name.trim() !== '');
-  
+/* ---------- Save profile & helper profile upsert ---------- */
+async function saveProfile() {
   try {
-    const { error } = await supabase
-      .from('users')
-      .update({
-        username: editForm.username,
-        avatar_url: editForm.avatar_url,
-        location: editForm.location,
-        phone: editForm.phone,
-        bio: editForm.bio,
-        skills: validSkills,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', user.id);
+    const uid = user.id || await getCurrentUserId();
+    if (!uid) throw new Error('Missing user id');
 
-    if (error) throw error;
-
-    user.username = editForm.username;
-    user.avatar_url = editForm.avatar_url;
-    user.location = editForm.location;
-    user.phone = editForm.phone;
-    user.bio = editForm.bio;
-    user.skills = validSkills;
-
-    localStorage.setItem('username', user.username);
-    if (user.avatar_url) {
-      localStorage.setItem('avatarUrl', user.avatar_url);
+    // Validate username
+    if (!editForm.username || !editForm.username.trim()) {
+      alert('Username is required');
+      return;
     }
 
-    window.dispatchEvent(new Event('user-logged-in'));
-    
+    // Determine user-level location value
+    let finalLocation = '';
+    if (editForm.location_select === 'Other') {
+      finalLocation = (editForm.location_custom || '').trim();
+    } else {
+      finalLocation = editForm.location_select || '';
+    }
+
+    // helper location final value
+    let finalHelperLocation = '';
+    if (editForm.helper_location === 'Other') {
+      finalHelperLocation = (editForm.helper_location_custom || '').trim();
+    } else {
+      finalHelperLocation = editForm.helper_location || '';
+    }
+
+    // Determine availability string (we store as "DAY • TIME")
+    let dayPart = editForm.availability_day === 'Custom' ? (editForm.availability_day_custom || '') : (editForm.availability_day || '');
+    let timePart = editForm.availability_time === 'Custom' ? (editForm.availability_time_custom || '') : (editForm.availability_time || '');
+    const availabilityParts = [];
+    if (dayPart && String(dayPart).trim()) availabilityParts.push(String(dayPart).trim());
+    if (timePart && String(timePart).trim()) availabilityParts.push(String(timePart).trim());
+    const availabilityCombined = availabilityParts.join(' • ');
+
+    // Prepare payload for users table
+    const updatePayload = {
+      username: editForm.username,
+      bio: editForm.bio || null,
+      location: finalLocation || null,
+      is_helper: !!editForm.is_helper,
+      helper_title: editForm.helper_title || null,
+      helper_bio: editForm.helper_bio || null,
+      updated_at: new Date().toISOString()
+    };
+
+    // Update users row
+    const { error: uErr } = await supabase.from('users').update(updatePayload).eq('id', uid);
+    if (uErr) throw uErr;
+
+    // Upsert helper_profiles if is_helper true
+    if (editForm.is_helper) {
+      const helperPayload = {
+        user_id: uid,
+        title: editForm.helper_title || editForm.username,
+        description: editForm.helper_description || editForm.helper_bio || null,
+        skills: editForm.helper_skills.map(s => ({ name: s.name, level: s.level, jobs: s.jobs || 0 })),
+        availability: availabilityCombined || null,
+        response_time: editForm.response_time || null,
+        bio: editForm.helper_bio || null,
+        experience: Array.isArray(editForm.experience) ? editForm.experience : [],
+        location: finalHelperLocation || null,
+        is_active: true,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error: hpErr } = await supabase.from('helper_profiles').upsert(helperPayload, { onConflict: 'user_id', returning: 'representation' });
+      if (hpErr) throw hpErr;
+    } else {
+      // If toggled off, mark helper_profiles as inactive (non-fatal)
+      const { error: disableErr } = await supabase.from('helper_profiles').update({ is_active: false }).eq('user_id', uid);
+      if (disableErr) console.warn('Could not disable helper profile', disableErr);
+    }
+
+    // Refresh UI state
+    await loadAll();
     closeEditModal();
     alert('Profile updated successfully!');
-  } catch (error) {
-    console.error('Error saving profile:', error);
-    alert('Failed to save profile. Please try again.');
+  } catch (err) {
+    console.error('saveProfile error', err);
+    alert('Failed to save profile: ' + (err.message || err));
   }
-};
+}
 
-const editListing = (listing) => {
-  // Store the listing data in localStorage for the edit page to use
-  localStorage.setItem('editingJob', JSON.stringify(listing));
-  // Navigate to the edit job page
-  router.push(`/edit-job/${listing.id}`);
-};
-
-// NEW FUNCTION: Mark as Completed
-const markAsCompleted = async (listingId) => {
-  if (!confirm('Are you sure you want to mark this job as completed? It will be moved to your Job History.')) {
-    return;
-  }
-
-  try {
-    const { error } = await supabase
-      .from('User-Job-Request')
-      .update({ 
-        status: 'completed'
-        // Removed updated_at since the column doesn't exist
-      })
-      .eq('id', listingId);
-
-    if (error) throw error;
-
-    // Reload listings and completed jobs
-    await loadUserListings();
-    await loadCompletedJobs();
-    
-    alert('Job marked as completed successfully!');
-    
-    // Switch to Job History tab to show the completed job
-    activeTab.value = 'jobs';
-  } catch (error) {
-    console.error('Error marking job as completed:', error);
-    alert('Failed to mark job as completed. Please try again.');
-  }
-};
-
-const deleteListing = async (listingId) => {
-  if (!confirm('Are you sure you want to delete this listing? This action cannot be undone.')) {
-    return;
-  }
-
-  try {
-    const { error } = await supabase
-      .from('User-Job-Request')
-      .delete()
-      .eq('id', listingId);
-
-    if (error) throw error;
-
-    // Reload listings
-    await loadUserListings();
-    
-    alert('Listing deleted successfully!');
-  } catch (error) {
-    console.error('Error deleting listing:', error);
-    alert('Failed to delete listing. Please try again.');
-  }
-};
-
-const handleLogout = async () => {
-  if (!confirm('Are you sure you want to log out?')) {
-    return;
-  }
-  
-  try {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('username');
-    localStorage.removeItem('avatarUrl');
-    
-    window.dispatchEvent(new Event('user-logged-out'));
-    
-    router.push('/');
-  } catch (error) {
-    console.error('Error logging out:', error);
-    alert('Error logging out. Please try again.');
-  }
-};
-
-const getBadgeClass = (level) => {
-  if (!level) return 'beginner';
-  const levelLower = level.toLowerCase();
-  if (levelLower.includes('expert') || levelLower.includes('advanced')) return 'expert';
-  if (levelLower.includes('intermediate')) return 'intermediate';
-  return 'beginner';
-};
-
-const getStatusClass = (status) => {
-  const statusLower = status.toLowerCase();
-  if (statusLower === 'open') return 'status-open';
-  if (statusLower === 'in_progress') return 'status-in-progress';
-  if (statusLower === 'completed') return 'status-completed';
-  if (statusLower === 'cancelled') return 'status-cancelled';
-  return 'status-open';
-};
+/* ---------- lifecycle ---------- */
+onMounted(() => {
+  loadAll();
+});
 </script>
 
 <style scoped>
+/* Keep your existing styles and add helper button + form styles */
+.container { max-width:1200px; margin:0 auto; padding:2rem 1rem; }
+.loading-container, .not-logged-in, .error-banner { text-align:center; padding:2rem; }
+.spinner { width:48px; height:48px; border:4px solid #eee; border-top-color:#6C5B7F; border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 1rem; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.profile-header { background:#fff; padding:1.25rem; border-radius:8px; margin-bottom:1rem; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.profile-content { display:flex; gap:1rem; align-items:flex-start; }
+.avatar-container { width:96px; height:96px; border-radius:50%; overflow:hidden; background:#f3f4f6; display:flex; align-items:center; justify-content:center; }
+.avatar { width:100%; height:100%; object-fit:cover; }
+.avatar-placeholder { font-size:2.5rem; color:#9ca3af; }
+.profile-info { flex:1; }
+.profile-top { display:flex; justify-content:space-between; align-items:flex-start; }
+.profile-name { font-size:1.75rem; margin:0; }
+.contact-info { display:flex; gap:1rem; color:#6b7280; margin:0.5rem 0; }
+.btn-edit { padding:.5rem .75rem; border-radius:6px; border:1px solid #ddd; background:white; cursor:pointer; }
+
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1rem; }
+.stat-card { background:#fff; padding:1rem; border-radius:8px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+.stat-number { font-weight:700; font-size:1.25rem; margin:0; }
+.tab-button { padding:.5rem 1rem; border:none; background:transparent; cursor:pointer; }
+.tab-button.active { border-bottom:2px solid #6C5B7F; color:#6C5B7F; }
+
+/* Modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; z-index:50; }
+.modal-content { width:720px; max-width:95%; background:#fff; border-radius:8px; overflow:auto; }
+.modal-header { display:flex; justify-content:space-between; padding:1rem; border-bottom:1px solid #eee; }
+.modal-body { padding:1rem; display:flex; flex-direction:column; gap:1rem; max-height:70vh; overflow:auto; }
+.modal-footer { padding:1rem; display:flex; justify-content:flex-end; gap:.5rem; border-top:1px solid #eee; }
+.close-btn { background:none;border:none;font-size:1.25rem; cursor:pointer; }
+
+/* forms */
+.form-row { display:flex; flex-direction:column; gap:.5rem; }
+.form-row input[type="text"], .form-row textarea, .form-row select { padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:6px; width:100%; }
+.helper-toggle-row { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+.helper-toggle-label { font-weight:600; }
+.helper-toggle-btn { padding:.5rem 1rem; border-radius:999px; border:1px solid #d1d5db; background:#fff; cursor:pointer; }
+.helper-toggle-btn.active { background:#6C5B7F; color:#fff; border-color:#6C5B7F; }
+
+.helper-form-section { background:#fafafa; padding:1rem; border-radius:6px; border:1px solid #f0f0f0; }
+
+/* skills editor */
+.skills-editor-list { display:flex; flex-direction:column; gap:.5rem; }
+.skill-editor-item { display:flex; gap:.5rem; align-items:center; }
+.skill-editor-item input[type="text"] { flex:1; }
+.small-input { width:70px; padding:.4rem; border:1px solid #d1d5db; border-radius:6px; }
+.btn-remove-skill { background:#fee2e2; border:1px solid #fca5a5; padding:.25rem .5rem; border-radius:6px; cursor:pointer; }
+.btn-add-skill { background:#fff; border:1px dashed #d1d5db; padding:.4rem .6rem; border-radius:6px; cursor:pointer; }
+
+/* experience editor */
+.experience-editor-row { display:flex; gap:.5rem; align-items:center; }
+
+/* hints */
+.hint { font-size:0.85rem; color:#6b7280; margin-top:0.25rem; }
+
+/* small utilities */
+.btn-cancel, .btn-save { padding:.5rem .75rem; border-radius:6px; cursor:pointer; }
+.btn-save { background:#2563eb; color:#fff; border:none; }
+.btn-cancel { background:#fff; border:1px solid #d1d5db; }
+
+/* review / job / listing small styles kept minimal */
+.skill-card { border:1px solid #eee; padding:.75rem; border-radius:8px; margin-bottom:.5rem; }
+.review-card { border-bottom:1px solid #eee; padding:.75rem 0; }
+.job-card, .listing-card { border:1px solid #eee; padding:.75rem; border-radius:8px; margin-bottom:.5rem; }
+.status-badge { background:#d1fae5; color:#065f46; padding:.25rem .5rem; border-radius:9999px; font-weight:600; }
+
+/* Keep your existing styles and add helper button + form styles */
+.container { max-width:1200px; margin:0 auto; padding:2rem 1rem; }
+.loading-container, .not-logged-in, .error-banner { text-align:center; padding:2rem; }
+.spinner { width:48px; height:48px; border:4px solid #eee; border-top-color:#6C5B7F; border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 1rem; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.profile-header { background:#fff; padding:1.25rem; border-radius:8px; margin-bottom:1rem; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.profile-content { display:flex; gap:1rem; align-items:flex-start; }
+.avatar-container { width:96px; height:96px; border-radius:50%; overflow:hidden; background:#f3f4f6; display:flex; align-items:center; justify-content:center; }
+.avatar { width:100%; height:100%; object-fit:cover; }
+.avatar-placeholder { font-size:2.5rem; color:#9ca3af; }
+.profile-info { flex:1; }
+.profile-top { display:flex; justify-content:space-between; align-items:flex-start; }
+.profile-name { font-size:1.75rem; margin:0; }
+.contact-info { display:flex; gap:1rem; color:#6b7280; margin:0.5rem 0; }
+.btn-edit { padding:.5rem .75rem; border-radius:6px; border:1px solid #ddd; background:white; cursor:pointer; }
+
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1rem; }
+.stat-card { background:#fff; padding:1rem; border-radius:8px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+.stat-number { font-weight:700; font-size:1.25rem; margin:0; }
+.tab-button { padding:.5rem 1rem; border:none; background:transparent; cursor:pointer; }
+.tab-button.active { border-bottom:2px solid #6C5B7F; color:#6C5B7F; }
+
+/* Modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; z-index:50; }
+.modal-content { width:720px; max-width:95%; background:#fff; border-radius:8px; overflow:auto; }
+.modal-header { display:flex; justify-content:space-between; padding:1rem; border-bottom:1px solid #eee; }
+.modal-body { padding:1rem; display:flex; flex-direction:column; gap:1rem; max-height:70vh; overflow:auto; }
+.modal-footer { padding:1rem; display:flex; justify-content:flex-end; gap:.5rem; border-top:1px solid #eee; }
+.close-btn { background:none;border:none;font-size:1.25rem; cursor:pointer; }
+
+/* forms */
+.form-row { display:flex; flex-direction:column; gap:.5rem; }
+.form-row input[type="text"], .form-row textarea, .form-row select { padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:6px; width:100%; }
+.helper-toggle-row { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+.helper-toggle-label { font-weight:600; }
+.helper-toggle-btn { padding:.5rem 1rem; border-radius:999px; border:1px solid #d1d5db; background:#fff; cursor:pointer; }
+.helper-toggle-btn.active { background:#6C5B7F; color:#fff; border-color:#6C5B7F; }
+
+.helper-form-section { background:#fafafa; padding:1rem; border-radius:6px; border:1px solid #f0f0f0; }
+
+/* skills editor */
+.skills-editor-list { display:flex; flex-direction:column; gap:.5rem; }
+.skill-editor-item { display:flex; gap:.5rem; align-items:center; }
+.skill-editor-item input[type="text"] { flex:1; }
+.small-input { width:70px; padding:.4rem; border:1px solid #d1d5db; border-radius:6px; }
+.btn-remove-skill { background:#fee2e2; border:1px solid #fca5a5; padding:.25rem .5rem; border-radius:6px; cursor:pointer; }
+.btn-add-skill { background:#fff; border:1px dashed #d1d5db; padding:.4rem .6rem; border-radius:6px; cursor:pointer; }
+
+/* experience editor */
+.experience-editor-row { display:flex; gap:.5rem; align-items:center; }
+
+/* hints */
+.hint { font-size:0.85rem; color:#6b7280; margin-top:0.25rem; }
+
+/* small utilities */
+.btn-cancel, .btn-save { padding:.5rem .75rem; border-radius:6px; cursor:pointer; }
+.btn-save { background:#2563eb; color:#fff; border:none; }
+.btn-cancel { background:#fff; border:1px solid #d1d5db; }
+
+/* review / job / listing small styles kept minimal */
+.skill-card { border:1px solid #eee; padding:.75rem; border-radius:8px; margin-bottom:.5rem; }
+.review-card { border-bottom:1px solid #eee; padding:.75rem 0; }
+.job-card, .listing-card { border:1px solid #eee; padding:.75rem; border-radius:8px; margin-bottom:.5rem; }
+.status-badge { background:#d1fae5; color:#065f46; padding:.25rem .5rem; border-radius:9999px; font-weight:600; }
+
+/* Keep your existing styles and add helper button + form styles */
+.container { max-width:1200px; margin:0 auto; padding:2rem 1rem; }
+.loading-container, .not-logged-in, .error-banner { text-align:center; padding:2rem; }
+.spinner { width:48px; height:48px; border:4px solid #eee; border-top-color:#6C5B7F; border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 1rem; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.profile-header { background:#fff; padding:1.25rem; border-radius:8px; margin-bottom:1rem; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.profile-content { display:flex; gap:1rem; align-items:flex-start; }
+.avatar-container { width:96px; height:96px; border-radius:50%; overflow:hidden; background:#f3f4f6; display:flex; align-items:center; justify-content:center; }
+.avatar { width:100%; height:100%; object-fit:cover; }
+.avatar-placeholder { font-size:2.5rem; color:#9ca3af; }
+.profile-info { flex:1; }
+.profile-top { display:flex; justify-content:space-between; align-items:flex-start; }
+.profile-name { font-size:1.75rem; margin:0; }
+.contact-info { display:flex; gap:1rem; color:#6b7280; margin:0.5rem 0; }
+.btn-edit { padding:.5rem .75rem; border-radius:6px; border:1px solid #ddd; background:white; cursor:pointer; }
+
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1rem; }
+.stat-card { background:#fff; padding:1rem; border-radius:8px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+.stat-number { font-weight:700; font-size:1.25rem; margin:0; }
+.tab-button { padding:.5rem 1rem; border:none; background:transparent; cursor:pointer; }
+.tab-button.active { border-bottom:2px solid #6C5B7F; color:#6C5B7F; }
+
+/* Modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; z-index:50; }
+.modal-content { width:720px; max-width:95%; background:#fff; border-radius:8px; overflow:auto; }
+.modal-header { display:flex; justify-content:space-between; padding:1rem; border-bottom:1px solid #eee; }
+.modal-body { padding:1rem; display:flex; flex-direction:column; gap:1rem; max-height:70vh; overflow:auto; }
+.modal-footer { padding:1rem; display:flex; justify-content:flex-end; gap:.5rem; border-top:1px solid #eee; }
+.close-btn { background:none;border:none;font-size:1.25rem; cursor:pointer; }
+
+/* forms */
+.form-row { display:flex; flex-direction:column; gap:.5rem; }
+.form-row input[type="text"], .form-row textarea, .form-row select { padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:6px; width:100%; }
+.helper-toggle-row { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+.helper-toggle-label { font-weight:600; }
+.helper-toggle-btn { padding:.5rem 1rem; border-radius:999px; border:1px solid #d1d5db; background:#fff; cursor:pointer; }
+.helper-toggle-btn.active { background:#6C5B7F; color:#fff; border-color:#6C5B7F; }
+
+.helper-form-section { background:#fafafa; padding:1rem; border-radius:6px; border:1px solid #f0f0f0; }
+
+/* skills editor */
+.skills-editor-list { display:flex; flex-direction:column; gap:.5rem; }
+.skill-editor-item { display:flex; gap:.5rem; align-items:center; }
+.skill-editor-item input[type="text"] { flex:1; }
+.small-input { width:70px; padding:.4rem; border:1px solid #d1d5db; border-radius:6px; }
+.btn-remove-skill { background:#fee2e2; border:1px solid #fca5a5; padding:.25rem .5rem; border-radius:6px; cursor:pointer; }
+.btn-add-skill { background:#fff; border:1px dashed #d1d5db; padding:.4rem .6rem; border-radius:6px; cursor:pointer; }
+
+/* experience editor */
+.experience-editor-row { display:flex; gap:.5rem; align-items:center; }
+
+/* hints */
+.hint { font-size:0.85rem; color:#6b7280; margin-top:0.25rem; }
+
+/* small utilities */
+.btn-cancel, .btn-save { padding:.5rem .75rem; border-radius:6px; cursor:pointer; }
+.btn-save { background:#2563eb; color:#fff; border:none; }
+.btn-cancel { background:#fff; border:1px solid #d1d5db; }
+
+/* review / job / listing small styles kept minimal */
+.skill-card { border:1px solid #eee; padding:.75rem; border-radius:8px; margin-bottom:.5rem; }
+.review-card { border-bottom:1px solid #eee; padding:.75rem 0; }
+.job-card, .listing-card { border:1px solid #eee; padding:.75rem; border-radius:8px; margin-bottom:.5rem; }
+.status-badge { background:#d1fae5; color:#065f46; padding:.25rem .5rem; border-radius:9999px; font-weight:600; }
+
+/* Minimal styles so the page renders; you can merge with your existing styles */
+.container { max-width:1200px; margin:0 auto; padding:2rem 1rem; }
+.loading-container, .not-logged-in, .error-banner { text-align:center; padding:2rem; }
+.spinner { width:48px; height:48px; border:4px solid #eee; border-top-color:#6C5B7F; border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 1rem; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.profile-header { background:#fff; padding:1.25rem; border-radius:8px; margin-bottom:1rem; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.profile-content { display:flex; gap:1rem; align-items:flex-start; }
+.avatar-container { width:96px; height:96px; border-radius:50%; overflow:hidden; background:#f3f4f6; display:flex; align-items:center; justify-content:center; }
+.avatar { width:100%; height:100%; object-fit:cover; }
+.avatar-placeholder { font-size:2.5rem; color:#9ca3af; }
+.profile-info { flex:1; }
+.profile-top { display:flex; justify-content:space-between; align-items:flex-start; }
+.profile-name { font-size:1.75rem; margin:0; }
+.contact-info { display:flex; gap:1rem; color:#6b7280; margin:0.5rem 0; }
+.btn-edit { padding:.5rem .75rem; border-radius:6px; border:1px solid #ddd; background:white; cursor:pointer; }
+
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1rem; }
+.stat-card { background:#fff; padding:1rem; border-radius:8px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+.stat-number { font-weight:700; font-size:1.25rem; margin:0; }
+.tab-button { padding:.5rem 1rem; border:none; background:transparent; cursor:pointer; }
+.tab-button.active { border-bottom:2px solid #6C5B7F; color:#6C5B7F; }
+
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; z-index:50; }
+.modal-content { width:720px; max-width:95%; background:#fff; border-radius:8px; overflow:auto; }
+.modal-header { display:flex; justify-content:space-between; padding:1rem; border-bottom:1px solid #eee; }
+.modal-body { padding:1rem; }
+.modal-footer { padding:1rem; display:flex; justify-content:flex-end; gap:.5rem; border-top:1px solid #eee; }
+.close-btn { background:none;border:none;font-size:1.25rem; cursor:pointer; }
+
+.skill-card { border:1px solid #eee; padding:.75rem; border-radius:8px; margin-bottom:.5rem; }
+.review-card { border-bottom:1px solid #eee; padding:.75rem 0; }
+.job-card, .listing-card { border:1px solid #eee; padding:.75rem; border-radius:8px; margin-bottom:.5rem; }
+.status-badge { background:#d1fae5; color:#065f46; padding:.25rem .5rem; border-radius:9999px; font-weight:600; }
+
+.error-banner { background:#fee2e2; color:#7f1d1d; border:1px solid #fca5a5; border-radius:8px; }
+.btn-retry { margin-top:.5rem; padding:.4rem .75rem; background:#fff; border:1px solid #ddd; cursor:pointer; }
+
 .profile-page {
   min-height: 100vh;
   background-color: #fafafa;
