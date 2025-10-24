@@ -6,6 +6,7 @@
           <span class="logo-text" @click="navigateToHome">SideQuest</span>
         </div>
         <div class="nav-links">
+          <router-link to="/job-map" class="nav-link">Job Map</router-link>
           <router-link to="/jobs" class="nav-link">Browse Jobs</router-link>
           <router-link to="/helpers" class="nav-link">Browse Helpers</router-link>
           

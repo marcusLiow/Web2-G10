@@ -153,6 +153,50 @@ const mapCenter = computed(() =>
   jobCoordinates.value || { lat: 1.3521, lng: 103.8198 } // Default to Singapore
 );
 
+// Format expiration date for display
+const formattedExpirationDate = computed(() => {
+  if (!job.value || !job.value.expiration_date) {
+    return 'Never expires';
+  }
+  
+  const expDate = new Date(job.value.expiration_date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expDate.setHours(0, 0, 0, 0);
+  
+  // Calculate days until expiration
+  const daysUntil = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+  
+  if (daysUntil < 0) {
+    return 'Expired';
+  } else if (daysUntil === 0) {
+    return 'Expires today';
+  } else if (daysUntil === 1) {
+    return 'Expires tomorrow';
+  } else if (daysUntil <= 7) {
+    return `Expires in ${daysUntil} days`;
+  } else {
+    return `Expires on ${expDate.toLocaleDateString('en-GB')}`;
+  }
+});
+
+const expirationStatus = computed(() => {
+  if (!job.value || !job.value.expiration_date) {
+    return 'never';
+  }
+  
+  const expDate = new Date(job.value.expiration_date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expDate.setHours(0, 0, 0, 0);
+  
+  const daysUntil = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+  
+  if (daysUntil < 0) return 'expired';
+  if (daysUntil <= 3) return 'expiring-soon';
+  return 'active';
+});
+
 const toggleMap = () => {
   showMap.value = !showMap.value;
   if (showMap.value) {
@@ -678,6 +722,15 @@ const closeOfferModal = () => {
                   <div>
                     <span class="info-label">Posted by</span>
                     <span class="info-value">{{ job.postedBy }}</span>
+                  </div>
+                </div>
+                <div v-if="isOwnListing" class="info-item">
+                  <span class="info-icon">⏰</span>
+                  <div>
+                    <span class="info-label">Expiration</span>
+                    <span class="info-value" :class="`expiration-${expirationStatus}`">
+                      {{ formattedExpirationDate }}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1483,6 +1536,26 @@ const closeOfferModal = () => {
   display: block;
   font-weight: 600;
   color: #111827;
+}
+
+/* Expiration status colors */
+.expiration-never {
+  color: #6b7280;
+}
+
+.expiration-active {
+  color: #059669;
+}
+
+.expiration-expiring-soon {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.expiration-expired {
+  color: #991b1b;
+  font-weight: 700;
+  text-decoration: line-through;
 }
 
 .skills-list {

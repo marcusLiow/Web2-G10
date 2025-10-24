@@ -12,6 +12,7 @@ import maptest from '@/pages/maptest.vue'
 import HelpersPage from '../pages/HelpersPage.vue'
 import Spending from '../pages/Spending.vue'
 import editjob from '@/pages/editjob.vue'
+import JobMap from '@/pages/JobMap.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -115,10 +116,13 @@ const router = createRouter({
     {
       path: '/payment-success',
       name: 'PaymentSuccess',
-      // Create a simple component or reuse ChatConversation to handle this
-      component: () => import('../pages/PaymentSuccessHandler.vue'), // You'll need to create this component
+      component: () => import('../pages/PaymentSuccessHandler.vue')
     },
-
+    {
+      path: '/job-map',
+      name: 'JobMap',
+      component: JobMap
+    }
   ]
 })
 

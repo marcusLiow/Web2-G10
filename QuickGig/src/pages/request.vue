@@ -171,6 +171,36 @@
               </div>
             </div>
 
+            <!-- Expiration Date Field -->
+            <div class="form-group">
+              <label for="expiration" class="form-label">Post Expiration</label>
+              <div class="expiration-wrapper">
+                <select 
+                  v-model="expirationOption"
+                  @change="handleExpirationChange"
+                  class="form-input expiration-select"
+                >
+                  <option value="never">Never expires</option>
+                  <option value="1week">1 Week</option>
+                  <option value="2weeks">2 Weeks</option>
+                  <option value="1month">1 Month</option>
+                  <option value="custom">Custom date</option>
+                </select>
+                
+                <input 
+                  v-if="expirationOption === 'custom'"
+                  type="date" 
+                  v-model="formData.expiration_date"
+                  :min="minDate"
+                  class="form-input expiration-date-input"
+                  required
+                />
+              </div>
+              <small class="helper-text">
+                {{ expirationHelpText }}
+              </small>
+            </div>
+
             <div v-if="submitError" class="error-message">
               {{ submitError }}
             </div>
@@ -202,8 +232,11 @@ export default {
         category: '',
         postalCode: '',
         location: '',
-        payment: ''
+        payment: '',
+        expiration_date: null
       },
+      expirationOption: 'never',
+      minDate: new Date().toISOString().split('T')[0],
       coordinates: null,
       postalCodeValidated: false,
       postalCodeStatus: 'Required for accurate map location',
@@ -217,6 +250,19 @@ export default {
       imageError: null,
       uploadedImageUrls: []
     };
+  },
+  computed: {
+    expirationHelpText() {
+      if (this.expirationOption === 'never') {
+        return 'Your post will remain active until manually deleted';
+      } else if (this.expirationOption === 'custom') {
+        return 'Select a date when this post should be automatically removed';
+      } else if (this.formData.expiration_date) {
+        const date = new Date(this.formData.expiration_date);
+        return `Post will be automatically removed on ${date.toLocaleDateString()}`;
+      }
+      return 'Choose when this post should expire';
+    }
   },
   methods: {
     // Image upload methods
@@ -282,6 +328,36 @@ export default {
     removeImage(index) {
       this.selectedImages.splice(index, 1);
       this.imageError = null;
+    },
+    
+    // Expiration date handling
+    handleExpirationChange() {
+      const today = new Date();
+      
+      switch(this.expirationOption) {
+        case 'never':
+          this.formData.expiration_date = null;
+          break;
+        case '1week':
+          const oneWeek = new Date(today);
+          oneWeek.setDate(today.getDate() + 7);
+          this.formData.expiration_date = oneWeek.toISOString().split('T')[0];
+          break;
+        case '2weeks':
+          const twoWeeks = new Date(today);
+          twoWeeks.setDate(today.getDate() + 14);
+          this.formData.expiration_date = twoWeeks.toISOString().split('T')[0];
+          break;
+        case '1month':
+          const oneMonth = new Date(today);
+          oneMonth.setMonth(today.getMonth() + 1);
+          this.formData.expiration_date = oneMonth.toISOString().split('T')[0];
+          break;
+        case 'custom':
+          // User will select custom date
+          this.formData.expiration_date = '';
+          break;
+      }
     },
     
     async uploadImages() {
@@ -415,7 +491,8 @@ export default {
           payment: parseFloat(this.formData.payment),
           status: 'open',
           user_id: userId,
-          images: imageUrls // Add images array
+          images: imageUrls, // Add images array
+          expiration_date: this.formData.expiration_date // Add expiration date
         };
 
         console.log('Creating job request with data:', requestData);
@@ -764,6 +841,27 @@ select.form-input {
 
 .payment-input {
   padding-left: 2.5rem;
+}
+
+/* Expiration date styles */
+.expiration-wrapper {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.expiration-select {
+  width: 100%;
+}
+
+.expiration-date-input {
+  margin-top: 0;
+}
+
+@media (min-width: 640px) {
+  .expiration-wrapper {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .submit-button {

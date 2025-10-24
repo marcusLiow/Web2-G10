@@ -27,6 +27,25 @@ const checkLoginStatus = () => {
   isLoggedIn.value = localStorage.getItem('isLoggedIn') === 'true';
 };
 
+// Delete expired posts
+const deleteExpiredPosts = async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const { error } = await supabase
+      .from('User-Job-Request')
+      .delete()
+      .lt('expiration_date', today)
+      .not('expiration_date', 'is', null);
+    
+    if (error) throw error;
+    
+    console.log('Expired posts cleaned up');
+  } catch (error) {
+    console.error('Error deleting expired posts:', error);
+  }
+};
+
 // Fetch jobs from Supabase
 const fetchJobs = async () => {
   try {
@@ -84,7 +103,8 @@ const fetchJobs = async () => {
         postedBy: postedBy,
         contactEmail: contactEmail,
         userId: job.user_id,
-        images: job.images || [] // Include images array
+        images: job.images || [], // Include images array
+        expiration_date: job.expiration_date || null // Include expiration date
       };
     }));
 
@@ -99,9 +119,10 @@ const fetchJobs = async () => {
 };
 
 // Fetch jobs when component mounts
-onMounted(() => {
+onMounted(async () => {
   checkLoginStatus();
-  fetchJobs();
+  await deleteExpiredPosts();  // Clean up expired posts first
+  await fetchJobs();
   
   // Listen for login/logout events
   window.addEventListener('user-logged-in', checkLoginStatus);
@@ -118,7 +139,7 @@ const filteredJobs = computed(() => {
       job =>
         job.name.toLowerCase().includes(term) ||
         job.description.toLowerCase().includes(term) ||
-        job.location.toLowerCase().includes(term) // <-- ADD THIS LINE
+        job.location.toLowerCase().includes(term)
     );
   }
 
