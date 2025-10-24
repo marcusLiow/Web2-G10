@@ -45,32 +45,37 @@
                  'offer-accepted': message.offer_status === 'accepted',
                  'offer-countered': message.offer_status === 'countered'
                }">
-            <div class="offer-amount-text">
-              {{ message.message_type === 'counter_offer' ? 'Counter Offered' : 'Offered' }} ${{ message.offer_amount }}
-            </div>
-
-            <span class="message-time">{{ formatTime(message.created_at) }}</span>
-
-            <div v-if="message.offer_status === 'accepted'" class="offer-status-badge accepted">
-              ✓ Offer Accepted
-            </div>
-            <div v-else-if="message.offer_status === 'countered'" class="offer-status-badge countered">
-              Countered
+            <div class="offer-content">
+              <div class="offer-type">{{ message.message_type === 'counter_offer' ? 'Counter Offer' : 'Offer' }}</div>
+              <div class="offer-amount">${{ message.offer_amount }}</div>
+              <div v-if="message.offer_status === 'accepted'" class="offer-status">Accepted</div>
+              <div v-else-if="message.offer_status === 'countered'" class="offer-status">Countered</div>
             </div>
 
             <div v-if="message.offer_status === 'pending' && message.sender_id !== currentUserId"
                  class="offer-actions">
-              <button @click="acceptOffer(message)" class="accept-btn" :disabled="isProcessing">
-                ✓ Accept Offer
+              <button @click="acceptOffer(message)" class="offer-action-btn accept-btn" :disabled="isProcessing">
+                Accept
               </button>
-              <button @click="openCounterOfferModal(message)" class="counter-btn" :disabled="isProcessing">
-                ❌ Counter Offer
+              <button @click="openCounterOfferModal(message)" class="offer-action-btn counter-btn" :disabled="isProcessing">
+                Counter
               </button>
             </div>
+
+            <span class="message-time">{{ formatTime(message.created_at) }}</span>
           </div>
 
           <div v-else-if="message.message_type === 'offer_accepted'" class="message-bubble accepted-bubble">
             <p class="acceptance-text">{{ message.message }}</p>
+            
+            <!-- Show "Proceed to Payment" button for job poster only -->
+            <div v-if="currentUserId === chatInfo?.job_poster_id && message.offer_amount"
+                 class="payment-action">
+              <button @click="proceedToPayment(message)" class="payment-btn">
+                Proceed to Payment
+              </button>
+            </div>
+
             <span class="message-time">{{ formatTime(message.created_at) }}</span>
           </div>
         </div>
@@ -87,6 +92,14 @@
           :disabled="isSending"
         />
         <button
+          type="button"
+          class="offer-btn"
+          @click="openMakeOfferModal"
+          :disabled="isSending"
+        >
+          Make Offer
+        </button>
+        <button
           type="submit"
           class="send-btn"
           :disabled="!newMessage.trim() || isSending"
@@ -99,6 +112,53 @@
       </form>
     </div>
 
+    <!-- Make Offer Modal -->
+    <div v-if="showMakeOfferModal" class="modal-overlay" @click="closeMakeOfferModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">Make an Offer</h2>
+          <button @click="closeMakeOfferModal" class="close-btn">×</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="job-info-box">
+            <p class="info-label">Job</p>
+            <p class="info-value">{{ jobInfo?.title }}</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Offer Amount ($) *</label>
+            <input
+              v-model="offerAmount"
+              type="number"
+              placeholder="Enter your offer amount"
+              class="offer-input"
+              min="1"
+              step="0.01"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Message (Optional)</label>
+            <textarea
+              v-model="offerMessage"
+              placeholder="Add a message with your offer..."
+              class="offer-textarea"
+              rows="3"
+            ></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button @click="closeMakeOfferModal" class="cancel-btn">Cancel</button>
+            <button @click="submitOffer" class="submit-btn" :disabled="!offerAmount || isProcessing">
+              Send Offer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Counter Offer Modal -->
     <div v-if="showCounterModal" class="modal-overlay" @click="closeCounterModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
@@ -148,7 +208,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router'; // *** Single import here ***
+import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
 
 const route = useRoute();
@@ -171,6 +231,11 @@ const showCounterModal = ref(false);
 const selectedOffer = ref(null);
 const counterAmount = ref('');
 const counterMessage = ref('');
+
+// Make offer modal
+const showMakeOfferModal = ref(false);
+const offerAmount = ref('');
+const offerMessage = ref('');
 
 onMounted(async () => {
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
@@ -340,11 +405,103 @@ const sendMessage = async () => {
   }
 };
 
-// *** Accept Offer Function (Modified for Payment Page Navigation) ***
+// Make Offer Functions
+const openMakeOfferModal = () => {
+  offerAmount.value = '';
+  offerMessage.value = '';
+  showMakeOfferModal.value = true;
+};
+
+const closeMakeOfferModal = () => {
+  showMakeOfferModal.value = false;
+  offerAmount.value = '';
+  offerMessage.value = '';
+};
+
+const submitOffer = async () => {
+  if (!offerAmount.value || offerAmount.value <= 0 || isProcessing.value) return;
+
+  try {
+    isProcessing.value = true;
+    const chatId = route.params.id;
+
+    console.log('Submitting offer:', offerAmount.value);
+
+    // Send offer message
+    const offerText = `Offer: $${offerAmount.value}`;
+
+    const { data: offerMsg, error: offerError } = await supabase
+      .from('messages')
+      .insert([{
+        chat_id: chatId,
+        sender_id: currentUserId.value,
+        message: offerText,
+        message_type: 'offer',
+        offer_amount: offerAmount.value,
+        offer_status: 'pending',
+        read: false
+      }])
+      .select()
+      .single();
+
+    if (offerError) throw offerError;
+
+    console.log('Offer sent:', offerMsg);
+
+    // Send additional message if provided
+    let lastMessage = offerText;
+
+    if (offerMessage.value.trim()) {
+      const { data: additionalMsg, error: additionalError } = await supabase
+        .from('messages')
+        .insert([{
+          chat_id: chatId,
+          sender_id: currentUserId.value,
+          message: offerMessage.value.trim(),
+          message_type: 'regular',
+          read: false
+        }])
+        .select()
+        .single();
+
+      if (additionalError) throw additionalError;
+
+      messages.value.push(additionalMsg);
+      lastMessage = offerMessage.value.trim();
+    }
+
+    // Update chat's last message
+    await supabase
+      .from('chats')
+      .update({
+        last_message: lastMessage,
+        last_message_time: new Date().toISOString()
+      })
+      .eq('id', chatId);
+
+    // Update local state
+    messages.value.push(offerMsg);
+
+    closeMakeOfferModal();
+
+    await nextTick();
+    scrollToBottom();
+
+    alert('Offer sent successfully!');
+
+  } catch (error) {
+    console.error('Error sending offer:', error);
+    alert('Failed to send offer. Please try again.');
+  } finally {
+    isProcessing.value = false;
+  }
+};
+
+// Accept Offer Function - MODIFIED to store offer_amount in acceptance message
 const acceptOffer = async (offerMessage) => {
   if (isProcessing.value) return;
 
-  if (!confirm(`Accept offer of $${offerMessage.offer_amount}? Proceed to payment?`)) {
+  if (!confirm(`Accept offer of $${offerMessage.offer_amount}?`)) {
     return;
   }
 
@@ -352,15 +509,16 @@ const acceptOffer = async (offerMessage) => {
     isProcessing.value = true;
     const chatId = route.params.id;
 
-    console.log('Accepting offer and proceeding to payment:', offerMessage.id);
+    console.log('Accepting offer:', offerMessage.id);
 
-    // Step 1: Update the offer message status (Optional: do this after payment success)
+    // Update the offer message status
     const { error: updateError } = await supabase
       .from('messages')
-      .update({ offer_status: 'accepted' }) // Mark as accepted in DB
+      .update({ offer_status: 'accepted' })
       .eq('id', offerMessage.id);
-    if (updateError) throw updateError; // Handle error if update fails
+    if (updateError) throw updateError;
 
+    // Update job status to in-progress
     const { error: jobUpdateError } = await supabase
       .from('User-Job-Request')
       .update({ status: 'in-progress' })
@@ -368,58 +526,63 @@ const acceptOffer = async (offerMessage) => {
 
     if (jobUpdateError) throw jobUpdateError;
 
-    // Step 2: Send acceptance message (Optional: do this after payment success)
-    const acceptanceText = `✓ Accepted offer of $${offerMessage.offer_amount}. Proceeding to payment.`;
+    // Send acceptance message WITH offer_amount stored
+    const acceptanceText = `Offer of $${offerMessage.offer_amount} has been accepted!`;
     const { data: acceptanceMsg, error: msgError } = await supabase
       .from('messages')
-      .insert([{ // *** Define your acceptance message object structure here ***
+      .insert([{
             chat_id: chatId,
-            sender_id: currentUserId.value, // Or appropriate sender
+            sender_id: currentUserId.value,
             message: acceptanceText,
-            message_type: 'offer_accepted', // Use a specific type
+            message_type: 'offer_accepted',
+            offer_amount: offerMessage.offer_amount, // ✅ Store the amount for payment button
             read: false
       }])
       .select().single();
     if (msgError) throw msgError;
 
-    // Step 3: Update chat's last message (Optional: do this after payment success)
-     await supabase
-       .from('chats')
-       .update({
-         last_message: acceptanceText,
-         last_message_time: new Date().toISOString()
-       })
-       .eq('id', chatId);
+    // Update chat's last message
+    await supabase
+      .from('chats')
+      .update({
+        last_message: acceptanceText,
+        last_message_time: new Date().toISOString()
+      })
+      .eq('id', chatId);
 
-    // Update local state immediately for responsiveness
+    // Update local state
     const msgIndex = messages.value.findIndex(m => m.id === offerMessage.id);
     if (msgIndex !== -1) {
       messages.value[msgIndex].offer_status = 'accepted';
     }
-    if (acceptanceMsg) { // Only push if message was successfully inserted
+    if (acceptanceMsg) {
         messages.value.push(acceptanceMsg);
     }
     await nextTick();
     scrollToBottom();
 
-    // --- NAVIGATE TO PAYMENT PAGE ---
-    console.log('Navigating to Payment Page...');
-    router.push({
-      name: 'PaymentPage',                       // Route name from router/index.js
-      params: { jobId: chatInfo.value?.job_id }, // Pass Job ID in URL path
-      query: {                                   // Pass other details as query params
-        amount: offerMessage.offer_amount,
-        jobTitle: jobInfo.value?.title,         // Use optional chaining
-        chatId: chatId                          // Pass chatId to return later
-      }
-    });
-    // --- END NAVIGATION ---
+    alert('Offer accepted successfully!');
+    isProcessing.value = false;
 
   } catch (error) {
-    console.error('Error accepting offer / initiating payment:', error);
-    alert('Failed to accept offer or proceed to payment. Please try again.');
-    isProcessing.value = false; // Reset processing state only on error
+    console.error('Error accepting offer:', error);
+    alert('Failed to accept offer. Please try again.');
+    isProcessing.value = false;
   }
+};
+
+// Proceed to Payment Function
+const proceedToPayment = (acceptanceMessage) => {
+  console.log('Navigating to Payment Page...');
+  router.push({
+    name: 'PaymentPage',
+    params: { jobId: chatInfo.value?.job_id },
+    query: {
+      amount: acceptanceMessage.offer_amount,
+      jobTitle: jobInfo.value?.title,
+      chatId: route.params.id
+    }
+  });
 };
 
 // Counter Offer Functions
@@ -446,7 +609,6 @@ const submitCounterOffer = async () => {
 
     console.log('Submitting counter offer:', counterAmount.value);
 
-    // Step 1: Update original offer status to 'countered'
     const { error: updateError } = await supabase
       .from('messages')
       .update({ offer_status: 'countered' })
@@ -454,7 +616,6 @@ const submitCounterOffer = async () => {
 
     if (updateError) throw updateError;
 
-    // Step 2: Send counter offer message
     const counterOfferText = `Counter Offer: $${counterAmount.value}`;
 
     const { data: counterMsg, error: counterError } = await supabase
@@ -475,7 +636,6 @@ const submitCounterOffer = async () => {
 
     console.log('Counter offer sent:', counterMsg);
 
-    // Step 3: Send additional message if provided
     let lastMessage = counterOfferText;
 
     if (counterMessage.value.trim()) {
@@ -497,7 +657,6 @@ const submitCounterOffer = async () => {
       lastMessage = counterMessage.value.trim();
     }
 
-    // Step 4: Update chat's last message
     await supabase
       .from('chats')
       .update({
@@ -506,7 +665,6 @@ const submitCounterOffer = async () => {
       })
       .eq('id', chatId);
 
-    // Update local state
     const msgIndex = messages.value.findIndex(m => m.id === selectedOffer.value.id);
     if (msgIndex !== -1) {
       messages.value[msgIndex].offer_status = 'countered';
@@ -548,13 +706,12 @@ const subscribeToMessages = () => {
           await nextTick();
           scrollToBottom();
 
-          // Mark received message as read immediately
           await supabase
             .from('messages')
             .update({ read: true })
             .eq('id', payload.new.id);
 
-          window.dispatchEvent(new Event('chat-read')); // Update global unread count
+          window.dispatchEvent(new Event('chat-read'));
         }
       }
     )
@@ -570,7 +727,6 @@ const subscribeToMessages = () => {
         console.log('Message updated:', payload.new);
         const index = messages.value.findIndex(m => m.id === payload.new.id);
         if (index !== -1) {
-          // Replace the whole message object to ensure reactivity
           messages.value.splice(index, 1, payload.new);
         }
       }
@@ -587,7 +743,6 @@ const subscribeToMessages = () => {
 
 const scrollToBottom = () => {
   if (messagesContainer.value) {
-    // Use setTimeout to ensure DOM has updated
     setTimeout(() => {
         messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
     }, 0);
@@ -624,7 +779,7 @@ const goBack = () => {
   background: white;
   border-bottom: 1px solid #e5e7eb;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  position: sticky; /* Make header sticky */
+  position: sticky;
   top: 0;
   z-index: 10;
 }
@@ -665,12 +820,12 @@ const goBack = () => {
   font-size: 1.25rem;
   font-weight: 600;
   overflow: hidden;
-  flex-shrink: 0; /* Prevent avatar from shrinking */
+  flex-shrink: 0;
 }
 
 .header-text {
   flex: 1;
-  min-width: 0; /* Prevent text overflow issues */
+  min-width: 0;
 }
 
 .user-name {
@@ -744,14 +899,15 @@ const goBack = () => {
   justify-content: flex-end;
 }
 
+/* Regular Message Bubble - FIXED OVERLAP */
 .message-bubble {
   max-width: 70%;
   padding: 0.75rem 1rem;
   border-radius: 1rem;
   background: white;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  position: relative; /* Needed for absolute positioning of time */
-  padding-bottom: 1.5rem; /* Space for time */
+  position: relative;
+  word-wrap: break-word;
 }
 
 .own-message .message-bubble {
@@ -760,138 +916,139 @@ const goBack = () => {
 }
 
 .message-text {
-  margin: 0;
+  margin: 0 0 0.25rem 0;
   word-wrap: break-word;
   line-height: 1.5;
+  padding-right: 3rem; /* Prevents overlap with timestamp */
 }
 
 .message-time {
-  font-size: 0.7rem; /* Smaller time */
+  font-size: 0.7rem;
   opacity: 0.6;
-  position: absolute;
-  bottom: 0.3rem;
-  right: 0.75rem;
+  white-space: nowrap;
+  margin-top: 0.25rem;
+  display: block;
+  text-align: right;
 }
 
-.own-message .message-time {
-  /* color: rgba(255, 255, 255, 0.7); Ensure time is visible on blue */
-   opacity: 0.7; /* Keep consistent opacity */
-}
-
-
-/* Offer Bubble Styling */
+/* Simplified Offer Bubble Styling */
 .offer-bubble {
-  max-width: 85%;
+  max-width: 75%;
   padding: 1rem;
-  background: white; /* White background for received offers */
-  border: 1px solid #e5e7eb; /* Subtle border */
+  background: white;
+  border: 2px solid #2563eb;
+  border-radius: 0.75rem;
 }
 
 .own-message .offer-bubble {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); /* Blue background for sent offers */
+  background: #2563eb;
   color: white;
-  border: none;
+  border-color: #1e40af;
 }
 
 .offer-bubble.offer-accepted {
-  background: #ecfdf5; /* Light green for accepted */
-  border-color: #a7f3d0;
-  color: #065f46; /* Dark green text for accepted */
-}
-.own-message .offer-bubble.offer-accepted {
-   background: linear-gradient(135deg, #10b981 0%, #059669 100%); /* Green gradient when sent and accepted */
-   color: white;
+  background: #f0fdf4;
+  border-color: #10b981;
 }
 
+.own-message .offer-bubble.offer-accepted {
+  background: #10b981;
+  border-color: #059669;
+  color: white;
+}
 
 .offer-bubble.offer-countered {
-   background: #fffbeb; /* Light yellow for countered */
-   border-color: #fde68a;
-   color: #92400e; /* Dark yellow/brown text */
+  background: #fffbeb;
+  border-color: #f59e0b;
 }
+
 .own-message .offer-bubble.offer-countered {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); /* Orange gradient when sent and countered */
-    color: white;
-}
-
-
-.offer-amount-text {
-  font-size: 1.1rem;
-  font-weight: 600;
-  /* color: #dc2626;  Removed - color depends on state now */
-  margin-bottom: 0.75rem;
-}
-
-.own-message .offer-amount-text {
-  color: white; /* Keep white for sent offers */
-}
-.offer-bubble.offer-accepted .offer-amount-text {
-   color: #065f46; /* Dark green for accepted amount */
-}
-.own-message .offer-bubble.offer-accepted .offer-amount-text {
-    color: white; /* Still white on green gradient */
-}
-.offer-bubble.offer-countered .offer-amount-text {
-    color: #92400e; /* Dark yellow/brown for countered amount */
-}
-.own-message .offer-bubble.offer-countered .offer-amount-text {
-    color: white; /* Still white on orange gradient */
-}
-
-/* Time position for offer bubble */
-.offer-bubble .message-time {
-  bottom: 0.5rem;
-  right: 1rem;
-}
-.own-message .offer-bubble .message-time {
-    opacity: 0.8; /* Slightly more visible on colored bg */
-}
-
-
-.offer-status-badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 1rem;
-  font-size: 0.7rem; /* Smaller badge */
-  font-weight: 600;
-  margin-top: 0.5rem; /* Space between amount and badge */
-  position: absolute; /* Position relative to bubble */
-  bottom: 0.5rem;
-  left: 1rem;
-}
-
-.offer-status-badge.accepted {
-  background: #065f46;
+  background: #f59e0b;
+  border-color: #d97706;
   color: white;
 }
 
-.offer-status-badge.countered {
-  background: #92400e;
+.offer-content {
+  margin-bottom: 0.5rem;
+}
+
+.offer-type {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+  color: #6b7280;
+}
+
+.own-message .offer-type {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.offer-amount {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e40af;
+  margin-bottom: 0.25rem;
+}
+
+.own-message .offer-amount {
   color: white;
 }
 
-/* Offer Action Buttons */
+.offer-bubble.offer-accepted .offer-amount {
+  color: #065f46;
+}
+
+.own-message .offer-bubble.offer-accepted .offer-amount {
+  color: white;
+}
+
+.offer-bubble.offer-countered .offer-amount {
+  color: #92400e;
+}
+
+.own-message .offer-bubble.offer-countered .offer-amount {
+  color: white;
+}
+
+.offer-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.offer-bubble.offer-accepted .offer-status {
+  color: #10b981;
+}
+
+.offer-bubble.offer-countered .offer-status {
+  color: #f59e0b;
+}
+
+/* Simplified Offer Action Buttons */
 .offer-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
   gap: 0.5rem;
-  margin-top: 1rem; /* More space */
-  padding-top: 0.75rem; /* Space above buttons */
-  border-top: 1px dashed #e5e7eb; /* Separator */
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
 }
 
-.accept-btn, .counter-btn {
-  padding: 0.6rem 0.8rem; /* Slightly smaller buttons */
+.own-message .offer-actions {
+  border-top-color: rgba(255, 255, 255, 0.3);
+}
+
+.offer-action-btn {
+  flex: 1;
+  padding: 0.625rem 1rem;
   border: none;
   border-radius: 0.5rem;
-  font-size: 0.8rem; /* Smaller text */
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
 }
 
 .accept-btn {
@@ -901,7 +1058,6 @@ const goBack = () => {
 
 .accept-btn:hover:not(:disabled) {
   background: #059669;
-  transform: translateY(-1px);
 }
 
 .counter-btn {
@@ -911,32 +1067,64 @@ const goBack = () => {
 
 .counter-btn:hover:not(:disabled) {
   background: #d97706;
-  transform: translateY(-1px);
 }
 
-.accept-btn:disabled, .counter-btn:disabled {
+.offer-action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
 }
 
 /* Accepted Message Bubble */
 .accepted-bubble {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-  padding-bottom: 1.5rem; /* Ensure space for time */
+  background: #f0fdf4;
+  border: 2px solid #10b981;
+  padding: 1rem;
 }
+
 .own-message .accepted-bubble {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%); /* Green gradient */
-    color: white;
+  background: #10b981;
+  border-color: #059669;
+  color: white;
 }
 
 .acceptance-text {
-  margin: 0;
+  margin: 0 0 0.25rem 0;
   font-weight: 600;
   color: #065f46;
+  padding-right: 3rem; /* Prevents overlap */
 }
+
 .own-message .acceptance-text {
-    color: white;
+  color: white;
+}
+
+/* Payment Action for Accepted Bubble */
+.payment-action {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #10b981;
+}
+
+.own-message .payment-action {
+  border-top-color: rgba(255, 255, 255, 0.3);
+}
+
+.payment-btn {
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.payment-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
 }
 
 /* Message Input */
@@ -944,14 +1132,14 @@ const goBack = () => {
   padding: 1rem 1.5rem;
   background: white;
   border-top: 1px solid #e5e7eb;
-  position: sticky; /* Make input sticky */
+  position: sticky;
   bottom: 0;
   z-index: 10;
 }
 
 .message-form {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   align-items: center;
 }
 
@@ -962,7 +1150,7 @@ const goBack = () => {
   border-radius: 1.5rem;
   font-size: 1rem;
   transition: all 0.2s;
-  background-color: #f9fafb; /* Light background for input */
+  background-color: #f9fafb;
 }
 
 .message-input:focus {
@@ -970,9 +1158,33 @@ const goBack = () => {
   border-color: #2563eb;
   background-color: white;
 }
+
 .message-input:disabled {
-    background-color: #f3f4f6;
-    cursor: not-allowed;
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+}
+
+.offer-btn {
+  padding: 0.75rem 1.25rem;
+  border-radius: 1.5rem;
+  background: #10b981;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.offer-btn:hover:not(:disabled) {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.offer-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
 }
 
 .send-btn {
@@ -987,7 +1199,7 @@ const goBack = () => {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  flex-shrink: 0; /* Prevent button shrinking */
+  flex-shrink: 0;
 }
 
 .send-btn:hover:not(:disabled) {
@@ -998,212 +1210,208 @@ const goBack = () => {
 .send-btn:disabled {
   background: #9ca3af;
   cursor: not-allowed;
-  transform: none; /* Disable hover effect */
 }
 
-/* Counter Offer Modal */
+/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6); /* Darker overlay */
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   z-index: 1000;
   padding: 1rem;
-  backdrop-filter: blur(4px); /* Add blur effect */
 }
 
 .modal-content {
   background: white;
   border-radius: 1rem;
-  max-width: 450px; /* Slightly narrower modal */
+  max-width: 500px;
   width: 100%;
   max-height: 90vh;
-  overflow: hidden; /* Prevent content overflow */
+  overflow-y: auto;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-  display: flex; /* Use flex for layout */
-  flex-direction: column;
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.25rem 1.5rem; /* Adjusted padding */
+  padding: 1.5rem;
   border-bottom: 1px solid #e5e7eb;
-  flex-shrink: 0; /* Prevent header shrinking */
 }
 
 .modal-title {
-  font-size: 1.25rem; /* Smaller title */
-  font-weight: 600;
-  color: #111827;
   margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
 }
 
 .close-btn {
-  background: #f3f4f6;
+  background: none;
   border: none;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  font-size: 1.5rem;
+  font-size: 2rem;
+  color: #6b7280;
   cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 0.375rem;
   transition: all 0.2s;
-  color: #6b7280;
-  line-height: 1;
 }
 
 .close-btn:hover {
-  background: #e5e7eb;
+  background: #f3f4f6;
   color: #111827;
 }
 
 .modal-body {
   padding: 1.5rem;
-  overflow-y: auto; /* Allow body to scroll if needed */
 }
 
-.current-offer-info {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 0.5rem;
+.current-offer-info,
+.job-info-box {
+  background: #f9fafb;
   padding: 1rem;
+  border-radius: 0.5rem;
   margin-bottom: 1.5rem;
-  text-align: center;
+  border: 1px solid #e5e7eb;
 }
 
 .info-label {
-  font-size: 0.8rem; /* Smaller label */
-  color: #92400e;
+  font-size: 0.875rem;
+  color: #6b7280;
   margin: 0 0 0.25rem 0;
   font-weight: 500;
-  text-transform: uppercase; /* Uppercase label */
 }
 
 .info-value {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: #92400e;
+  color: #111827;
   margin: 0;
 }
 
 .form-group {
-  margin-bottom: 1.25rem; /* Reduced margin */
+  margin-bottom: 1.25rem;
 }
 
 .form-label {
   display: block;
-  font-weight: 500;
+  font-size: 0.875rem;
+  font-weight: 600;
   color: #374151;
   margin-bottom: 0.5rem;
-  font-size: 0.875rem; /* Slightly smaller label */
 }
 
-.offer-input, .offer-textarea {
+.offer-input {
   width: 100%;
-  padding: 0.75rem 1rem; /* Adjusted padding */
-  border: 1px solid #d1d5db; /* Lighter border */
+  padding: 0.75rem 1rem;
+  border: 2px solid #e5e7eb;
   border-radius: 0.5rem;
   font-size: 1rem;
   transition: all 0.2s;
+  box-sizing: border-box;
 }
 
-.offer-input:focus, .offer-textarea:focus {
+.offer-input:focus {
   outline: none;
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .offer-textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
   resize: vertical;
   font-family: inherit;
-  min-height: 60px; /* Set min height */
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.offer-textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .modal-actions {
   display: flex;
   gap: 0.75rem;
-  padding: 1.25rem 1.5rem; /* Adjusted padding */
-  border-top: 1px solid #e5e7eb;
-  background-color: #f9fafb; /* Light background for actions */
-  flex-shrink: 0; /* Prevent footer shrinking */
+  margin-top: 1.5rem;
 }
 
-.cancel-btn, .submit-btn {
+.cancel-btn,
+.submit-btn {
   flex: 1;
-  padding: 0.75rem; /* Adjusted padding */
+  padding: 0.875rem 1.5rem;
+  border: none;
   border-radius: 0.5rem;
-  font-size: 0.9rem; /* Smaller text */
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  border: none;
 }
 
 .cancel-btn {
-  background: white;
+  background: #f3f4f6;
   color: #374151;
-  border: 1px solid #d1d5db; /* Add border */
 }
 
 .cancel-btn:hover {
-  background: #f9fafb;
+  background: #e5e7eb;
 }
 
 .submit-btn {
-  background: #f59e0b;
+  background: #2563eb;
   color: white;
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: #d97706;
+  background: #1d4ed8;
   transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
 }
 
 .submit-btn:disabled {
-  background: #fdba74; /* Lighter orange when disabled */
+  background: #9ca3af;
   cursor: not-allowed;
-  transform: none; /* Disable hover effect */
+  transform: none;
 }
 
-
+/* Mobile Responsiveness */
 @media (max-width: 768px) {
-  .chat-header {
-    padding: 0.75rem 1rem; /* Reduced padding */
-  }
-
-  .user-avatar {
-    width: 40px;
-    height: 40px;
-    font-size: 1rem;
-  }
-
-  .user-name {
-    font-size: 1rem;
-  }
-
-  .messages-container {
-    padding: 1rem;
-  }
-
-  .message-input-container {
-    padding: 0.75rem 1rem;
+  .message-bubble {
+    max-width: 85%;
   }
 
   .offer-bubble {
-    max-width: 95%;
+    max-width: 90%;
   }
 
-  .offer-actions {
-    grid-template-columns: 1fr; /* Stack buttons on smaller screens */
+  .modal-content {
+    margin: 1rem;
+  }
+
+  .offer-btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  .offer-amount {
+    font-size: 1.5rem;
   }
 }
 </style>
