@@ -361,6 +361,13 @@ const acceptOffer = async (offerMessage) => {
       .eq('id', offerMessage.id);
     if (updateError) throw updateError; // Handle error if update fails
 
+    const { error: jobUpdateError } = await supabase
+      .from('User-Job-Request')
+      .update({ status: 'in-progress' })
+      .eq('id', chatInfo.value.job_id); 
+
+    if (jobUpdateError) throw jobUpdateError;
+
     // Step 2: Send acceptance message (Optional: do this after payment success)
     const acceptanceText = `✓ Accepted offer of $${offerMessage.offer_amount}. Proceeding to payment.`;
     const { data: acceptanceMsg, error: msgError } = await supabase
