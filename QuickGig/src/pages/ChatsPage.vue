@@ -7,13 +7,14 @@
       </div>
 
       <!-- Empty State -->
-      <div v-if="!isLoading && chats.length === 0" class="empty-state">
+      <div v-if="!isLoading && allChats.length === 0" class="empty-state">
         <div class="empty-icon">💬</div>
         <h2>No messages yet</h2>
-        <p>Start a conversation by chatting with job posters</p>
-        <router-link to="/jobs" class="browse-jobs-btn">
-          Browse Jobs
-        </router-link>
+        <p>Start a conversation by chatting with job posters or helpers</p>
+        <div class="empty-actions">
+          <router-link to="/jobs" class="browse-btn">Browse Jobs</router-link>
+          <router-link to="/helpers" class="browse-btn">Browse Helpers</router-link>
+        </div>
       </div>
 
       <!-- Loading State -->
@@ -23,11 +24,11 @@
       </div>
 
       <!-- Chat List -->
-      <div v-if="!isLoading && chats.length > 0" class="chats-container">
+      <div v-if="!isLoading && allChats.length > 0" class="chats-container">
         <div class="chats-grid">
           <div 
-            v-for="chat in chats" 
-            :key="chat.id" 
+            v-for="chat in allChats" 
+            :key="chat.id + chat.type" 
             class="chat-card"
             :class="{ 'has-unread': chat.unreadCount > 0 }"
             @click="openChat(chat)"
@@ -46,7 +47,10 @@
               </div>
               
               <div class="chat-details">
-                <p class="job-title">{{ chat.jobTitle }}</p>
+                <p class="job-title">
+                  <span v-if="chat.type === 'helper'" class="chat-type-badge">Helper</span>
+                  {{ chat.jobTitle }}
+                </p>
                 <p class="last-message" :class="{ unread: chat.unreadCount > 0 }">
                   {{ chat.lastMessage }}
                 </p>
@@ -65,14 +69,25 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, onActivated } from 'vue';
+import { ref, computed, onMounted, onUnmounted, onActivated } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
 
 const router = useRouter();
-const chats = ref([]);
+const jobChats = ref([]);
+const helperChats = ref([]);
 const isLoading = ref(true);
 let refreshInterval = null;
+
+// Combine and sort all chats by last message time
+const allChats = computed(() => {
+  const combined = [...jobChats.value, ...helperChats.value];
+  return combined.sort((a, b) => {
+    const timeA = new Date(a.lastMessageTimeRaw || 0).getTime();
+    const timeB = new Date(b.lastMessageTimeRaw || 0).getTime();
+    return timeB - timeA;
+  });
+});
 
 onMounted(async () => {
   // Check if user is logged in
@@ -82,17 +97,17 @@ onMounted(async () => {
     return;
   }
 
-  await fetchChats();
+  await fetchAllChats();
   
   // Refresh chats every 10 seconds
   refreshInterval = setInterval(() => {
-    fetchChats();
+    fetchAllChats();
   }, 10000);
 });
 
 // Refresh chats when navigating back to this page
 onActivated(async () => {
-  await fetchChats();
+  await fetchAllChats();
 });
 
 onUnmounted(() => {
@@ -101,13 +116,21 @@ onUnmounted(() => {
   }
 });
 
-const fetchChats = async () => {
+const fetchAllChats = async () => {
+  await Promise.all([
+    fetchJobChats(),
+    fetchHelperChats()
+  ]);
+  isLoading.value = false;
+};
+
+const fetchJobChats = async () => {
   try {
     const currentUserId = localStorage.getItem('userId');
     
-    console.log('Fetching chats for user:', currentUserId);
+    console.log('Fetching job chats for user:', currentUserId);
     
-    // Fetch all chats where user is either job poster or job seeker
+    // Fetch all job chats where user is either job poster or job seeker
     const { data: chatsData, error: chatsError } = await supabase
       .from('chats')
       .select(`
@@ -124,10 +147,10 @@ const fetchChats = async () => {
     
     if (chatsError) throw chatsError;
     
-    console.log('Chats fetched:', chatsData);
+    console.log('Job chats fetched:', chatsData?.length || 0);
     
     // For each chat, get the other user's info and job info
-    const enrichedChats = await Promise.all(chatsData.map(async (chat) => {
+    const enrichedChats = await Promise.all((chatsData || []).map(async (chat) => {
       // Determine who the "other user" is
       const otherUserId = chat.job_poster_id === currentUserId 
         ? chat.job_seeker_id 
@@ -148,7 +171,6 @@ const fetchChats = async () => {
         .single();
       
       // Count unread messages for this chat
-      console.log(`Checking unread for chat ${chat.id}...`);
       const { count: unreadCount } = await supabase
         .from('messages')
         .select('id', { count: 'exact', head: true })
@@ -156,26 +178,97 @@ const fetchChats = async () => {
         .neq('sender_id', currentUserId)
         .eq('read', false);
       
-      console.log(`Chat ${chat.id} unread count: ${unreadCount}`);
-      
       return {
         id: chat.id,
+        type: 'job',
         otherUserName: userData?.username || 'Unknown User',
         jobTitle: jobData?.title || 'Deleted Job',
         lastMessage: chat.last_message || 'No messages yet',
         lastMessageTime: formatTime(chat.last_message_time),
+        lastMessageTimeRaw: chat.last_message_time,
         unreadCount: unreadCount || 0
       };
     }));
     
-    chats.value = enrichedChats;
-    console.log('Enriched chats with unread counts:', chats.value);
+    jobChats.value = enrichedChats;
+    console.log('Enriched job chats:', jobChats.value.length);
     
   } catch (error) {
-    console.error('Error fetching chats:', error);
-    chats.value = [];
-  } finally {
-    isLoading.value = false;
+    console.error('Error fetching job chats:', error);
+    jobChats.value = [];
+  }
+};
+
+const fetchHelperChats = async () => {
+  try {
+    const currentUserId = localStorage.getItem('userId');
+    
+    console.log('Fetching helper chats for user:', currentUserId);
+    
+    // Fetch all helper chats where user is either helper or client
+    const { data: chatsData, error: chatsError } = await supabase
+      .from('helper_chats')
+      .select(`
+        id,
+        helper_id,
+        client_id,
+        last_message,
+        last_message_time,
+        created_at
+      `)
+      .or(`helper_id.eq.${currentUserId},client_id.eq.${currentUserId}`)
+      .order('last_message_time', { ascending: false });
+    
+    if (chatsError) {
+      console.warn('Error fetching helper chats:', chatsError);
+      helperChats.value = [];
+      return;
+    }
+    
+    console.log('Helper chats fetched:', chatsData?.length || 0);
+    
+    // For each chat, get the other user's info
+    const enrichedChats = await Promise.all((chatsData || []).map(async (chat) => {
+      // Determine who the "other user" is
+      const otherUserId = chat.helper_id === currentUserId 
+        ? chat.client_id 
+        : chat.helper_id;
+      
+      const isHelper = chat.helper_id === currentUserId;
+      
+      // Fetch other user's info
+      const { data: userData } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', otherUserId)
+        .single();
+      
+      // Count unread messages for this chat
+      const { count: unreadCount } = await supabase
+        .from('helper_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('helper_chat_id', chat.id)
+        .neq('sender_id', currentUserId)
+        .eq('read', false);
+      
+      return {
+        id: chat.id,
+        type: 'helper',
+        otherUserName: userData?.username || 'Unknown User',
+        jobTitle: isHelper ? 'Client Request' : 'Helper Service',
+        lastMessage: chat.last_message || 'No messages yet',
+        lastMessageTime: formatTime(chat.last_message_time),
+        lastMessageTimeRaw: chat.last_message_time,
+        unreadCount: unreadCount || 0
+      };
+    }));
+    
+    helperChats.value = enrichedChats;
+    console.log('Enriched helper chats:', helperChats.value.length);
+    
+  } catch (error) {
+    console.error('Error fetching helper chats:', error);
+    helperChats.value = [];
   }
 };
 
@@ -201,7 +294,13 @@ const formatTime = (timestamp) => {
 const openChat = (chat) => {
   // Dispatch event to update navbar unread count
   window.dispatchEvent(new Event('chat-read'));
-  router.push(`/chat/${chat.id}`);
+  
+  // Route to the appropriate chat page based on type
+  if (chat.type === 'helper') {
+    router.push(`/helper-chat/${chat.id}`);
+  } else {
+    router.push(`/chat/${chat.id}`);
+  }
 };
 </script>
 
@@ -285,7 +384,14 @@ const openChat = (chat) => {
   margin: 0 0 1.5rem 0;
 }
 
-.browse-jobs-btn {
+.empty-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.browse-btn {
   padding: 0.875rem 1.5rem;
   background: #2563eb;
   color: white;
@@ -295,7 +401,7 @@ const openChat = (chat) => {
   transition: all 0.2s;
 }
 
-.browse-jobs-btn:hover {
+.browse-btn:hover {
   background: #1d4ed8;
   transform: translateY(-2px);
 }
@@ -418,6 +524,21 @@ const openChat = (chat) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-type-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  background: #10b981;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .last-message {

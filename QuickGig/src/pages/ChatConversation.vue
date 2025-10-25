@@ -13,7 +13,7 @@
         </div>
         <div class="header-text">
           <h2 class="user-name">{{ otherUser?.username || 'Loading...' }}</h2>
-          <p class="job-title">{{ jobInfo?.title || 'Loading...' }}</p>
+          <p class="job-title">{{ chatSubtitle }}</p>
         </div>
       </div>
     </div>
@@ -52,7 +52,7 @@
               <div v-else-if="message.offer_status === 'countered'" class="offer-status">Countered</div>
             </div>
 
-            <div v-if="message.offer_status === 'pending' && message.sender_id !== currentUserId"
+            <div v-if="message.offer_status === 'pending' && message.sender_id !== currentUserId && canAcceptOffer"
                  class="offer-actions">
               <button @click="acceptOffer(message)" class="offer-action-btn accept-btn" :disabled="isProcessing">
                 Accept
@@ -68,14 +68,41 @@
           <div v-else-if="message.message_type === 'offer_accepted'" class="message-bubble accepted-bubble">
             <p class="acceptance-text">{{ message.message }}</p>
             
-            <!-- Show "Proceed to Payment" button for job poster only -->
-            <div v-if="currentUserId === chatInfo?.job_poster_id && message.offer_amount"
+            <!-- Show "Proceed to Payment" button for payer -->
+            <div v-if="shouldShowPaymentButton && message.offer_amount && !jobCompletedExists"
                  class="payment-action">
               <button @click="proceedToPayment(message)" class="payment-btn">
                 Proceed to Payment
               </button>
             </div>
 
+            <div v-else-if="message.message_type === 'offer_accepted'" class="message-bubble accepted-bubble">
+  <p class="acceptance-text">{{ message.message }}</p>
+  
+  <!-- Show "Proceed to Payment" button for payer -->
+  <div v-if="shouldShowPaymentButton && message.offer_amount && !jobCompletedExists"
+       class="payment-action">
+    <button @click="proceedToPayment(message)" class="payment-btn">
+      Proceed to Payment
+    </button>
+  </div>
+
+  <!-- ✅ NEW: Show "Leave a Review" button after job is completed -->
+  <div v-if="jobCompletedExists && !hasReviewedOtherUser"
+       class="review-action">
+    <button @click="openReviewModal" class="review-btn">
+      ⭐ Leave a Review
+    </button>
+  </div>
+
+  <span class="message-time">{{ formatTime(message.created_at) }}</span>
+</div>
+
+            <span class="message-time">{{ formatTime(message.created_at) }}</span>
+          </div>
+
+          <div v-else-if="message.message_type === 'job_completed'" class="message-bubble completed-bubble">
+            <p class="completion-text">{{ message.message }}</p>
             <span class="message-time">{{ formatTime(message.created_at) }}</span>
           </div>
         </div>
@@ -92,6 +119,7 @@
           :disabled="isSending"
         />
         <button
+          v-if="canMakeOffer"
           type="button"
           class="offer-btn"
           @click="openMakeOfferModal"
@@ -122,8 +150,18 @@
 
         <div class="modal-body">
           <div class="job-info-box">
-            <p class="info-label">Job</p>
-            <p class="info-value">{{ jobInfo?.title }}</p>
+            <p class="info-label">{{ isHelperChat ? 'Helper' : 'Job' }}</p>
+            <p class="info-value">{{ isHelperChat ? otherUser?.username : jobInfo?.title }}</p>
+          </div>
+
+          <div v-if="isHelperChat" class="form-group">
+            <label class="form-label">Job Title *</label>
+            <input
+              v-model="offerJobTitle"
+              type="text"
+              placeholder="e.g., Dog Walking, House Cleaning"
+              class="offer-input"
+            />
           </div>
 
           <div class="form-group">
@@ -150,7 +188,7 @@
 
           <div class="modal-actions">
             <button @click="closeMakeOfferModal" class="cancel-btn">Cancel</button>
-            <button @click="submitOffer" class="submit-btn" :disabled="!offerAmount || isProcessing">
+            <button @click="submitOffer" class="submit-btn" :disabled="!canSubmitOffer || isProcessing">
               Send Offer
             </button>
           </div>
@@ -203,11 +241,55 @@
         </div>
       </div>
     </div>
+
+    <!-- Review Modal -->
+<div v-if="showReviewModal" class="modal-overlay" @click="closeReviewModal">
+  <div class="modal-content" @click.stop>
+    <div class="modal-header">
+      <h2 class="modal-title">Leave a Review for {{ otherUser?.username }}</h2>
+      <button @click="closeReviewModal" class="close-btn">×</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Rating *</label>
+        <div class="rating-input">
+          <button
+            v-for="star in 5"
+            :key="star"
+            @click="reviewRating = star"
+            :class="['star-btn', { active: star <= reviewRating }]"
+            type="button"
+          >
+            ⭐
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Your Review *</label>
+        <textarea
+          v-model="reviewComment"
+          placeholder="Share your experience working with {{ otherUser?.username }}..."
+          class="offer-textarea"
+          rows="4"
+        ></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button @click="closeReviewModal" class="cancel-btn">Cancel</button>
+        <button @click="submitReview" class="submit-btn" :disabled="!reviewRating || !reviewComment.trim() || isProcessing">
+          Submit Review
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
 
@@ -224,7 +306,102 @@ const isLoading = ref(true);
 const isSending = ref(false);
 const isProcessing = ref(false);
 const messagesContainer = ref(null);
+const jobCompletedExists = ref(false);
 let messageChannel = null;
+
+// Add these refs
+const showReviewModal = ref(false);
+const reviewRating = ref(5);
+const reviewComment = ref('');
+const hasReviewedOtherUser = ref(false);
+
+// Add this computed property
+const otherUserId = computed(() => {
+  if (!chatInfo.value || !currentUserId.value) return null;
+  
+  if (isHelperChat.value) {
+    return chatInfo.value.helper_id === currentUserId.value 
+      ? chatInfo.value.client_id 
+      : chatInfo.value.helper_id;
+  } else {
+    return chatInfo.value.job_poster_id === currentUserId.value
+      ? chatInfo.value.job_seeker_id
+      : chatInfo.value.job_poster_id;
+  }
+});
+
+// Add this function to check if user has already reviewed
+const checkIfReviewed = async () => {
+  try {
+    if (!otherUserId.value || !currentUserId.value) return;
+    
+    const reviewType = isHelper.value ? 'helper_to_client' : 'client_to_helper';
+    
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('id')
+      .eq('helper_id', otherUserId.value)
+      .eq('reviewer_id', currentUserId.value)
+      .eq('review_type', reviewType)
+      .maybeSingle();
+    
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking review:', error);
+    }
+    
+    hasReviewedOtherUser.value = !!data;
+  } catch (error) {
+    console.error('Error in checkIfReviewed:', error);
+  }
+};
+
+// Add review modal functions
+const openReviewModal = () => {
+  reviewRating.value = 5;
+  reviewComment.value = '';
+  showReviewModal.value = true;
+};
+
+const closeReviewModal = () => {
+  showReviewModal.value = false;
+};
+
+const submitReview = async () => {
+  if (!reviewRating.value || !reviewComment.value.trim() || isProcessing.value) return;
+  
+  try {
+    isProcessing.value = true;
+    
+    const reviewType = isHelper.value ? 'helper_to_client' : 'client_to_helper';
+    
+    const { error } = await supabase
+      .from('reviews')
+      .insert([{
+        helper_id: otherUserId.value,
+        reviewer_id: currentUserId.value,
+        rating: reviewRating.value,
+        comment: reviewComment.value.trim(),
+        review_type: reviewType,
+        job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title
+      }]);
+    
+    if (error) {
+      console.error('Error submitting review:', error);
+      alert('Failed to submit review. Please try again.');
+      return;
+    }
+    
+    closeReviewModal();
+    hasReviewedOtherUser.value = true;
+    alert('Review submitted successfully!');
+    
+  } catch (error) {
+    console.error('Error in submitReview:', error);
+    alert('Failed to submit review. Please try again.');
+  } finally {
+    isProcessing.value = false;
+  }
+};
 
 // Counter offer modal
 const showCounterModal = ref(false);
@@ -236,6 +413,49 @@ const counterMessage = ref('');
 const showMakeOfferModal = ref(false);
 const offerAmount = ref('');
 const offerMessage = ref('');
+const offerJobTitle = ref('');
+
+// Determine chat type from route
+const isHelperChat = computed(() => route.path.includes('/helper-chat/'));
+
+// Chat tables and columns based on type
+const chatTable = computed(() => isHelperChat.value ? 'helper_chats' : 'chats');
+const messagesTable = computed(() => isHelperChat.value ? 'helper_messages' : 'messages');
+const chatIdColumn = computed(() => isHelperChat.value ? 'helper_chat_id' : 'chat_id');
+
+// User role computations
+const isHelper = computed(() => {
+  if (!currentUserId.value || !chatInfo.value) return false;
+  return isHelperChat.value 
+    ? currentUserId.value === chatInfo.value.helper_id
+    : currentUserId.value === chatInfo.value.job_seeker_id;
+});
+
+const isPayer = computed(() => {
+  if (!currentUserId.value || !chatInfo.value) return false;
+  return isHelperChat.value
+    ? currentUserId.value === chatInfo.value.client_id
+    : currentUserId.value === chatInfo.value.job_poster_id;
+});
+
+// Subtitle under username
+const chatSubtitle = computed(() => {
+  if (isHelperChat.value) {
+    return isHelper.value ? 'Client' : 'Helper';
+  }
+  return jobInfo.value?.title || 'Loading...';
+});
+
+// Permissions
+const canMakeOffer = computed(() => isPayer.value);
+const canAcceptOffer = computed(() => isHelper.value);
+const shouldShowPaymentButton = computed(() => isPayer.value);
+
+const canSubmitOffer = computed(() => {
+  if (!offerAmount.value || offerAmount.value <= 0) return false;
+  if (isHelperChat.value && !offerJobTitle.value) return false;
+  return true;
+});
 
 onMounted(async () => {
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
@@ -247,7 +467,9 @@ onMounted(async () => {
   currentUserId.value = localStorage.getItem('userId');
   await loadChatData();
   await loadMessages();
+  await checkJobCompleted();
   await markMessagesAsRead();
+  await checkIfReviewed();
   scrollToBottom();
 
   subscribeToMessages();
@@ -262,11 +484,10 @@ onUnmounted(() => {
 const loadChatData = async () => {
   try {
     const chatId = route.params.id;
-
-    console.log('Loading chat data for chat ID:', chatId);
+    console.log(`Loading ${isHelperChat.value ? 'helper' : 'job'} chat data for chat ID:`, chatId);
 
     const { data: chat, error: chatError } = await supabase
-      .from('chats')
+      .from(chatTable.value)
       .select('*')
       .eq('id', chatId)
       .single();
@@ -279,9 +500,9 @@ const loadChatData = async () => {
     console.log('Chat loaded:', chat);
     chatInfo.value = chat;
 
-    const otherUserId = chat.job_poster_id === currentUserId.value
-      ? chat.job_seeker_id
-      : chat.job_poster_id;
+    const otherUserId = isHelperChat.value
+      ? (chat.helper_id === currentUserId.value ? chat.client_id : chat.helper_id)
+      : (chat.job_poster_id === currentUserId.value ? chat.job_seeker_id : chat.job_poster_id);
 
     console.log('Other user ID:', otherUserId);
 
@@ -296,20 +517,57 @@ const loadChatData = async () => {
       console.log('Other user:', user);
     }
 
-    const { data: job, error: jobError } = await supabase
-      .from('User-Job-Request')
-      .select('title, payment')
-      .eq('id', chat.job_id)
-      .single();
+    // Load job info only for job chats
+    if (!isHelperChat.value) {
+      const { data: job, error: jobError } = await supabase
+        .from('User-Job-Request')
+        .select('title, payment')
+        .eq('id', chat.job_id)
+        .single();
 
-    if (!jobError) {
-      jobInfo.value = job;
-      console.log('Job info:', job);
+      if (!jobError) {
+        jobInfo.value = job;
+        console.log('Job info:', job);
+      }
     }
 
   } catch (error) {
     console.error('Error loading chat data:', error);
     router.push('/chats');
+  }
+};
+
+const checkJobCompleted = async () => {
+  try {
+    const chatId = route.params.id;
+    const completedTable = isHelperChat.value ? 'helper_jobs' : 'User-Job-Request';
+    
+    if (isHelperChat.value) {
+      const { data, error } = await supabase
+        .from(completedTable)
+        .select('id')
+        .eq('helper_chat_id', chatId)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking job completion:', error);
+      }
+      jobCompletedExists.value = !!data;
+    } else {
+      // For job chats, check if job status is 'in-progress' or 'completed'
+      const { data, error } = await supabase
+        .from(completedTable)
+        .select('status')
+        .eq('id', chatInfo.value?.job_id)
+        .single();
+
+      if (error) {
+        console.error('Error checking job status:', error);
+      }
+      jobCompletedExists.value = data?.status === 'in-progress' || data?.status === 'completed';
+    }
+  } catch (error) {
+    console.error('Error in checkJobCompleted:', error);
   }
 };
 
@@ -319,9 +577,9 @@ const loadMessages = async () => {
     const chatId = route.params.id;
 
     const { data, error } = await supabase
-      .from('messages')
+      .from(messagesTable.value)
       .select('*')
-      .eq('chat_id', chatId)
+      .eq(chatIdColumn.value, chatId)
       .order('created_at', { ascending: true });
 
     if (error) throw error;
@@ -341,9 +599,9 @@ const markMessagesAsRead = async () => {
     const chatId = route.params.id;
 
     const { error } = await supabase
-      .from('messages')
+      .from(messagesTable.value)
       .update({ read: true })
-      .eq('chat_id', chatId)
+      .eq(chatIdColumn.value, chatId)
       .neq('sender_id', currentUserId.value)
       .eq('read', false);
 
@@ -368,15 +626,17 @@ const sendMessage = async () => {
 
     console.log('Sending message:', messageText);
 
+    const messageData = {
+      [chatIdColumn.value]: chatId,
+      sender_id: currentUserId.value,
+      message: messageText,
+      message_type: 'regular',
+      read: false
+    };
+
     const { data, error } = await supabase
-      .from('messages')
-      .insert([{
-        chat_id: chatId,
-        sender_id: currentUserId.value,
-        message: messageText,
-        message_type: 'regular',
-        read: false
-      }])
+      .from(messagesTable.value)
+      .insert([messageData])
       .select()
       .single();
 
@@ -385,7 +645,7 @@ const sendMessage = async () => {
     console.log('Message sent:', data);
 
     await supabase
-      .from('chats')
+      .from(chatTable.value)
       .update({
         last_message: messageText,
         last_message_time: new Date().toISOString()
@@ -409,6 +669,7 @@ const sendMessage = async () => {
 const openMakeOfferModal = () => {
   offerAmount.value = '';
   offerMessage.value = '';
+  offerJobTitle.value = '';
   showMakeOfferModal.value = true;
 };
 
@@ -416,10 +677,11 @@ const closeMakeOfferModal = () => {
   showMakeOfferModal.value = false;
   offerAmount.value = '';
   offerMessage.value = '';
+  offerJobTitle.value = '';
 };
 
 const submitOffer = async () => {
-  if (!offerAmount.value || offerAmount.value <= 0 || isProcessing.value) return;
+  if (!canSubmitOffer.value || isProcessing.value) return;
 
   try {
     isProcessing.value = true;
@@ -427,20 +689,23 @@ const submitOffer = async () => {
 
     console.log('Submitting offer:', offerAmount.value);
 
-    // Send offer message
-    const offerText = `Offer: $${offerAmount.value}`;
+    const offerText = isHelperChat.value
+      ? `Offer: $${offerAmount.value} for ${offerJobTitle.value}`
+      : `Offer: $${offerAmount.value}`;
+
+    const offerData = {
+      [chatIdColumn.value]: chatId,
+      sender_id: currentUserId.value,
+      message: offerText,
+      message_type: 'offer',
+      offer_amount: offerAmount.value,
+      offer_status: 'pending',
+      read: false
+    };
 
     const { data: offerMsg, error: offerError } = await supabase
-      .from('messages')
-      .insert([{
-        chat_id: chatId,
-        sender_id: currentUserId.value,
-        message: offerText,
-        message_type: 'offer',
-        offer_amount: offerAmount.value,
-        offer_status: 'pending',
-        read: false
-      }])
+      .from(messagesTable.value)
+      .insert([offerData])
       .select()
       .single();
 
@@ -448,19 +713,25 @@ const submitOffer = async () => {
 
     console.log('Offer sent:', offerMsg);
 
-    // Send additional message if provided
+    // Store job title for helper chats
+    if (isHelperChat.value) {
+      offerMsg.jobTitle = offerJobTitle.value;
+    }
+
     let lastMessage = offerText;
 
     if (offerMessage.value.trim()) {
+      const additionalData = {
+        [chatIdColumn.value]: chatId,
+        sender_id: currentUserId.value,
+        message: offerMessage.value.trim(),
+        message_type: 'regular',
+        read: false
+      };
+
       const { data: additionalMsg, error: additionalError } = await supabase
-        .from('messages')
-        .insert([{
-          chat_id: chatId,
-          sender_id: currentUserId.value,
-          message: offerMessage.value.trim(),
-          message_type: 'regular',
-          read: false
-        }])
+        .from(messagesTable.value)
+        .insert([additionalData])
         .select()
         .single();
 
@@ -470,16 +741,14 @@ const submitOffer = async () => {
       lastMessage = offerMessage.value.trim();
     }
 
-    // Update chat's last message
     await supabase
-      .from('chats')
+      .from(chatTable.value)
       .update({
         last_message: lastMessage,
         last_message_time: new Date().toISOString()
       })
       .eq('id', chatId);
 
-    // Update local state
     messages.value.push(offerMsg);
 
     closeMakeOfferModal();
@@ -497,7 +766,6 @@ const submitOffer = async () => {
   }
 };
 
-// Accept Offer Function - MODIFIED to store offer_amount in acceptance message
 const acceptOffer = async (offerMessage) => {
   if (isProcessing.value) return;
 
@@ -509,41 +777,71 @@ const acceptOffer = async (offerMessage) => {
     isProcessing.value = true;
     const chatId = route.params.id;
 
-    console.log('Accepting offer:', offerMessage.id);
-
     // Update the offer message status
     const { error: updateError } = await supabase
-      .from('messages')
+      .from(messagesTable.value)
       .update({ offer_status: 'accepted' })
       .eq('id', offerMessage.id);
     if (updateError) throw updateError;
 
-    // Update job status to in-progress
-    const { error: jobUpdateError } = await supabase
-      .from('User-Job-Request')
-      .update({ status: 'in-progress' })
-      .eq('id', chatInfo.value.job_id); 
+    // Update job status for job chats
+    if (!isHelperChat.value) {
+      const { error: jobUpdateError } = await supabase
+        .from('User-Job-Request')
+        .update({ status: 'in-progress' })
+        .eq('id', chatInfo.value.job_id); 
+      if (jobUpdateError) throw jobUpdateError;
+    }
 
-    if (jobUpdateError) throw jobUpdateError;
+    // ✅ Create helper_jobs record for helper chats (enables reviews)
+    if (isHelperChat.value) {
+      const offerMessages = messages.value.filter(m => 
+        m.message_type === 'offer' && 
+        m.offer_amount === offerMessage.offer_amount
+      );
+      
+      const jobTitle = offerMessages.length > 0 && offerMessages[offerMessages.length - 1].message
+        ? offerMessages[offerMessages.length - 1].message.split(' for ')[1] || 'Helper Service'
+        : 'Helper Service';
 
-    // Send acceptance message WITH offer_amount stored
+      const { error: helperJobError } = await supabase
+        .from('helper_jobs')
+        .upsert([{
+          helper_chat_id: chatId,
+          helper_id: chatInfo.value.helper_id,
+          client_id: chatInfo.value.client_id,
+          job_title: jobTitle,
+          agreed_amount: offerMessage.offer_amount,
+          status: 'completed',
+          payment_status: 'pending',
+          created_at: new Date().toISOString()
+        }], { onConflict: 'helper_chat_id' });
+
+      if (helperJobError) {
+        console.error('Error creating helper job:', helperJobError);
+      }
+    }
+
+    // Send acceptance message
     const acceptanceText = `Offer of $${offerMessage.offer_amount} has been accepted!`;
     const { data: acceptanceMsg, error: msgError } = await supabase
-      .from('messages')
+      .from(messagesTable.value)
       .insert([{
-            chat_id: chatId,
-            sender_id: currentUserId.value,
-            message: acceptanceText,
-            message_type: 'offer_accepted',
-            offer_amount: offerMessage.offer_amount, // ✅ Store the amount for payment button
-            read: false
+        [chatIdColumn.value]: chatId,
+        sender_id: currentUserId.value,
+        message: acceptanceText,
+        message_type: 'offer_accepted',
+        offer_amount: offerMessage.offer_amount,
+        read: false
       }])
-      .select().single();
+      .select()
+      .single();
+    
     if (msgError) throw msgError;
 
     // Update chat's last message
     await supabase
-      .from('chats')
+      .from(chatTable.value)
       .update({
         last_message: acceptanceText,
         last_message_time: new Date().toISOString()
@@ -556,17 +854,20 @@ const acceptOffer = async (offerMessage) => {
       messages.value[msgIndex].offer_status = 'accepted';
     }
     if (acceptanceMsg) {
-        messages.value.push(acceptanceMsg);
+      messages.value.push(acceptanceMsg);
     }
+    
     await nextTick();
     scrollToBottom();
+    await checkJobCompleted();
+    await checkIfReviewed();
 
     alert('Offer accepted successfully!');
-    isProcessing.value = false;
 
   } catch (error) {
     console.error('Error accepting offer:', error);
     alert('Failed to accept offer. Please try again.');
+  } finally {
     isProcessing.value = false;
   }
 };
@@ -574,13 +875,29 @@ const acceptOffer = async (offerMessage) => {
 // Proceed to Payment Function
 const proceedToPayment = (acceptanceMessage) => {
   console.log('Navigating to Payment Page...');
+  
+  let jobTitle = '';
+  if (isHelperChat.value) {
+    // Extract job title from offer messages
+    const offerMessages = messages.value.filter(m => 
+      m.message_type === 'offer' && 
+      m.offer_amount === acceptanceMessage.offer_amount
+    );
+    jobTitle = offerMessages.length > 0 && offerMessages[offerMessages.length - 1].message
+      ? offerMessages[offerMessages.length - 1].message.split(' for ')[1] || 'Helper Service'
+      : 'Helper Service';
+  } else {
+    jobTitle = jobInfo.value?.title || 'Job Service';
+  }
+
   router.push({
     name: 'PaymentPage',
-    params: { jobId: chatInfo.value?.job_id },
+    params: { jobId: isHelperChat.value ? route.params.id : chatInfo.value?.job_id },
     query: {
       amount: acceptanceMessage.offer_amount,
-      jobTitle: jobInfo.value?.title,
-      chatId: route.params.id
+      jobTitle: jobTitle,
+      chatId: route.params.id,
+      isHelperJob: isHelperChat.value ? 'true' : 'false'
     }
   });
 };
@@ -610,7 +927,7 @@ const submitCounterOffer = async () => {
     console.log('Submitting counter offer:', counterAmount.value);
 
     const { error: updateError } = await supabase
-      .from('messages')
+      .from(messagesTable.value)
       .update({ offer_status: 'countered' })
       .eq('id', selectedOffer.value.id);
 
@@ -618,17 +935,19 @@ const submitCounterOffer = async () => {
 
     const counterOfferText = `Counter Offer: $${counterAmount.value}`;
 
+    const counterData = {
+      [chatIdColumn.value]: chatId,
+      sender_id: currentUserId.value,
+      message: counterOfferText,
+      message_type: 'counter_offer',
+      offer_amount: counterAmount.value,
+      offer_status: 'pending',
+      read: false
+    };
+
     const { data: counterMsg, error: counterError } = await supabase
-      .from('messages')
-      .insert([{
-        chat_id: chatId,
-        sender_id: currentUserId.value,
-        message: counterOfferText,
-        message_type: 'counter_offer',
-        offer_amount: counterAmount.value,
-        offer_status: 'pending',
-        read: false
-      }])
+      .from(messagesTable.value)
+      .insert([counterData])
       .select()
       .single();
 
@@ -639,15 +958,17 @@ const submitCounterOffer = async () => {
     let lastMessage = counterOfferText;
 
     if (counterMessage.value.trim()) {
+      const additionalData = {
+        [chatIdColumn.value]: chatId,
+        sender_id: currentUserId.value,
+        message: counterMessage.value.trim(),
+        message_type: 'regular',
+        read: false
+      };
+
       const { data: additionalMsg, error: additionalError } = await supabase
-        .from('messages')
-        .insert([{
-          chat_id: chatId,
-          sender_id: currentUserId.value,
-          message: counterMessage.value.trim(),
-          message_type: 'regular',
-          read: false
-        }])
+        .from(messagesTable.value)
+        .insert([additionalData])
         .select()
         .single();
 
@@ -658,7 +979,7 @@ const submitCounterOffer = async () => {
     }
 
     await supabase
-      .from('chats')
+      .from(chatTable.value)
       .update({
         last_message: lastMessage,
         last_message_time: new Date().toISOString()
@@ -688,16 +1009,17 @@ const submitCounterOffer = async () => {
 
 const subscribeToMessages = () => {
   const chatId = route.params.id;
+  const channelName = `${isHelperChat.value ? 'helper-' : ''}chat-${chatId}`;
 
   messageChannel = supabase
-    .channel(`chat-${chatId}`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
         event: 'INSERT',
         schema: 'public',
-        table: 'messages',
-        filter: `chat_id=eq.${chatId}`
+        table: messagesTable.value,
+        filter: `${chatIdColumn.value}=eq.${chatId}`
       },
       async (payload) => {
         console.log('New message received:', payload.new);
@@ -707,7 +1029,7 @@ const subscribeToMessages = () => {
           scrollToBottom();
 
           await supabase
-            .from('messages')
+            .from(messagesTable.value)
             .update({ read: true })
             .eq('id', payload.new.id);
 
@@ -720,8 +1042,8 @@ const subscribeToMessages = () => {
       {
         event: 'UPDATE',
         schema: 'public',
-        table: 'messages',
-        filter: `chat_id=eq.${chatId}`
+        table: messagesTable.value,
+        filter: `${chatIdColumn.value}=eq.${chatId}`
       },
       (payload) => {
         console.log('Message updated:', payload.new);
@@ -740,7 +1062,6 @@ const subscribeToMessages = () => {
     });
 };
 
-
 const scrollToBottom = () => {
   if (messagesContainer.value) {
     setTimeout(() => {
@@ -755,13 +1076,13 @@ const formatTime = (timestamp) => {
   return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 };
 
-
 const goBack = () => {
   router.push('/chats');
 };
 </script>
 
 <style scoped>
+/* Copy all the styles from your existing ChatConversation.vue */
 .chat-page {
   display: flex;
   flex-direction: column;
@@ -770,7 +1091,6 @@ const goBack = () => {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Chat Header */
 .chat-header {
   display: flex;
   align-items: center;
@@ -847,7 +1167,6 @@ const goBack = () => {
   text-overflow: ellipsis;
 }
 
-/* Messages Container */
 .messages-container {
   flex: 1;
   overflow-y: auto;
@@ -899,7 +1218,6 @@ const goBack = () => {
   justify-content: flex-end;
 }
 
-/* Regular Message Bubble - FIXED OVERLAP */
 .message-bubble {
   max-width: 70%;
   padding: 0.75rem 1rem;
@@ -919,7 +1237,7 @@ const goBack = () => {
   margin: 0 0 0.25rem 0;
   word-wrap: break-word;
   line-height: 1.5;
-  padding-right: 3rem; /* Prevents overlap with timestamp */
+  padding-right: 3rem;
 }
 
 .message-time {
@@ -931,7 +1249,6 @@ const goBack = () => {
   text-align: right;
 }
 
-/* Simplified Offer Bubble Styling */
 .offer-bubble {
   max-width: 75%;
   padding: 1rem;
@@ -996,22 +1313,6 @@ const goBack = () => {
   color: white;
 }
 
-.offer-bubble.offer-accepted .offer-amount {
-  color: #065f46;
-}
-
-.own-message .offer-bubble.offer-accepted .offer-amount {
-  color: white;
-}
-
-.offer-bubble.offer-countered .offer-amount {
-  color: #92400e;
-}
-
-.own-message .offer-bubble.offer-countered .offer-amount {
-  color: white;
-}
-
 .offer-status {
   font-size: 0.75rem;
   font-weight: 600;
@@ -1019,15 +1320,6 @@ const goBack = () => {
   color: #6b7280;
 }
 
-.offer-bubble.offer-accepted .offer-status {
-  color: #10b981;
-}
-
-.offer-bubble.offer-countered .offer-status {
-  color: #f59e0b;
-}
-
-/* Simplified Offer Action Buttons */
 .offer-actions {
   display: flex;
   gap: 0.5rem;
@@ -1074,7 +1366,6 @@ const goBack = () => {
   cursor: not-allowed;
 }
 
-/* Accepted Message Bubble */
 .accepted-bubble {
   background: #f0fdf4;
   border: 2px solid #10b981;
@@ -1091,14 +1382,36 @@ const goBack = () => {
   margin: 0 0 0.25rem 0;
   font-weight: 600;
   color: #065f46;
-  padding-right: 3rem; /* Prevents overlap */
+  padding-right: 3rem;
 }
 
 .own-message .acceptance-text {
   color: white;
 }
 
-/* Payment Action for Accepted Bubble */
+.completed-bubble {
+  background: #ede9fe;
+  border: 2px solid #8b5cf6;
+  padding: 1rem;
+}
+
+.own-message .completed-bubble {
+  background: #8b5cf6;
+  border-color: #7c3aed;
+  color: white;
+}
+
+.completion-text {
+  margin: 0 0 0.25rem 0;
+  font-weight: 600;
+  color: #5b21b6;
+  padding-right: 3rem;
+}
+
+.own-message .completion-text {
+  color: white;
+}
+
 .payment-action {
   margin-top: 1rem;
   padding-top: 1rem;
@@ -1127,7 +1440,6 @@ const goBack = () => {
   transform: translateY(-1px);
 }
 
-/* Message Input */
 .message-input-container {
   padding: 1rem 1.5rem;
   background: white;
@@ -1212,7 +1524,6 @@ const goBack = () => {
   cursor: not-allowed;
 }
 
-/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1391,7 +1702,6 @@ const goBack = () => {
   transform: none;
 }
 
-/* Mobile Responsiveness */
 @media (max-width: 768px) {
   .message-bubble {
     max-width: 85%;
@@ -1413,5 +1723,50 @@ const goBack = () => {
   .offer-amount {
     font-size: 1.5rem;
   }
+}
+
+.review-action {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #8b5cf6;
+}
+
+.review-btn {
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.review-btn:hover {
+  background: #7c3aed;
+  transform: translateY(-1px);
+}
+
+.rating-input {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  opacity: 0.3;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s;
+}
+
+.star-btn.active,
+.star-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
 }
 </style>

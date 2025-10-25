@@ -1,14 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { supabase } from '../supabase/config';
+import { useRouter } from 'vue-router';
 import Reviews from './Reviews.vue';
 
-/*
-  HelpersPage
-  - Loads helpers from public_helpers view + helper_profiles + get_helper_stats RPC
-  - Fetches latest review per helper to show an at-a-glance snippet on each card
-  - Shows star ratings for both aggregated rating and the latest review
-*/
+const router = useRouter();
 
 const helpers = ref([]);
 const searchTerm = ref('');
@@ -16,6 +12,10 @@ const selectedSkill = ref('');
 const selectedHelper = ref(null);
 const showModal = ref(false);
 const isLoading = ref(true);
+const isCurrentUserTheHelper = computed(() => {
+  const currentUserId = localStorage.getItem('userId');
+  return currentUserId === selectedHelper.value?.userId;
+});
 
 const skillsList = [
   'Cleaning','Carpentry','Plumbing','Electrical','Painting','Landscaping',
@@ -180,10 +180,20 @@ const closeModal = () => { showModal.value = false; selectedHelper.value = null;
 
 const startChat = async () => {
   try {
-    const { data: sessionData } = await supabase.auth.getSession();
+    console.log('=== START CHAT DEBUG ===');
+    
+    // Check Supabase auth
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    console.log('Session data:', sessionData);
+    console.log('Session error:', sessionError);
+    console.log('Auth user:', sessionData?.session?.user);
+    console.log('Auth UID:', sessionData?.session?.user?.id);
+    
     const currentUserId = sessionData?.session?.user?.id || localStorage.getItem('userId');
+    console.log('Using user ID:', currentUserId);
     
     if (!currentUserId) {
+      console.error('No user ID found');
       alert('Please log in to start a chat');
       closeModal();
       router.push('/login');
@@ -191,13 +201,21 @@ const startChat = async () => {
     }
 
     const helperId = selectedHelper.value.userId;
+    console.log('Helper ID:', helperId);
+    
+    if (!helperId) {
+      console.error('Helper ID is missing');
+      alert('Unable to start chat: Helper information missing');
+      return;
+    }
     
     if (currentUserId === helperId) {
+      console.log('User attempting to chat with themselves');
       alert('You cannot chat with yourself');
       return;
     }
 
-    console.log('Starting chat with helper:', helperId);
+    console.log('Checking for existing helper chat...');
 
     // Check if chat already exists for this helper
     const { data: existingChat, error: searchError } = await supabase
@@ -206,6 +224,9 @@ const startChat = async () => {
       .eq('helper_id', helperId)
       .eq('client_id', currentUserId)
       .maybeSingle();
+
+    console.log('Existing chat search result:', existingChat);
+    console.log('Search error:', searchError);
 
     if (searchError && searchError.code !== 'PGRST116') {
       console.error('Error searching for chat:', searchError);
@@ -216,10 +237,17 @@ const startChat = async () => {
 
     if (existingChat) {
       chatId = existingChat.id;
-      console.log('Using existing helper chat:', chatId);
+      console.log('✅ Using existing helper chat:', chatId);
     } else {
       // Create new helper chat
       console.log('Creating new helper chat...');
+      console.log('Insert data:', {
+        helper_id: helperId,
+        client_id: currentUserId,
+        last_message: 'Chat started',
+        last_message_time: new Date().toISOString()
+      });
+
       const { data: newChat, error: createError } = await supabase
         .from('helper_chats')
         .insert([{
@@ -231,13 +259,20 @@ const startChat = async () => {
         .select()
         .single();
 
+      console.log('Create chat result:', newChat);
+      console.log('Create error:', createError);
+
       if (createError) {
-        console.error('Error creating helper chat:', createError);
+        console.error('❌ Error creating helper chat:', createError);
+        console.error('Error code:', createError.code);
+        console.error('Error message:', createError.message);
+        console.error('Error details:', createError.details);
+        console.error('Error hint:', createError.hint);
         throw createError;
       }
 
       chatId = newChat.id;
-      console.log('Created new helper chat:', chatId);
+      console.log('✅ Created new helper chat:', chatId);
     }
 
     // Navigate to chat
@@ -246,8 +281,20 @@ const startChat = async () => {
     closeModal();
 
   } catch (error) {
-    console.error('Error starting chat:', error);
-    alert('Failed to start chat. Please try again.');
+    console.error('❌ CHAT ERROR:', error);
+    console.error('Error stack:', error.stack);
+    
+    let errorMsg = 'Failed to start chat. ';
+    
+    if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
+      errorMsg += 'Database table not found. Please run the migration SQL first.';
+    } else if (error.message?.includes('permission') || error.code === '42501') {
+      errorMsg += 'Permission denied. Please check RLS policies.';
+    } else {
+      errorMsg += error.message || 'Please try again.';
+    }
+    
+    alert(errorMsg);
   }
 };
 
@@ -429,7 +476,12 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
 
           <div class="modal-section">
             <h3 class="section-title">Reviews ({{ selectedHelper.reviewCount }})</h3>
-            <Reviews :helperId="selectedHelper.userId" :showForm="true" :key="selectedHelper.userId" />
+            <Reviews 
+              :helperId="selectedHelper.userId" 
+              :showForm="true" 
+              :isHelperReviewing="isCurrentUserTheHelper"
+              :key="selectedHelper.userId" 
+            />
           </div>
 
           <button class="chat-btn" @click="startChat">💬 Start Chat</button>

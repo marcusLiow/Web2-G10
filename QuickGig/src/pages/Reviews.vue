@@ -10,6 +10,11 @@ const props = defineProps({
   showForm: {
     type: Boolean,
     default: true
+  },
+  // New prop to determine review direction
+  isHelperReviewing: {
+    type: Boolean,
+    default: false
   }
 });
 

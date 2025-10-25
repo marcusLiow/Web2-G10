@@ -122,6 +122,18 @@ const router = createRouter({
       path: '/job-map',
       name: 'JobMap',
       component: JobMap
+    },
+    {
+      path: '/chat/:id',
+      name: 'Chat',
+      component: () => import('../pages/ChatConversation.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/helper-chat/:id',
+      name: 'HelperChat',
+      component: () => import('../pages/ChatConversation.vue'), 
+      meta: { requiresAuth: true }
     }
   ]
 })
