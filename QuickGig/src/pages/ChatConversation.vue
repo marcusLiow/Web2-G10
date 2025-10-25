@@ -497,8 +497,7 @@ const submitOffer = async () => {
   }
 };
 
-// Accept Offer Function - MODIFIED to store offer_amount in acceptance message
-// Accept Offer Function - UPDATED to mark chat as accepted
+// Accept Offer Function - UPDATED to handle multiple helpers
 const acceptOffer = async (offerMessage) => {
   if (isProcessing.value) return;
 
@@ -529,41 +528,62 @@ const acceptOffer = async (offerMessage) => {
       .eq('id', chatId);
     if (chatUpdateError) throw chatUpdateError;
 
-    // ✅ 3. Update job status to in-progress
-    const { error: jobUpdateError } = await supabase
+    // ✅ 3. Get job details to check if it requires multiple helpers
+    const { data: jobData, error: jobFetchError } = await supabase
       .from('User-Job-Request')
-      .update({ status: 'in-progress' })
-      .eq('id', chatInfo.value.job_id); 
-    if (jobUpdateError) throw jobUpdateError;
-
-    // ✅ 4. Check if job is now fully booked (for multiple helper jobs)
-    const { data: jobData } = await supabase
-      .from('User-Job-Request')
-      .select('requiresMultipleHelpers, numberOfHelpers')
+      .select('multiple_positions, positions_available, positions_filled')
       .eq('id', chatInfo.value.job_id)
       .single();
     
-    if (jobData?.requiresMultipleHelpers) {
-      // Count accepted helpers for this job
-      const { data: acceptedChats } = await supabase
-        .from('chats')
-        .select('id')
-        .eq('job_id', chatInfo.value.job_id)
-        .eq('offer_accepted', true);
-      
-      const acceptedCount = acceptedChats?.length || 0;
-      
-      console.log(`Accepted helpers: ${acceptedCount}/${jobData.numberOfHelpers}`);
-      
-      // If fully booked, update job status
-      if (acceptedCount >= jobData.numberOfHelpers) {
-        await supabase
+    if (jobFetchError) throw jobFetchError;
+
+    // Check if this job requires multiple helpers
+    const requiresMultipleHelpers = jobData?.multiple_positions || false;
+    const positionsAvailable = jobData?.positions_available || 1;
+    const positionsFilled = jobData?.positions_filled || 0;
+
+    console.log('Job data:', { requiresMultipleHelpers, positionsAvailable, positionsFilled });
+
+    if (requiresMultipleHelpers) {
+      // Increment positions_filled
+      const newPositionsFilled = positionsFilled + 1;
+
+      console.log(`Positions filled: ${newPositionsFilled}/${positionsAvailable}`);
+
+      // Check if all positions are now filled
+      if (newPositionsFilled >= positionsAvailable) {
+        // All positions filled - mark as in-progress
+        const { error: jobUpdateError } = await supabase
           .from('User-Job-Request')
-          .update({ status: 'filled' })
+          .update({ 
+            status: 'in-progress',
+            positions_filled: newPositionsFilled
+          })
           .eq('id', chatInfo.value.job_id);
+        if (jobUpdateError) throw jobUpdateError;
         
-        console.log('Job is now fully booked!');
+        console.log('All positions filled - job marked as in-progress');
+      } else {
+        // Still need more helpers - keep status as 'open' but increment counter
+        const { error: jobUpdateError } = await supabase
+          .from('User-Job-Request')
+          .update({ 
+            positions_filled: newPositionsFilled
+          })
+          .eq('id', chatInfo.value.job_id);
+        if (jobUpdateError) throw jobUpdateError;
+        
+        console.log('Job still needs more helpers - keeping status as open');
       }
+    } else {
+      // Single helper job - mark as in-progress immediately
+      const { error: jobUpdateError } = await supabase
+        .from('User-Job-Request')
+        .update({ status: 'in-progress' })
+        .eq('id', chatInfo.value.job_id);
+      if (jobUpdateError) throw jobUpdateError;
+      
+      console.log('Single helper job - marked as in-progress');
     }
 
     // ✅ 5. Send acceptance message WITH offer_amount stored
@@ -612,6 +632,8 @@ const acceptOffer = async (offerMessage) => {
     isProcessing.value = false;
   }
 };
+
+
 
 // Proceed to Payment Function
 const proceedToPayment = (acceptanceMessage) => {
