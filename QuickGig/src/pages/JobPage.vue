@@ -103,8 +103,18 @@ const fetchJobs = async () => {
         postedBy: postedBy,
         contactEmail: contactEmail,
         userId: job.user_id,
-        images: job.images || [], // Include images array
-        expiration_date: job.expiration_date || null // Include expiration date
+        images: job.images || [],
+        expiration_date: job.expiration_date || null,
+        
+        // Multiple helpers fields - use both naming conventions
+        multiple_positions: job.multiple_positions || false,
+        requiresMultipleHelpers: job.requiresMultipleHelpers || job.multiple_positions || false,  // ✅ ADD THIS
+        
+        positions_available: job.positions_available || 1,
+        numberOfHelpers: job.numberOfHelpers || job.positions_available || 1,  // ✅ ADD THIS
+        
+        positions_filled: job.positions_filled || 0,
+        payment_type: job.payment_type || 'per_person'
       };
     }));
 
@@ -238,14 +248,28 @@ const viewJobDetails = (job) => {
           
           <p class="job-description">{{ job.description }}</p>
           
-          <!-- Images Included Indicator -->
-          <div v-if="job.images && job.images.length > 0" class="images-indicator">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <circle cx="8.5" cy="8.5" r="1.5"></circle>
-              <polyline points="21 15 16 10 5 21"></polyline>
-            </svg>
-            <span>Images included</span>
+          <!-- Indicators Container -->
+          <div class="indicators-container">
+            <!-- Images Included Indicator -->
+            <div v-if="job.images && job.images.length > 0" class="indicator images-indicator">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>Images included</span>
+            </div>
+
+            <!-- Multiple Helpers Needed Indicator -->
+            <div v-if="job.multiple_positions" class="indicator multiple-helpers-indicator">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <span>Multiple helpers needed</span>
+            </div>
           </div>
           
           <div class="job-meta">
@@ -527,24 +551,50 @@ const viewJobDetails = (job) => {
   overflow: hidden;
 }
 
-/* Images Indicator */
-.images-indicator {
+/* Indicators Container */
+.indicators-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Common Indicator Styles */
+.indicator {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
   border-radius: 0.375rem;
-  margin-bottom: 1rem;
   font-size: 0.875rem;
-  color: #1e40af;
   font-weight: 500;
+  border: 1px solid;
+}
+
+.indicator svg {
+  flex-shrink: 0;
+}
+
+/* Images Indicator */
+.images-indicator {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
 }
 
 .images-indicator svg {
-  flex-shrink: 0;
   color: #2563eb;
+}
+
+/* Multiple Helpers Indicator */
+.multiple-helpers-indicator {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.multiple-helpers-indicator svg {
+  color: #16a34a;
 }
 
 .job-meta {

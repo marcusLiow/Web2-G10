@@ -18,6 +18,10 @@ const isLoggedIn = ref(false);
 const isSubmitting = ref(false);
 const showDeleteModal = ref(false);
 
+// Helper counter state
+const helperSignupCount = ref(0);
+const maxHelpers = ref(0);
+
 // Toast notification state
 const toasts = ref([]);
 let toastId = 0;
@@ -55,6 +59,33 @@ const isOwnListing = computed(() => {
 // Check if user is logged in
 const checkLoginStatus = () => {
   isLoggedIn.value = localStorage.getItem('isLoggedIn') === 'true';
+};
+
+// Fetch helper signup count
+const fetchHelperCount = async () => {
+  if (!job.value?.id || !job.value?.requiresMultipleHelpers) return;
+  
+  try {
+    // ✅ FIXED: Only count chats where an offer has been accepted
+    const { data, error } = await supabase
+      .from('chats')
+      .select('job_seeker_id')
+      .eq('job_id', job.value.id)
+      .eq('offer_accepted', true);  // ✅ Only count accepted offers
+    
+    if (error) {
+      console.error('Error fetching helper count:', error);
+      return;
+    }
+    
+    // Count unique job seekers who have had their offers accepted
+    const uniqueHelpers = new Set(data?.map(chat => chat.job_seeker_id) || []);
+    helperSignupCount.value = uniqueHelpers.size;
+    
+    console.log('Helper signup count (accepted offers only):', helperSignupCount.value);
+  } catch (error) {
+    console.error('Error in fetchHelperCount:', error);
+  }
 };
 
 // Image gallery functions
@@ -100,6 +131,13 @@ onMounted(async () => {
     job.value = JSON.parse(storedJob);
     
     console.log('Job data loaded:', job.value);
+    
+    // Set max helpers if the job requires multiple helpers
+    if (job.value.requiresMultipleHelpers && job.value.numberOfHelpers) {
+      maxHelpers.value = job.value.numberOfHelpers;
+      // Fetch current helper count
+      await fetchHelperCount();
+    }
     
     // Check if coordinates are already in the job data (from database)
     if (job.value.coordinates && job.value.coordinates.lat && job.value.coordinates.lng) {
@@ -387,6 +425,11 @@ const startChat = async () => {
       
       chatId = newChat.id;
       console.log('Created new chat:', chatId);
+      
+      // Refresh helper count after creating a new chat
+      if (job.value.requiresMultipleHelpers) {
+        await fetchHelperCount();
+      }
     }
     
     // Navigate to chat conversation
@@ -473,6 +516,11 @@ const submitOffer = async () => {
       
       chatId = newChat.id;
       console.log('Created new chat:', chatId);
+      
+      // Refresh helper count after creating a new chat
+      if (job.value.requiresMultipleHelpers) {
+        await fetchHelperCount();
+      }
     }
     
     // Step 2: Send the offer message WITH METADATA
@@ -730,6 +778,16 @@ const closeOfferModal = () => {
                     <span class="info-label">Expiration</span>
                     <span class="info-value" :class="`expiration-${expirationStatus}`">
                       {{ formattedExpirationDate }}
+                    </span>
+                  </div>
+                </div>
+                <!-- Helper Signup Info - Only show for jobs requiring multiple helpers -->
+                <div v-if="job.requiresMultipleHelpers" class="info-item helper-info-item">
+                  <span class="info-icon">👥</span>
+                  <div>
+                    <span class="info-label">Helpers Signed Up</span>
+                    <span class="info-value helper-count-value">
+                      <strong>{{ helperSignupCount }}</strong> of <strong>{{ maxHelpers }}</strong>
                     </span>
                   </div>
                 </div>
@@ -1521,6 +1579,12 @@ const closeOfferModal = () => {
   border-radius: 0.5rem;
 }
 
+/* Helper Info Item - Special styling */
+.helper-info-item {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+}
+
 .info-icon {
   font-size: 1.25rem;
 }
@@ -1536,6 +1600,16 @@ const closeOfferModal = () => {
   display: block;
   font-weight: 600;
   color: #111827;
+}
+
+.helper-count-value {
+  color: #0369a1;
+  font-size: 1rem;
+}
+
+.helper-count-value strong {
+  font-weight: 700;
+  font-size: 1.1rem;
 }
 
 /* Expiration status colors */
@@ -1844,7 +1918,7 @@ const closeOfferModal = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.
+  gap: 0.5rem;
 }
 
 .chat-btn {
