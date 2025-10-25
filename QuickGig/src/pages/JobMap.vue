@@ -14,9 +14,9 @@
         fullscreenControl: true
       }"
     >
-      <!-- Simple Marker for each job -->
+      <!-- Default Marker for each filtered job -->
       <Marker
-        v-for="job in jobs"
+        v-for="job in filteredJobs"
         :key="job.id"
         :options="{ 
           position: job.coordinates,
@@ -65,14 +65,8 @@
       <p>No job listings available at the moment</p>
     </div>
 
-    <!-- Floating Search Bar (Optional) -->
-    <div class="floating-search" v-if="jobs.length > 0">
-      <input 
-        v-model="searchTerm" 
-        placeholder="🔍 Search jobs on map..."
-        class="search-input"
-        @input="filterAndCenterMap"
-      />
+    <!-- Floating Category Filter -->
+    <div class="floating-filter" v-if="jobs.length > 0">
       <select v-model="selectedCategory" class="category-select" @change="filterAndCenterMap">
         <option value="">All Categories</option>
         <option v-for="category in categories" :key="category" :value="category">
@@ -107,7 +101,6 @@ export default {
     const jobs = ref([]);
     const isGoogleMapsLoaded = ref(false);
     const selectedJob = ref(null);
-    const searchTerm = ref('');
     const selectedCategory = ref('');
     const mapCenter = ref({ lat: 1.3521, lng: 103.8198 }); // Singapore center
     const mapZoom = ref(12);
@@ -123,18 +116,15 @@ export default {
       'Other'
     ];
 
-    // Filtered jobs
+    // Filtered jobs based on category only
     const filteredJobs = computed(() => {
-      return jobs.value.filter(job => {
-        const matchesSearch = !searchTerm.value || 
-          job.title.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-          job.description.toLowerCase().includes(searchTerm.value.toLowerCase());
-        
-        const matchesCategory = !selectedCategory.value || 
-          job.category === selectedCategory.value;
-
-        return matchesSearch && matchesCategory;
-      });
+      if (!selectedCategory.value) {
+        // Show all jobs if no category is selected
+        return jobs.value;
+      }
+      
+      // Filter by selected category
+      return jobs.value.filter(job => job.category === selectedCategory.value);
     });
 
     // Geocode address to get coordinates
@@ -377,7 +367,6 @@ export default {
       mapCenter,
       mapZoom,
       selectedJob,
-      searchTerm,
       selectedCategory,
       categories,
       selectJob,
@@ -491,43 +480,28 @@ export default {
   background: #b91c1c;
 }
 
-/* Floating Search Bar */
-.floating-search {
+/* Floating Category Filter */
+.floating-filter {
   position: absolute;
   top: 1rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  display: flex;
-  gap: 0.5rem;
   background: white;
-  padding: 0.75rem;
+  padding: 0.5rem;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.search-input {
-  padding: 0.75rem 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  min-width: 250px;
-  transition: border-color 0.2s;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #DC2626;
-}
-
 .category-select {
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 1.5rem;
   border: 2px solid #e5e7eb;
   border-radius: 8px;
   font-size: 0.95rem;
   background: white;
   cursor: pointer;
   transition: border-color 0.2s;
+  min-width: 200px;
 }
 
 .category-select:focus {
@@ -579,15 +553,13 @@ export default {
 
 /* Responsive */
 @media (max-width: 768px) {
-  .floating-search {
-    flex-direction: column;
-    width: 90%;
-    max-width: 400px;
+  .floating-filter {
+    width: auto;
+    padding: 0.5rem;
   }
 
-  .search-input {
-    min-width: auto;
-    width: 100%;
+  .category-select {
+    min-width: 180px;
   }
 }
 </style>
