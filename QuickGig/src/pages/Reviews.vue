@@ -109,7 +109,7 @@ const renderStars = (rating) => {
 };
 
 // Check whether the current signed-in user has a completed job with the helper.
-// Returns true if a helper_jobs row exists with helper_id=helperId, client_id=currentUserId, status='completed'
+// Returns true if a helper_jobs row exists with helper_id=helperId, client_id=currentUserId, status in ('completed','in-progress')
 async function checkCanReview() {
   checkingPermission.value = true;
   canReview.value = false;
@@ -131,13 +131,13 @@ async function checkCanReview() {
     }
     currentUserId.value = user.id;
 
-    // Query helper_jobs for a completed job
+    // Query helper_jobs for a completed or in-progress job
     const { data, error } = await supabase
       .from('helper_jobs')
-      .select('id')
+      .select('id, status')
       .eq('helper_id', props.helperId)
       .eq('client_id', user.id)
-      .eq('status', 'completed')
+      .in('status', ['completed', 'in-progress'])
       .limit(1);
 
     if (error) {
@@ -376,6 +376,7 @@ supabase.auth.onAuthStateChange(async (_event, session) => {
 </template>
 
 <style scoped>
+/* styles unchanged */
 .reviews-container { width: 100%; }
 .reviews-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; gap:1rem; flex-wrap:wrap; }
 .rating-summary { display:flex; align-items:center; gap:1rem; }

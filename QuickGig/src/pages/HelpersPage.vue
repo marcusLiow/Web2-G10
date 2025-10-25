@@ -12,9 +12,12 @@ const selectedSkill = ref('');
 const selectedHelper = ref(null);
 const showModal = ref(false);
 const isLoading = ref(true);
+
+// track current user
+const currentUserId = ref(null);
+
 const isCurrentUserTheHelper = computed(() => {
-  const currentUserId = localStorage.getItem('userId');
-  return currentUserId === selectedHelper.value?.userId;
+  return currentUserId.value === selectedHelper.value?.userId;
 });
 
 const skillsList = [
@@ -139,7 +142,10 @@ const fetchHelpers = async () => {
         completedJobs: Number(stats.completed_jobs) || 0,
         bio: (profile && profile.bio) || user.helper_bio || '',
         experience: (profile && profile.experience) || ['Contact for details'],
-        latestReview: latestReviewMap[user.id] || null
+        latestReview: latestReviewMap[user.id] || null,
+        // helper UI flags (set later when profile opened)
+        canLeaveReview: false,
+        hasReviewed: false
       };
     });
 
@@ -169,11 +175,71 @@ const fetchHelperStatsFor = async (helperId) => {
   }
 };
 
+/* --- Review / eligibility checks --- */
+const checkReviewEligibility = async (helperId) => {
+  // default
+  if (!selectedHelper.value) return;
+  selectedHelper.value.canLeaveReview = false;
+  selectedHelper.value.hasReviewed = false;
+
+  try {
+    // ensure we have currentUserId
+    if (!currentUserId.value) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      currentUserId.value = sessionData?.session?.user?.id || localStorage.getItem('userId');
+    }
+    if (!currentUserId.value) return;
+
+    // Check helper_jobs: allow review if there's a completed or in-progress job between current user and this helper
+    const { data: jobData, error: jobError } = await supabase
+      .from('helper_jobs')
+      .select('id,status')
+      .eq('helper_id', helperId)
+      .eq('client_id', currentUserId.value)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (jobError && jobError.code !== 'PGRST116') {
+      console.error('helper_jobs query error:', jobError);
+    }
+
+    const jobExists = !!jobData;
+    const jobAcceptable = jobData?.status === 'completed' || jobData?.status === 'in-progress';
+
+    // Check if user already reviewed this helper
+    const { data: reviewData, error: reviewError } = await supabase
+      .from('reviews')
+      .select('id')
+      .eq('helper_id', helperId)
+      .eq('reviewer_id', currentUserId.value)
+      .maybeSingle();
+
+    if (reviewError && reviewError.code !== 'PGRST116') {
+      console.error('reviews query error:', reviewError);
+    }
+
+    const alreadyReviewed = !!reviewData;
+
+    // Logic: allow review when there's an in-progress/completed job and user hasn't already reviewed.
+    selectedHelper.value.canLeaveReview = jobExists && jobAcceptable && !alreadyReviewed;
+    selectedHelper.value.hasReviewed = alreadyReviewed;
+
+  } catch (err) {
+    console.error('checkReviewEligibility error:', err);
+  }
+};
+
 /* --- UI handlers --- */
 const viewHelperProfile = async (helper) => {
-  selectedHelper.value = helper;
+  selectedHelper.value = { ...helper }; // clone to avoid mutating list entry directly
   showModal.value = true;
+
+  // populate dynamic stats
   await fetchHelperStatsFor(helper.userId);
+
+  // check review eligibility for this helper
+  await checkReviewEligibility(helper.userId);
 };
 
 const closeModal = () => { showModal.value = false; selectedHelper.value = null; };
@@ -189,10 +255,10 @@ const startChat = async () => {
     console.log('Auth user:', sessionData?.session?.user);
     console.log('Auth UID:', sessionData?.session?.user?.id);
     
-    const currentUserId = sessionData?.session?.user?.id || localStorage.getItem('userId');
-    console.log('Using user ID:', currentUserId);
+    const curUserId = sessionData?.session?.user?.id || localStorage.getItem('userId');
+    console.log('Using user ID:', curUserId);
     
-    if (!currentUserId) {
+    if (!curUserId) {
       console.error('No user ID found');
       alert('Please log in to start a chat');
       closeModal();
@@ -209,7 +275,7 @@ const startChat = async () => {
       return;
     }
     
-    if (currentUserId === helperId) {
+    if (curUserId === helperId) {
       console.log('User attempting to chat with themselves');
       alert('You cannot chat with yourself');
       return;
@@ -222,7 +288,7 @@ const startChat = async () => {
       .from('helper_chats')
       .select('id')
       .eq('helper_id', helperId)
-      .eq('client_id', currentUserId)
+      .eq('client_id', curUserId)
       .maybeSingle();
 
     console.log('Existing chat search result:', existingChat);
@@ -243,7 +309,7 @@ const startChat = async () => {
       console.log('Creating new helper chat...');
       console.log('Insert data:', {
         helper_id: helperId,
-        client_id: currentUserId,
+        client_id: curUserId,
         last_message: 'Chat started',
         last_message_time: new Date().toISOString()
       });
@@ -252,7 +318,7 @@ const startChat = async () => {
         .from('helper_chats')
         .insert([{
           helper_id: helperId,
-          client_id: currentUserId,
+          client_id: curUserId,
           last_message: 'Chat started',
           last_message_time: new Date().toISOString()
         }])
@@ -309,8 +375,15 @@ const renderStars = (rating, max = 5) => {
   return s;
 };
 
-onMounted(() => {
-  fetchHelpers();
+onMounted(async () => {
+  // set current user
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    currentUserId.value = sessionData?.session?.user?.id || localStorage.getItem('userId');
+  } catch (err) {
+    currentUserId.value = localStorage.getItem('userId');
+  }
+  await fetchHelpers();
 });
 
 /* --- Filtering --- */
@@ -476,12 +549,19 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
 
           <div class="modal-section">
             <h3 class="section-title">Reviews ({{ selectedHelper.reviewCount }})</h3>
+            <!-- Only show review form when selectedHelper.canLeaveReview === true -->
             <Reviews 
               :helperId="selectedHelper.userId" 
-              :showForm="true" 
+              :showForm="selectedHelper.canLeaveReview" 
               :isHelperReviewing="isCurrentUserTheHelper"
               :key="selectedHelper.userId" 
             />
+            <div v-if="!selectedHelper.canLeaveReview && !selectedHelper.hasReviewed" class="review-note">
+              <small>You can only leave a review after you've completed a job with this helper.</small>
+            </div>
+            <div v-else-if="selectedHelper.hasReviewed" class="review-note">
+              <small>You've already left a review for this helper.</small>
+            </div>
           </div>
 
           <button class="chat-btn" @click="startChat">💬 Start Chat</button>
@@ -493,6 +573,20 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
 
 <style scoped>
 /* keep your existing styles and add a few for the stars/snippet */
+.snippet-top { display:flex; gap:0.5rem; align-items:center; margin-bottom:0.25rem; }
+.snippet-avatar { width:32px; height:32px; border-radius:50%; object-fit:cover; }
+.snippet-meta { display:flex; flex-direction:column; }
+.snippet-stars { color:#f59e0b; font-weight:700; font-size:0.95rem; line-height:1; }
+.stars-inline { color:#f59e0b; font-weight:700; margin-right:0.5rem; }
+.rating-text { font-weight:700; margin-left:0.35rem; }
+.snippet-comment { margin:0; font-style:italic; color:#374151; }
+.review-count-inline { color:#6b7280; margin-left:0.35rem; }
+.review-note {
+  margin-top: 0.5rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
 .snippet-top { display:flex; gap:0.5rem; align-items:center; margin-bottom:0.25rem; }
 .snippet-avatar { width:32px; height:32px; border-radius:50%; object-fit:cover; }
 .snippet-meta { display:flex; flex-direction:column; }

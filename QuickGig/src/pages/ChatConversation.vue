@@ -67,7 +67,7 @@
 
           <div v-else-if="message.message_type === 'offer_accepted'" class="message-bubble accepted-bubble">
             <p class="acceptance-text">{{ message.message }}</p>
-            
+
             <!-- Show "Proceed to Payment" button for payer -->
             <div v-if="shouldShowPaymentButton && message.offer_amount && !jobCompletedExists"
                  class="payment-action">
@@ -76,27 +76,13 @@
               </button>
             </div>
 
-            <div v-else-if="message.message_type === 'offer_accepted'" class="message-bubble accepted-bubble">
-  <p class="acceptance-text">{{ message.message }}</p>
-  
-  <!-- Show "Proceed to Payment" button for payer -->
-  <div v-if="shouldShowPaymentButton && message.offer_amount && !jobCompletedExists"
-       class="payment-action">
-    <button @click="proceedToPayment(message)" class="payment-btn">
-      Proceed to Payment
-    </button>
-  </div>
-
-  <!-- ✅ NEW: Show "Leave a Review" button after job is completed -->
-  <div v-if="jobCompletedExists && !hasReviewedOtherUser"
-       class="review-action">
-    <button @click="openReviewModal" class="review-btn">
-      ⭐ Leave a Review
-    </button>
-  </div>
-
-  <span class="message-time">{{ formatTime(message.created_at) }}</span>
-</div>
+            <!-- Show "Leave a Review" button after job is completed (or in-progress if accepted) -->
+            <div v-if="jobCompletedExists && !hasReviewedOtherUser"
+                 class="review-action">
+              <button @click="openReviewModal" class="review-btn">
+                ⭐ Leave a Review
+              </button>
+            </div>
 
             <span class="message-time">{{ formatTime(message.created_at) }}</span>
           </div>
@@ -243,48 +229,48 @@
     </div>
 
     <!-- Review Modal -->
-<div v-if="showReviewModal" class="modal-overlay" @click="closeReviewModal">
-  <div class="modal-content" @click.stop>
-    <div class="modal-header">
-      <h2 class="modal-title">Leave a Review for {{ otherUser?.username }}</h2>
-      <button @click="closeReviewModal" class="close-btn">×</button>
-    </div>
+    <div v-if="showReviewModal" class="modal-overlay" @click="closeReviewModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">Leave a Review for {{ otherUser?.username }}</h2>
+          <button @click="closeReviewModal" class="close-btn">×</button>
+        </div>
 
-    <div class="modal-body">
-      <div class="form-group">
-        <label class="form-label">Rating *</label>
-        <div class="rating-input">
-          <button
-            v-for="star in 5"
-            :key="star"
-            @click="reviewRating = star"
-            :class="['star-btn', { active: star <= reviewRating }]"
-            type="button"
-          >
-            ⭐
-          </button>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Rating *</label>
+            <div class="rating-input">
+              <button
+                v-for="star in 5"
+                :key="star"
+                @click="reviewRating = star"
+                :class="['star-btn', { active: star <= reviewRating }]"
+                type="button"
+              >
+                ⭐
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Your Review *</label>
+            <textarea
+              v-model="reviewComment"
+              placeholder="Share your experience working with {{ otherUser?.username }}..."
+              class="offer-textarea"
+              rows="4"
+            ></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button @click="closeReviewModal" class="cancel-btn">Cancel</button>
+            <button @click="submitReview" class="submit-btn" :disabled="!reviewRating || !reviewComment.trim() || isProcessing">
+              Submit Review
+            </button>
+          </div>
         </div>
       </div>
-
-      <div class="form-group">
-        <label class="form-label">Your Review *</label>
-        <textarea
-          v-model="reviewComment"
-          placeholder="Share your experience working with {{ otherUser?.username }}..."
-          class="offer-textarea"
-          rows="4"
-        ></textarea>
-      </div>
-
-      <div class="modal-actions">
-        <button @click="closeReviewModal" class="cancel-btn">Cancel</button>
-        <button @click="submitReview" class="submit-btn" :disabled="!reviewRating || !reviewComment.trim() || isProcessing">
-          Submit Review
-        </button>
-      </div>
     </div>
-  </div>
-</div>
   </div>
 </template>
 
@@ -309,111 +295,11 @@ const messagesContainer = ref(null);
 const jobCompletedExists = ref(false);
 let messageChannel = null;
 
-// Add these refs
+// Review-related refs
 const showReviewModal = ref(false);
 const reviewRating = ref(5);
 const reviewComment = ref('');
 const hasReviewedOtherUser = ref(false);
-
-// Add this computed property
-const otherUserId = computed(() => {
-  if (!chatInfo.value || !currentUserId.value) return null;
-  
-  if (isHelperChat.value) {
-    return chatInfo.value.helper_id === currentUserId.value 
-      ? chatInfo.value.client_id 
-      : chatInfo.value.helper_id;
-  } else {
-    return chatInfo.value.job_poster_id === currentUserId.value
-      ? chatInfo.value.job_seeker_id
-      : chatInfo.value.job_poster_id;
-  }
-});
-
-// Add this function to check if user has already reviewed
-const checkIfReviewed = async () => {
-  try {
-    if (!otherUserId.value || !currentUserId.value) return;
-    
-    const reviewType = isHelper.value ? 'helper_to_client' : 'client_to_helper';
-    
-    const { data, error } = await supabase
-      .from('reviews')
-      .select('id')
-      .eq('helper_id', otherUserId.value)
-      .eq('reviewer_id', currentUserId.value)
-      .eq('review_type', reviewType)
-      .maybeSingle();
-    
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error checking review:', error);
-    }
-    
-    hasReviewedOtherUser.value = !!data;
-  } catch (error) {
-    console.error('Error in checkIfReviewed:', error);
-  }
-};
-
-// Add review modal functions
-const openReviewModal = () => {
-  reviewRating.value = 5;
-  reviewComment.value = '';
-  showReviewModal.value = true;
-};
-
-const closeReviewModal = () => {
-  showReviewModal.value = false;
-};
-
-const submitReview = async () => {
-  if (!reviewRating.value || !reviewComment.value.trim() || isProcessing.value) return;
-  
-  try {
-    isProcessing.value = true;
-    
-    const reviewType = isHelper.value ? 'helper_to_client' : 'client_to_helper';
-    
-    const { error } = await supabase
-      .from('reviews')
-      .insert([{
-        helper_id: otherUserId.value,
-        reviewer_id: currentUserId.value,
-        rating: reviewRating.value,
-        comment: reviewComment.value.trim(),
-        review_type: reviewType,
-        job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title
-      }]);
-    
-    if (error) {
-      console.error('Error submitting review:', error);
-      alert('Failed to submit review. Please try again.');
-      return;
-    }
-    
-    closeReviewModal();
-    hasReviewedOtherUser.value = true;
-    alert('Review submitted successfully!');
-    
-  } catch (error) {
-    console.error('Error in submitReview:', error);
-    alert('Failed to submit review. Please try again.');
-  } finally {
-    isProcessing.value = false;
-  }
-};
-
-// Counter offer modal
-const showCounterModal = ref(false);
-const selectedOffer = ref(null);
-const counterAmount = ref('');
-const counterMessage = ref('');
-
-// Make offer modal
-const showMakeOfferModal = ref(false);
-const offerAmount = ref('');
-const offerMessage = ref('');
-const offerJobTitle = ref('');
 
 // Determine chat type from route
 const isHelperChat = computed(() => route.path.includes('/helper-chat/'));
@@ -457,6 +343,52 @@ const canSubmitOffer = computed(() => {
   return true;
 });
 
+// computed other user id based on chat type
+const otherUserId = computed(() => {
+  if (!chatInfo.value || !currentUserId.value) return null;
+  if (isHelperChat.value) {
+    return chatInfo.value.helper_id === currentUserId.value 
+      ? chatInfo.value.client_id 
+      : chatInfo.value.helper_id;
+  } else {
+    return chatInfo.value.job_poster_id === currentUserId.value
+      ? chatInfo.value.job_seeker_id
+      : chatInfo.value.job_poster_id;
+  }
+});
+
+// compute helper id for reviews: the entity that should be stored in reviews.helper_id
+const reviewHelperId = computed(() => {
+  // If the helper is the current user (i.e., current user is helper), helper id is currentUserId
+  // Otherwise helper is the otherUserId
+  if (isHelper.value) return currentUserId.value;
+  return otherUserId.value;
+});
+
+// Check if the current user already reviewed the helper
+const checkIfReviewed = async () => {
+  try {
+    if (!reviewHelperId.value || !currentUserId.value) return;
+    const reviewType = isHelper.value ? 'helper_to_client' : 'client_to_helper';
+
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('id')
+      .eq('helper_id', reviewHelperId.value)
+      .eq('reviewer_id', currentUserId.value)
+      .eq('review_type', reviewType)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking review:', error);
+    }
+    hasReviewedOtherUser.value = !!data;
+  } catch (err) {
+    console.error('Error in checkIfReviewed:', err);
+  }
+};
+
+// lifecycle
 onMounted(async () => {
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
   if (!isLoggedIn) {
@@ -471,20 +403,20 @@ onMounted(async () => {
   await markMessagesAsRead();
   await checkIfReviewed();
   scrollToBottom();
-
   subscribeToMessages();
 });
 
 onUnmounted(() => {
   if (messageChannel) {
     supabase.removeChannel(messageChannel);
+    messageChannel = null;
   }
 });
 
+// Load chat meta, other user, job info
 const loadChatData = async () => {
   try {
     const chatId = route.params.id;
-    console.log(`Loading ${isHelperChat.value ? 'helper' : 'job'} chat data for chat ID:`, chatId);
 
     const { data: chat, error: chatError } = await supabase
       .from(chatTable.value)
@@ -497,24 +429,20 @@ const loadChatData = async () => {
       throw chatError;
     }
 
-    console.log('Chat loaded:', chat);
     chatInfo.value = chat;
 
-    const otherUserId = isHelperChat.value
+    const otherId = isHelperChat.value
       ? (chat.helper_id === currentUserId.value ? chat.client_id : chat.helper_id)
       : (chat.job_poster_id === currentUserId.value ? chat.job_seeker_id : chat.job_poster_id);
-
-    console.log('Other user ID:', otherUserId);
 
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('username, avatar_url')
-      .eq('id', otherUserId)
+      .eq('id', otherId)
       .single();
 
     if (!userError) {
       otherUser.value = user;
-      console.log('Other user:', user);
     }
 
     // Load job info only for job chats
@@ -527,7 +455,6 @@ const loadChatData = async () => {
 
       if (!jobError) {
         jobInfo.value = job;
-        console.log('Job info:', job);
       }
     }
 
@@ -537,24 +464,25 @@ const loadChatData = async () => {
   }
 };
 
+// check job status/completion (for showing review button / payment)
 const checkJobCompleted = async () => {
   try {
     const chatId = route.params.id;
     const completedTable = isHelperChat.value ? 'helper_jobs' : 'User-Job-Request';
-    
+
     if (isHelperChat.value) {
       const { data, error } = await supabase
         .from(completedTable)
-        .select('id')
+        .select('id, status')
         .eq('helper_chat_id', chatId)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error checking job completion:', error);
       }
-      jobCompletedExists.value = !!data;
+
+      jobCompletedExists.value = !!data && (data.status === 'completed' || data.status === 'in-progress' || !!data.id);
     } else {
-      // For job chats, check if job status is 'in-progress' or 'completed'
       const { data, error } = await supabase
         .from(completedTable)
         .select('status')
@@ -571,6 +499,7 @@ const checkJobCompleted = async () => {
   }
 };
 
+// load messages
 const loadMessages = async () => {
   try {
     isLoading.value = true;
@@ -583,10 +512,7 @@ const loadMessages = async () => {
       .order('created_at', { ascending: true });
 
     if (error) throw error;
-
     messages.value = data || [];
-    console.log('Messages loaded:', messages.value.length);
-
   } catch (error) {
     console.error('Error loading messages:', error);
   } finally {
@@ -594,6 +520,7 @@ const loadMessages = async () => {
   }
 };
 
+// mark messages as read
 const markMessagesAsRead = async () => {
   try {
     const chatId = route.params.id;
@@ -608,7 +535,6 @@ const markMessagesAsRead = async () => {
     if (error) {
       console.error('Error marking messages as read:', error);
     } else {
-      console.log('Messages marked as read');
       window.dispatchEvent(new Event('chat-read'));
     }
   } catch (error) {
@@ -616,6 +542,7 @@ const markMessagesAsRead = async () => {
   }
 };
 
+// sending regular message
 const sendMessage = async () => {
   if (!newMessage.value.trim() || isSending.value) return;
 
@@ -623,8 +550,6 @@ const sendMessage = async () => {
     isSending.value = true;
     const chatId = route.params.id;
     const messageText = newMessage.value.trim();
-
-    console.log('Sending message:', messageText);
 
     const messageData = {
       [chatIdColumn.value]: chatId,
@@ -641,8 +566,6 @@ const sendMessage = async () => {
       .single();
 
     if (error) throw error;
-
-    console.log('Message sent:', data);
 
     await supabase
       .from(chatTable.value)
@@ -665,7 +588,12 @@ const sendMessage = async () => {
   }
 };
 
-// Make Offer Functions
+// Make Offer modal state
+const showMakeOfferModal = ref(false);
+const offerAmount = ref('');
+const offerMessage = ref('');
+const offerJobTitle = ref('');
+
 const openMakeOfferModal = () => {
   offerAmount.value = '';
   offerMessage.value = '';
@@ -686,8 +614,6 @@ const submitOffer = async () => {
   try {
     isProcessing.value = true;
     const chatId = route.params.id;
-
-    console.log('Submitting offer:', offerAmount.value);
 
     const offerText = isHelperChat.value
       ? `Offer: $${offerAmount.value} for ${offerJobTitle.value}`
@@ -711,9 +637,7 @@ const submitOffer = async () => {
 
     if (offerError) throw offerError;
 
-    console.log('Offer sent:', offerMsg);
-
-    // Store job title for helper chats
+    // optional: store job title locally for UI use
     if (isHelperChat.value) {
       offerMsg.jobTitle = offerJobTitle.value;
     }
@@ -766,6 +690,7 @@ const submitOffer = async () => {
   }
 };
 
+// Accept offer
 const acceptOffer = async (offerMessage) => {
   if (isProcessing.value) return;
 
@@ -777,7 +702,7 @@ const acceptOffer = async (offerMessage) => {
     isProcessing.value = true;
     const chatId = route.params.id;
 
-    // Update the offer message status
+    // Update the offer message status to accepted
     const { error: updateError } = await supabase
       .from(messagesTable.value)
       .update({ offer_status: 'accepted' })
@@ -789,21 +714,22 @@ const acceptOffer = async (offerMessage) => {
       const { error: jobUpdateError } = await supabase
         .from('User-Job-Request')
         .update({ status: 'in-progress' })
-        .eq('id', chatInfo.value.job_id); 
+        .eq('id', chatInfo.value.job_id);
       if (jobUpdateError) throw jobUpdateError;
     }
 
-    // ✅ Create helper_jobs record for helper chats (enables reviews)
+    // Create or upsert helper_jobs record for helper chats (used for reviews/payment flow)
     if (isHelperChat.value) {
-      const offerMessages = messages.value.filter(m => 
-        m.message_type === 'offer' && 
+      const offerMessages = messages.value.filter(m =>
+        m.message_type === 'offer' &&
         m.offer_amount === offerMessage.offer_amount
       );
-      
+
       const jobTitle = offerMessages.length > 0 && offerMessages[offerMessages.length - 1].message
-        ? offerMessages[offerMessages.length - 1].message.split(' for ')[1] || 'Helper Service'
+        ? (offerMessages[offerMessages.length - 1].message.split(' for ')[1] || 'Helper Service')
         : 'Helper Service';
 
+      // set status to 'in-progress' - accepted but not completed
       const { error: helperJobError } = await supabase
         .from('helper_jobs')
         .upsert([{
@@ -812,13 +738,13 @@ const acceptOffer = async (offerMessage) => {
           client_id: chatInfo.value.client_id,
           job_title: jobTitle,
           agreed_amount: offerMessage.offer_amount,
-          status: 'completed',
+          status: 'in-progress',
           payment_status: 'pending',
           created_at: new Date().toISOString()
         }], { onConflict: 'helper_chat_id' });
 
       if (helperJobError) {
-        console.error('Error creating helper job:', helperJobError);
+        console.error('Error creating/upserting helper job:', helperJobError);
       }
     }
 
@@ -836,7 +762,7 @@ const acceptOffer = async (offerMessage) => {
       }])
       .select()
       .single();
-    
+
     if (msgError) throw msgError;
 
     // Update chat's last message
@@ -856,7 +782,7 @@ const acceptOffer = async (offerMessage) => {
     if (acceptanceMsg) {
       messages.value.push(acceptanceMsg);
     }
-    
+
     await nextTick();
     scrollToBottom();
     await checkJobCompleted();
@@ -872,15 +798,12 @@ const acceptOffer = async (offerMessage) => {
   }
 };
 
-// Proceed to Payment Function
+// Proceed to Payment
 const proceedToPayment = (acceptanceMessage) => {
-  console.log('Navigating to Payment Page...');
-  
   let jobTitle = '';
   if (isHelperChat.value) {
-    // Extract job title from offer messages
-    const offerMessages = messages.value.filter(m => 
-      m.message_type === 'offer' && 
+    const offerMessages = messages.value.filter(m =>
+      m.message_type === 'offer' &&
       m.offer_amount === acceptanceMessage.offer_amount
     );
     jobTitle = offerMessages.length > 0 && offerMessages[offerMessages.length - 1].message
@@ -902,7 +825,12 @@ const proceedToPayment = (acceptanceMessage) => {
   });
 };
 
-// Counter Offer Functions
+// Counter offer handling
+const showCounterModal = ref(false);
+const selectedOffer = ref(null);
+const counterAmount = ref('');
+const counterMessage = ref('');
+
 const openCounterOfferModal = (offerMessage) => {
   selectedOffer.value = offerMessage;
   counterAmount.value = '';
@@ -923,8 +851,6 @@ const submitCounterOffer = async () => {
   try {
     isProcessing.value = true;
     const chatId = route.params.id;
-
-    console.log('Submitting counter offer:', counterAmount.value);
 
     const { error: updateError } = await supabase
       .from(messagesTable.value)
@@ -952,8 +878,6 @@ const submitCounterOffer = async () => {
       .single();
 
     if (counterError) throw counterError;
-
-    console.log('Counter offer sent:', counterMsg);
 
     let lastMessage = counterOfferText;
 
@@ -1007,6 +931,7 @@ const submitCounterOffer = async () => {
   }
 };
 
+// Subscribe to realtime messages and updates
 const subscribeToMessages = () => {
   const chatId = route.params.id;
   const channelName = `${isHelperChat.value ? 'helper-' : ''}chat-${chatId}`;
@@ -1022,7 +947,6 @@ const subscribeToMessages = () => {
         filter: `${chatIdColumn.value}=eq.${chatId}`
       },
       async (payload) => {
-        console.log('New message received:', payload.new);
         if (payload.new.sender_id !== currentUserId.value) {
           messages.value.push(payload.new);
           await nextTick();
@@ -1046,7 +970,6 @@ const subscribeToMessages = () => {
         filter: `${chatIdColumn.value}=eq.${chatId}`
       },
       (payload) => {
-        console.log('Message updated:', payload.new);
         const index = messages.value.findIndex(m => m.id === payload.new.id);
         if (index !== -1) {
           messages.value.splice(index, 1, payload.new);
@@ -1056,12 +979,11 @@ const subscribeToMessages = () => {
     .subscribe((status, err) => {
       if (err) {
         console.error("Subscription error:", err);
-      } else {
-        console.log("Subscription status:", status);
       }
     });
 };
 
+// scroll helper
 const scrollToBottom = () => {
   if (messagesContainer.value) {
     setTimeout(() => {
@@ -1078,6 +1000,59 @@ const formatTime = (timestamp) => {
 
 const goBack = () => {
   router.push('/chats');
+};
+
+// Review modal functions & submit
+const openReviewModal = () => {
+  reviewRating.value = 5;
+  reviewComment.value = '';
+  showReviewModal.value = true;
+};
+
+const closeReviewModal = () => {
+  showReviewModal.value = false;
+};
+
+const submitReview = async () => {
+  if (!reviewRating.value || !reviewComment.value.trim() || isProcessing.value) return;
+
+  try {
+    isProcessing.value = true;
+
+    const reviewType = isHelper.value ? 'helper_to_client' : 'client_to_helper';
+    const helperIdForInsert = reviewHelperId.value;
+    if (!helperIdForInsert) {
+      alert('Unable to determine helper to review.');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('reviews')
+      .insert([{
+        helper_id: helperIdForInsert,
+        reviewer_id: currentUserId.value,
+        rating: reviewRating.value,
+        comment: reviewComment.value.trim(),
+        review_type: reviewType,
+        job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title
+      }]);
+
+    if (error) {
+      console.error('Error submitting review:', error);
+      alert('Failed to submit review. Please try again.');
+      return;
+    }
+
+    closeReviewModal();
+    hasReviewedOtherUser.value = true;
+    alert('Review submitted successfully!');
+
+  } catch (error) {
+    console.error('Error in submitReview:', error);
+    alert('Failed to submit review. Please try again.');
+  } finally {
+    isProcessing.value = false;
+  }
 };
 </script>
 
