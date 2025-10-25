@@ -786,9 +786,101 @@ async function saveProfile() {
 onMounted(() => { loadAll(); });
 
 /* Small helper stubs for actions used in template (implement as needed) */
-function markAsCompleted(id) { console.log('markAsCompleted', id); }
-function editListing(listing) { console.log('editListing', listing); }
-function deleteListing(id) { console.log('deleteListing', id); }
+// Mark job as completed
+async function markAsCompleted(jobId) {
+  if (!jobId) {
+    alert('Invalid job ID');
+    return;
+  }
+  
+  if (!confirm('Are you sure you want to mark this job as completed? It will be moved to your Job History.')) {
+    return;
+  }
+  
+  try {
+    const userId = currentUserId.value;
+    
+    // Update the status to completed
+    const { data, error } = await supabase
+      .from('User-Job-Request')
+      .update({ 
+        status: 'completed'
+      })
+      .eq('id', jobId)
+      .eq('user_id', userId)
+      .select();
+
+    if (error) {
+      console.error('Error marking job as completed:', error);
+      alert(`Failed to mark job as completed: ${error.message}`);
+      return;
+    }
+    
+    if (!data || data.length === 0) {
+      alert('Job not found or you do not have permission to update it.');
+      return;
+    }
+    
+    alert('Job marked as completed successfully!');
+    
+    // Refresh the listings and completed jobs
+    await loadUserListings(userId);
+    await loadCompletedJobs(userId);
+    
+  } catch (error) {
+    console.error('Unexpected error marking job as completed:', error);
+    alert('An unexpected error occurred. Please try again.');
+  }
+}
+
+// Edit listing - navigate to edit page
+function editListing(listing) {
+  if (!listing || !listing.id) {
+    alert('Invalid listing');
+    return;
+  }
+  
+  // Navigate to the edit page with the listing ID
+  router.push(`/edit-job/${listing.id}`);
+}
+
+// Delete listing
+async function deleteListing(jobId) {
+  if (!jobId) {
+    alert('Invalid job ID');
+    return;
+  }
+  
+  if (!confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
+    return;
+  }
+  
+  try {
+    const userId = currentUserId.value;
+    
+    // Delete the job
+    const { error } = await supabase
+      .from('User-Job-Request')
+      .delete()
+      .eq('id', jobId)
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error deleting job:', error);
+      alert(`Failed to delete job: ${error.message}`);
+      return;
+    }
+    
+    alert('Job deleted successfully!');
+    
+    // Refresh the listings
+    await loadUserListings(userId);
+    
+  } catch (error) {
+    console.error('Unexpected error deleting job:', error);
+    alert('An unexpected error occurred. Please try again.');
+  }
+}
 function getStatusClass(status) { if (!status) return ''; const s = String(status).toLowerCase(); if (s === 'open') return 'status-open'; if (s === 'in_progress' || s === 'in-progress') return 'status-in-progress'; if (s === 'completed') return 'status-completed'; if (s === 'cancelled') return 'status-cancelled'; return ''; }
 </script>
 
