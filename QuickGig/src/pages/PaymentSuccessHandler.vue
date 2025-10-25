@@ -91,6 +91,41 @@ onMounted(async () => {
         router.push('/chats'); // Fallback
      }
  };
+
+// After successful payment, if it's a helper job:
+if (route.query.isHelperJob === 'true') {
+  // Extract job title from offer message
+  const jobTitle = route.query.jobTitle || 'Helper Service';
+  
+  // Create helper_jobs record
+  const { error: jobError } = await supabase
+    .from('helper_jobs')
+    .insert([{
+      helper_chat_id: route.query.chatId,
+      helper_id: chatInfo.value.helper_id,
+      client_id: chatInfo.value.client_id,
+      job_title: jobTitle,
+      agreed_amount: route.query.amount,
+      status: 'completed',
+      payment_status: 'paid',
+      completed_at: new Date().toISOString()
+    }]);
+
+  if (jobError) {
+    console.error('Error creating helper job:', jobError);
+  } else {
+    // Send completion message to chat
+    await supabase
+      .from('helper_messages')
+      .insert([{
+        helper_chat_id: route.query.chatId,
+        sender_id: currentUserId.value,
+        message: `Payment completed! Job marked as completed. You can now leave a review.`,
+        message_type: 'job_completed',
+        read: false
+      }]);
+  }
+}
 </script>
 
 <style scoped>

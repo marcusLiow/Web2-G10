@@ -606,28 +606,52 @@ async function loadUserReviews(helperId) {
   try {
     loadingReviewsMsg.value = 'Loading reviews...';
     if (!helperId) { user.reviews = []; loadingReviewsMsg.value = ''; return; }
-    const { data: reviewsData, error } = await supabase
+    
+    // First, get the reviews
+    const { data: reviewsData, error: reviewsError } = await supabase
       .from('reviews')
-      .select(`id, rating, comment, job_title, created_at, reviewer:users(id, username, avatar_url)`)
+      .select('id, rating, comment, job_title, created_at, reviewer_id')
       .eq('helper_id', helperId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('reviews fetch error', error);
+    if (reviewsError) {
+      console.warn('reviews fetch error', reviewsError);
       user.reviews = [];
-      loadingReviewsMsg.value = error.message ? `Reviews not available: ${error.message}` : 'Reviews not available';
+      loadingReviewsMsg.value = reviewsError.message ? `Reviews not available: ${reviewsError.message}` : 'Reviews not available';
       return;
     }
 
-    user.reviews = (reviewsData || []).map(r => ({
-      id: r.id,
-      rating: r.rating,
-      comment: r.comment,
-      service: r.job_title,
-      date: r.created_at ? new Date(r.created_at).toLocaleDateString() : '',
-      author: r.reviewer?.username || 'Anonymous',
-      avatar: r.reviewer?.avatar_url || ''
-    }));
+    // Then fetch reviewer details separately
+    if (reviewsData && reviewsData.length > 0) {
+      const reviewerIds = [...new Set(reviewsData.map(r => r.reviewer_id).filter(Boolean))];
+      
+      let reviewersMap = {};
+      if (reviewerIds.length > 0) {
+        const { data: reviewersData } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', reviewerIds);
+        
+        if (reviewersData) {
+          reviewersMap = Object.fromEntries(reviewersData.map(u => [u.id, u]));
+        }
+      }
+
+      user.reviews = reviewsData.map(r => {
+        const reviewer = reviewersMap[r.reviewer_id] || {};
+        return {
+          id: r.id,
+          rating: r.rating,
+          comment: r.comment,
+          service: r.job_title,
+          date: r.created_at ? new Date(r.created_at).toLocaleDateString() : '',
+          author: reviewer.username || 'Anonymous',
+          avatar: reviewer.avatar_url || ''
+        };
+      });
+    } else {
+      user.reviews = [];
+    }
 
     if (user.reviewCount > 0 && (!user.reviews || user.reviews.length === 0)) {
       loadingReviewsMsg.value = 'No review rows returned (check RLS/policies or helper_id mismatch).';

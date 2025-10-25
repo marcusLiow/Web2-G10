@@ -35,39 +35,54 @@ const errors = ref({
 const fetchReviews = async () => {
   try {
     isLoading.value = true;
+    
+    // First, fetch reviews with reviewer_id
     const { data: reviewsData, error: reviewsError } = await supabase
       .from('reviews')
-      .select(`
-        id,
-        rating,
-        comment,
-        job_title,
-        created_at,
-        reviewer:users ( id, username, avatar_url )
-      `)
+      .select('id, rating, comment, job_title, created_at, reviewer_id')
       .eq('helper_id', props.helperId)
       .order('created_at', { ascending: false });
 
     if (reviewsError) throw reviewsError;
 
-    reviews.value = (reviewsData || []).map(review => ({
-      id: review.id,
-      rating: review.rating,
-      comment: review.comment,
-      jobTitle: review.job_title,
-      createdAt: review.created_at
-        ? new Date(review.created_at).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          })
-        : '',
-      reviewer: {
-        id: review.reviewer?.id || '',
-        name: review.reviewer?.username || 'Anonymous',
-        avatar: review.reviewer?.avatar_url || ''
+    // Then fetch reviewer details separately
+    let reviewersMap = {};
+    if (reviewsData && reviewsData.length > 0) {
+      const reviewerIds = [...new Set(reviewsData.map(r => r.reviewer_id).filter(Boolean))];
+      
+      if (reviewerIds.length > 0) {
+        const { data: reviewersData } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', reviewerIds);
+        
+        if (reviewersData) {
+          reviewersMap = Object.fromEntries(reviewersData.map(u => [u.id, u]));
+        }
       }
-    }));
+    }
+
+    reviews.value = (reviewsData || []).map(review => {
+      const reviewer = reviewersMap[review.reviewer_id] || {};
+      return {
+        id: review.id,
+        rating: review.rating,
+        comment: review.comment,
+        jobTitle: review.job_title,
+        createdAt: review.created_at
+          ? new Date(review.created_at).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
+            })
+          : '',
+        reviewer: {
+          id: reviewer.id || '',
+          name: reviewer.username || 'Anonymous',
+          avatar: reviewer.avatar_url || ''
+        }
+      };
+    });
   } catch (error) {
     console.error('Error fetching reviews:', error);
     reviews.value = [];
@@ -89,7 +104,7 @@ const renderStars = (rating) => {
 };
 
 // Check whether the current signed-in user has a completed job with the helper.
-// Returns true if a job_completions row exists with helper_id=helperId, client_id=currentUserId, status='completed'
+// Returns true if a helper_jobs row exists with helper_id=helperId, client_id=currentUserId, status='completed'
 async function checkCanReview() {
   checkingPermission.value = true;
   canReview.value = false;
@@ -111,9 +126,9 @@ async function checkCanReview() {
     }
     currentUserId.value = user.id;
 
-    // Query job_completions for a completed link
+    // Query helper_jobs for a completed job
     const { data, error } = await supabase
-      .from('job_completions')
+      .from('helper_jobs')
       .select('id')
       .eq('helper_id', props.helperId)
       .eq('client_id', user.id)
@@ -122,7 +137,7 @@ async function checkCanReview() {
 
     if (error) {
       // Possible permission/RLS issue; treat as not allowed (fail-safe)
-      console.error('Error checking job_completions for review permission:', error);
+      console.error('Error checking helper_jobs for review permission:', error);
       canReview.value = false;
       checkingPermission.value = false;
       return false;

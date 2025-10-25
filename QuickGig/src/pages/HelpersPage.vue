@@ -76,28 +76,42 @@ const fetchHelpers = async () => {
     const profilesMap = {};
     (profiles || []).forEach(p => { profilesMap[String(p.user_id)] = p; });
 
-    // latest review per helper (ordered desc, pick first)
+    // Fetch reviews - FIXED: avoid ambiguous relationship
     const { data: reviewsData, error: reviewsError } = await supabase
       .from('reviews')
-      .select(`
-        helper_id,
-        rating,
-        comment,
-        created_at,
-        reviewer:users ( username, avatar_url )
-      `)
+      .select('helper_id, rating, comment, created_at, reviewer_id')
       .in('helper_id', userIds)
       .order('created_at', { ascending: false });
+    
     if (reviewsError) console.warn('reviews fetch error', reviewsError);
+    
+    // Fetch reviewer details separately
+    let reviewersMap = {};
+    if (reviewsData && reviewsData.length > 0) {
+      const reviewerIds = [...new Set(reviewsData.map(r => r.reviewer_id).filter(Boolean))];
+      
+      if (reviewerIds.length > 0) {
+        const { data: reviewersData } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', reviewerIds);
+        
+        if (reviewersData) {
+          reviewersMap = Object.fromEntries(reviewersData.map(u => [u.id, u]));
+        }
+      }
+    }
+
     const latestReviewMap = {};
     (reviewsData || []).forEach(r => {
       const hid = String(r.helper_id);
       if (!latestReviewMap[hid]) {
+        const reviewer = reviewersMap[r.reviewer_id] || {};
         latestReviewMap[hid] = {
           comment: r.comment,
           rating: r.rating,
-          reviewerName: r.reviewer?.username || 'Anonymous',
-          reviewerAvatar: r.reviewer?.avatar_url || '',
+          reviewerName: reviewer.username || 'Anonymous',
+          reviewerAvatar: reviewer.avatar_url || '',
           createdAt: r.created_at
         };
       }
@@ -164,10 +178,77 @@ const viewHelperProfile = async (helper) => {
 
 const closeModal = () => { showModal.value = false; selectedHelper.value = null; };
 
-const startChat = () => {
-  // TODO: replace with your chat implementation
-  alert(`Starting chat with ${selectedHelper.value.name}...\nChat coming soon.`);
-  closeModal();
+const startChat = async () => {
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const currentUserId = sessionData?.session?.user?.id || localStorage.getItem('userId');
+    
+    if (!currentUserId) {
+      alert('Please log in to start a chat');
+      closeModal();
+      router.push('/login');
+      return;
+    }
+
+    const helperId = selectedHelper.value.userId;
+    
+    if (currentUserId === helperId) {
+      alert('You cannot chat with yourself');
+      return;
+    }
+
+    console.log('Starting chat with helper:', helperId);
+
+    // Check if chat already exists for this helper
+    const { data: existingChat, error: searchError } = await supabase
+      .from('helper_chats')
+      .select('id')
+      .eq('helper_id', helperId)
+      .eq('client_id', currentUserId)
+      .maybeSingle();
+
+    if (searchError && searchError.code !== 'PGRST116') {
+      console.error('Error searching for chat:', searchError);
+      throw searchError;
+    }
+
+    let chatId;
+
+    if (existingChat) {
+      chatId = existingChat.id;
+      console.log('Using existing helper chat:', chatId);
+    } else {
+      // Create new helper chat
+      console.log('Creating new helper chat...');
+      const { data: newChat, error: createError } = await supabase
+        .from('helper_chats')
+        .insert([{
+          helper_id: helperId,
+          client_id: currentUserId,
+          last_message: 'Chat started',
+          last_message_time: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating helper chat:', createError);
+        throw createError;
+      }
+
+      chatId = newChat.id;
+      console.log('Created new helper chat:', chatId);
+    }
+
+    // Navigate to chat
+    console.log('Navigating to helper chat:', chatId);
+    router.push(`/helper-chat/${chatId}`);
+    closeModal();
+
+  } catch (error) {
+    console.error('Error starting chat:', error);
+    alert('Failed to start chat. Please try again.');
+  }
 };
 
 /* Render stars as a string of filled/empty stars for display */
@@ -277,20 +358,6 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
 
             <p class="helper-description">{{ helper.description }}</p>
 
-            <!-- At-a-glance latest review snippet with stars -->
-            <div v-if="helper.latestReview" class="review-snippet">
-              <div class="snippet-top">
-                <img v-if="helper.latestReview.reviewerAvatar" :src="helper.latestReview.reviewerAvatar" class="snippet-avatar" alt="reviewer avatar" />
-                <div class="snippet-meta">
-                  <div class="snippet-stars" aria-hidden="true">{{ renderStars(helper.latestReview.rating) }}</div>
-                  <div class="snippet-author"> {{ helper.latestReview.reviewerName }}</div>
-                </div>
-              </div>
-              <p class="snippet-comment">
-                "{{ helper.latestReview.comment.length > 120 ? helper.latestReview.comment.slice(0,120) + '...' : helper.latestReview.comment }}"
-              </p>
-            </div>
-
             <div class="helper-meta">
               <div class="meta-item"><span class="icon">📍</span><span>{{ helper.location }}</span></div>
               <div class="meta-item"><span class="icon">📅</span><span>{{ helper.availability }}</span></div>
@@ -327,6 +394,8 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
                   <span class="stars">{{ renderStars(selectedHelper.rating) }}</span>
                   <span class="rating-text">{{ selectedHelper.rating }}</span>
                   <span class="separator">•</span>
+                  <span>{{ selectedHelper.reviewCount }} reviews</span>
+                  <span class="separator">•</span>
                   <span>{{ selectedHelper.completedJobs }} jobs</span>
                 </div>
               </div>
@@ -359,8 +428,8 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
           </div>
 
           <div class="modal-section">
-            <h3 class="section-title">Reviews</h3>
-            <Reviews :helperId="selectedHelper.userId" :showForm="true" />
+            <h3 class="section-title">Reviews ({{ selectedHelper.reviewCount }})</h3>
+            <Reviews :helperId="selectedHelper.userId" :showForm="true" :key="selectedHelper.userId" />
           </div>
 
           <button class="chat-btn" @click="startChat">💬 Start Chat</button>
