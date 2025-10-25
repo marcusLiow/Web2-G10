@@ -181,6 +181,68 @@
               </div>
             </div>
 
+            <!-- MULTIPLE POSITIONS SECTION -->
+            <div class="multiple-positions-section">
+              <h3 class="section-header">Position Details</h3>
+              
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input 
+                    type="checkbox" 
+                    v-model="formData.multiple_positions"
+                    @change="handleMultiplePositionsChange"
+                    class="checkbox-input"
+                  />
+                  <span class="checkbox-text">
+                    This job requires multiple people
+                  </span>
+                </label>
+                <small class="helper-text">
+                  Check this if you need more than one person to complete this job
+                </small>
+              </div>
+
+              <transition name="slide-fade">
+                <div v-if="formData.multiple_positions" class="positions-config">
+                  <div class="form-group">
+                    <label for="positions_available" class="form-label">
+                      Number of Positions
+                      <span class="label-hint">How many people do you need?</span>
+                    </label>
+                    <input 
+                      type="number" 
+                      id="positions_available" 
+                      v-model.number="formData.positions_available"
+                      class="form-input"
+                      placeholder="e.g., 3"
+                      min="2"
+                      max="50"
+                      required
+                    />
+                    <small class="helper-text">
+                      {{ positionsHelpText }}
+                    </small>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="payment_type" class="form-label">Payment Distribution</label>
+                    <select 
+                      id="payment_type" 
+                      v-model="formData.payment_type"
+                      class="form-input"
+                      required
+                    >
+                      <option value="per_person">Per Person</option>
+                      <option value="total">Total (Split Among All)</option>
+                    </select>
+                    <small class="helper-text">
+                      {{ paymentTypeHelpText }}
+                    </small>
+                  </div>
+                </div>
+              </transition>
+            </div>
+
             <div class="form-group">
               <label for="payment" class="form-label">Willing to Pay</label>
               <div class="payment-input-wrapper">
@@ -196,6 +258,9 @@
                   required
                 />
               </div>
+              <small v-if="formData.multiple_positions" class="helper-text payment-summary">
+                {{ paymentSummary }}
+              </small>
             </div>
 
             <!-- Expiration Date Field -->
@@ -260,7 +325,10 @@ export default {
         postalCode: '',
         location: '',
         payment: '',
-        expiration_date: null
+        expiration_date: null,
+        multiple_positions: false,
+        positions_available: 2,
+        payment_type: 'per_person'
       },
       expirationOption: 'never',
       minDate: new Date().toISOString().split('T')[0],
@@ -299,12 +367,45 @@ export default {
         return `Post will be automatically removed on ${date.toLocaleDateString()}`;
       }
       return 'Choose when this post should expire';
+    },
+    positionsHelpText() {
+      if (this.formData.positions_available > 0) {
+        return `You'll be able to accept up to ${this.formData.positions_available} helpers for this job`;
+      }
+      return 'Specify how many people you need for this job';
+    },
+    paymentTypeHelpText() {
+      if (this.formData.payment_type === 'per_person') {
+        return 'Each person will receive the full payment amount';
+      } else {
+        return 'The total payment will be divided equally among all helpers';
+      }
+    },
+    paymentSummary() {
+      const payment = parseFloat(this.formData.payment) || 0;
+      const positions = parseInt(this.formData.positions_available) || 2;
+      
+      if (this.formData.payment_type === 'per_person') {
+        const total = payment * positions;
+        return `Total cost: $${total.toFixed(2)} ($${payment.toFixed(2)} × ${positions} people)`;
+      } else {
+        const perPerson = payment / positions;
+        return `Each helper receives: $${perPerson.toFixed(2)} ($${payment.toFixed(2)} ÷ ${positions} people)`;
+      }
     }
   },
   mounted() {
     this.initGooglePlaces();
   },
   methods: {
+    handleMultiplePositionsChange() {
+      if (!this.formData.multiple_positions) {
+        // Reset to defaults when unchecked
+        this.formData.positions_available = 2;
+        this.formData.payment_type = 'per_person';
+      }
+    },
+    
     // Initialize Google Places API
     initGooglePlaces() {
       if (!window.google) {
@@ -646,7 +747,17 @@ export default {
           status: 'open',
           user_id: userId,
           images: imageUrls,
-          expiration_date: this.formData.expiration_date
+          expiration_date: this.formData.expiration_date,
+          
+          // Save with both naming conventions for compatibility
+          multiple_positions: this.formData.multiple_positions,
+          requiresMultipleHelpers: this.formData.multiple_positions,  // ✅ ADD THIS
+          
+          positions_available: this.formData.multiple_positions ? parseInt(this.formData.positions_available) : 1,
+          numberOfHelpers: this.formData.multiple_positions ? parseInt(this.formData.positions_available) : 1,  // ✅ ADD THIS
+          
+          positions_filled: 0,
+          payment_type: this.formData.multiple_positions ? this.formData.payment_type : 'per_person'
         };
 
         console.log('Creating job request with data:', requestData);
@@ -1044,6 +1155,73 @@ export default {
   font-weight: 500;
 }
 
+/* MULTIPLE POSITIONS SECTION */
+.multiple-positions-section {
+  background: #f9fafb;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-input {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #2563EB;
+}
+
+.checkbox-text {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+.positions-config {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 2px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Slide fade animation */
+.slide-fade-enter-active {
+  transition: all 0.3s ease;
+}
+
+.slide-fade-leave-active {
+  transition: all 0.2s ease;
+}
+
+.slide-fade-enter-from {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.slide-fade-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.payment-summary {
+  background: #eff6ff;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 2px solid #2563EB;
+  color: #1e40af;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
 .submit-hint {
   text-align: center;
   color: #6b7280;
@@ -1201,7 +1379,8 @@ select.form-input {
     font-size: 1rem;
   }
   
-  .location-section {
+  .location-section,
+  .multiple-positions-section {
     padding: 1rem;
   }
   

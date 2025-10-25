@@ -498,6 +498,7 @@ const submitOffer = async () => {
 };
 
 // Accept Offer Function - MODIFIED to store offer_amount in acceptance message
+// Accept Offer Function - UPDATED to mark chat as accepted
 const acceptOffer = async (offerMessage) => {
   if (isProcessing.value) return;
 
@@ -511,37 +512,77 @@ const acceptOffer = async (offerMessage) => {
 
     console.log('Accepting offer:', offerMessage.id);
 
-    // Update the offer message status
+    // ✅ 1. Update the offer message status
     const { error: updateError } = await supabase
       .from('messages')
       .update({ offer_status: 'accepted' })
       .eq('id', offerMessage.id);
     if (updateError) throw updateError;
 
-    // Update job status to in-progress
+    // ✅ 2. Mark this chat as having an accepted offer
+    const { error: chatUpdateError } = await supabase
+      .from('chats')
+      .update({ 
+        offer_accepted: true,
+        accepted_at: new Date().toISOString()
+      })
+      .eq('id', chatId);
+    if (chatUpdateError) throw chatUpdateError;
+
+    // ✅ 3. Update job status to in-progress
     const { error: jobUpdateError } = await supabase
       .from('User-Job-Request')
       .update({ status: 'in-progress' })
       .eq('id', chatInfo.value.job_id); 
-
     if (jobUpdateError) throw jobUpdateError;
 
-    // Send acceptance message WITH offer_amount stored
+    // ✅ 4. Check if job is now fully booked (for multiple helper jobs)
+    const { data: jobData } = await supabase
+      .from('User-Job-Request')
+      .select('requiresMultipleHelpers, numberOfHelpers')
+      .eq('id', chatInfo.value.job_id)
+      .single();
+    
+    if (jobData?.requiresMultipleHelpers) {
+      // Count accepted helpers for this job
+      const { data: acceptedChats } = await supabase
+        .from('chats')
+        .select('id')
+        .eq('job_id', chatInfo.value.job_id)
+        .eq('offer_accepted', true);
+      
+      const acceptedCount = acceptedChats?.length || 0;
+      
+      console.log(`Accepted helpers: ${acceptedCount}/${jobData.numberOfHelpers}`);
+      
+      // If fully booked, update job status
+      if (acceptedCount >= jobData.numberOfHelpers) {
+        await supabase
+          .from('User-Job-Request')
+          .update({ status: 'filled' })
+          .eq('id', chatInfo.value.job_id);
+        
+        console.log('Job is now fully booked!');
+      }
+    }
+
+    // ✅ 5. Send acceptance message WITH offer_amount stored
     const acceptanceText = `Offer of $${offerMessage.offer_amount} has been accepted!`;
     const { data: acceptanceMsg, error: msgError } = await supabase
       .from('messages')
       .insert([{
-            chat_id: chatId,
-            sender_id: currentUserId.value,
-            message: acceptanceText,
-            message_type: 'offer_accepted',
-            offer_amount: offerMessage.offer_amount, // ✅ Store the amount for payment button
-            read: false
+        chat_id: chatId,
+        sender_id: currentUserId.value,
+        message: acceptanceText,
+        message_type: 'offer_accepted',
+        offer_amount: offerMessage.offer_amount,
+        read: false
       }])
-      .select().single();
+      .select()
+      .single();
     if (msgError) throw msgError;
 
-    // Update chat's last message
+    // ✅ 6. Update chat's last message
     await supabase
       .from('chats')
       .update({
@@ -550,23 +591,24 @@ const acceptOffer = async (offerMessage) => {
       })
       .eq('id', chatId);
 
-    // Update local state
+    // ✅ 7. Update local state
     const msgIndex = messages.value.findIndex(m => m.id === offerMessage.id);
     if (msgIndex !== -1) {
       messages.value[msgIndex].offer_status = 'accepted';
     }
     if (acceptanceMsg) {
-        messages.value.push(acceptanceMsg);
+      messages.value.push(acceptanceMsg);
     }
+    
     await nextTick();
     scrollToBottom();
 
     alert('Offer accepted successfully!');
-    isProcessing.value = false;
 
   } catch (error) {
     console.error('Error accepting offer:', error);
     alert('Failed to accept offer. Please try again.');
+  } finally {
     isProcessing.value = false;
   }
 };
