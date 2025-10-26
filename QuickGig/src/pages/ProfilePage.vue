@@ -51,9 +51,7 @@
 
                 <button @click="openEditModal" class="btn-edit" type="button">Edit Profile</button>
               </div>
-
-              <p v-if="helperBio" class="bio">{{ helperBio }}</p>
-              <p v-else-if="user.bio" class="bio">{{ user.bio }}</p>
+              <p v-if="user.bio" class="bio">{{ user.bio }}</p>
               <p v-else class="bio-placeholder">Add a bio to tell people about yourself...</p>
             </div>
           </div>
@@ -103,6 +101,7 @@
             <button
               v-for="tab in tabs"
               :key="tab.value"
+              v-show="tab.value !== 'skills' || user.is_helper"
               type="button"
               @click="changeTab(tab.value)"
               :class="['tab-button', { active: activeTab === tab.value }]"
@@ -114,8 +113,7 @@
           <div v-if="activeTab === 'about'" class="tab-content">
             <div class="content-body">
               <h2>About Me</h2>
-              <p v-if="helperBio">{{ helperBio }}</p>
-              <p v-else-if="user.bio">{{ user.bio }}</p>
+              <p v-if="user.bio">{{ user.bio }}</p>
               <p v-else class="text-placeholder">No bio added yet. Click "Edit Profile" to add one.</p>
             </div>
           </div>
@@ -330,11 +328,6 @@
             </div>
 
             <div class="form-group">
-              <label>Public Helper Bio</label>
-              <textarea v-model="editForm.helper_bio" rows="3" placeholder="Detailed bio shown on your helper profile"></textarea>
-            </div>
-
-            <div class="form-group">
               <label>Helper-specific Skills</label>
               <div class="skills-editor-list">
                 <div v-for="(s, i) in editForm.helper_skills" :key="i" class="skill-editor-item">
@@ -522,7 +515,6 @@ const displayedSkills = computed(() => {
   return [];
 });
 const helperLocation = computed(() => user.helper_profile?.location || '');
-const helperBio = computed(() => user.helper_profile?.bio || '');
 
 /* load / refresh logic */
 async function getCurrentUserId() {
@@ -693,8 +685,8 @@ async function loadCompletedJobs(uid) {
 /* Edit modal helpers */
 function openEditModal() {
   editForm.username = user.username;
-  editForm.bio = user.bio;
-  editForm.is_helper = !!user.helper_profile || user.is_helper;
+  editForm.bio = user.bio || '';
+  editForm.is_helper = user.is_helper || false;
   editForm.helper_title = user.helper_profile?.title || user.helper_title || '';
   editForm.helper_description = user.helper_profile?.description || '';
   editForm.helper_location = user.helper_profile?.location || '';
@@ -702,7 +694,7 @@ function openEditModal() {
   editForm.availability_day = '';
   editForm.availability_time = '';
   editForm.response_time = user.helper_profile?.response_time || '';
-  editForm.helper_bio = user.helper_profile?.bio || user.bio || '';
+  editForm.helper_bio = user.bio || '';
   editForm.helper_skills = user.helper_profile?.skills ? normalizeSkillsForDisplay(user.helper_profile.skills) : (user.skills || []);
   editForm.experience = Array.isArray(user.helper_profile?.experience) ? user.helper_profile.experience.slice() : (user.experience || []);
   showEditModal.value = true;
@@ -743,9 +735,12 @@ async function saveProfile() {
     if (timePart && String(timePart).trim()) availabilityParts.push(String(timePart).trim());
     const availabilityCombined = availabilityParts.join(' • ') || null;
 
+    // Update users table with is_helper status
+    // Update users table with is_helper status and bio
     const { error: uErr } = await supabase.from('users').update({
       username: editForm.username,
-      bio: editForm.bio || null,
+      bio: editForm.is_helper ? (editForm.helper_bio || null) : (editForm.bio || null),
+      is_helper: editForm.is_helper,
       updated_at: new Date().toISOString()
     }).eq('id', uid);
 
@@ -755,7 +750,7 @@ async function saveProfile() {
       const helperPayload = {
         user_id: uid,
         title: editForm.helper_title || editForm.username,
-        description: editForm.helper_description || editForm.helper_bio || null,
+        description: editForm.helper_description || null,
         skills: editForm.helper_skills.map(s => ({ name: s.name, level: s.level || 'Beginner', jobs: s.jobs || 0 })),
         availability: availabilityCombined,
         response_time: editForm.response_time || null,
@@ -769,6 +764,7 @@ async function saveProfile() {
       const { error: hpErr } = await supabase.from('helper_profiles').upsert(helperPayload, { onConflict: 'user_id', returning: 'representation' });
       if (hpErr) throw hpErr;
     } else {
+      // When unlisting as helper, set is_active to false in helper_profiles
       const { error: disableErr } = await supabase.from('helper_profiles').update({ is_active: false }).eq('user_id', uid);
       if (disableErr) console.warn('disable helper_profiles error', disableErr);
     }
