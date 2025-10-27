@@ -408,6 +408,51 @@ const filteredHelpers = computed(() => {
 });
 
 const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
+
+// 4. Upsert user data into the users table (handles both new and existing auth users)
+const { error: upsertError } = await supabase
+  .from('users')
+  .upsert({
+    id: userId,
+    email: this.formData.email,
+    username: this.formData.username,
+    user_role: 'adventurer',
+    skills: this.skills,
+    location: this.formData.location,
+    bio: this.formData.bio,
+    service_types: serviceTypes,
+    is_helper: true, // Add this line
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }, {
+    onConflict: 'id'
+  });
+
+if (upsertError) {
+  throw new Error(upsertError.message);
+}
+
+// 5. Create helper_profiles entry so they appear in HelpersPage
+const { error: helperProfileError } = await supabase
+  .from('helper_profiles')
+  .insert({
+    user_id: userId,
+    title: this.formData.username, // or a default like "Adventurer"
+    description: this.formData.bio || 'Available to help with various tasks',
+    skills: this.skills,
+    availability: 'Contact for availability',
+    response_time: 'Usually responds within 24 hours',
+    bio: this.formData.bio,
+    experience: ['New adventurer'],
+    location: this.formData.location,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+if (helperProfileError) {
+  throw new Error(helperProfileError.message);
+}
 </script>
 
 <template>
