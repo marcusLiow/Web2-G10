@@ -71,7 +71,11 @@ const fetchHelpers = async () => {
       .select('*')
       .in('id', userIds);
 
-    if (usersError) console.warn('users fetch error', usersError);
+    if (usersError) {
+      console.error('users fetch error', usersError);
+      // If we can't fetch users data, we can't display helpers properly
+      throw usersError;
+    }
     const usersMap = {};
     (usersData || []).forEach(u => { usersMap[String(u.id)] = u; });
 
@@ -122,34 +126,36 @@ const fetchHelpers = async () => {
       }
     });
 
-    // merge
-    const merged = profiles.map(profile => {
-      const user = usersMap[profile.user_id] || null;
-      const stats = statsMap[profile.user_id] || { avg_rating: 0, review_count: 0, completed_jobs: 0 };
-      const rawSkills = profile.skills || (user && user.skills) || [];
-      return {
-        id: profile.user_id,
-        userId: profile.user_id,
-        name: (user && user.username) || 'Anonymous',
-        username: (user && user.username) || 'Anonymous',
-        avatarUrl: (user && user.avatar_url) || '',
-        title: profile.title || (user && user.helper_title) || 'Helper',
-        description: profile.description || (user && user.helper_bio) || 'Available to help with various tasks',
-        skills: normalizeSkills(rawSkills),
-        location: profile.location || (user && user.location) || 'Not specified',
-        availability: profile.availability || 'Contact for availability',
-        responseTime: profile.response_time || 'Usually responds within 24 hours',
-        rating: Math.round(Number(stats.avg_rating) * 10) / 10 || 0,
-        reviewCount: Number(stats.review_count) || 0,
-        completedJobs: Number(stats.completed_jobs) || 0,
-        bio: profile.bio || (user && user.helper_bio) || '',
-        experience: profile.experience || ['Contact for details'],
-        latestReview: latestReviewMap[profile.user_id] || null,
-        // helper UI flags (set later when profile opened)
-        canLeaveReview: false,
-        hasReviewed: false
-      };
-    });
+    // merge - only include profiles that have corresponding user data
+    const merged = profiles
+      .filter(profile => usersMap[profile.user_id]) // Filter out profiles without user data
+      .map(profile => {
+        const user = usersMap[profile.user_id];
+        const stats = statsMap[profile.user_id] || { avg_rating: 0, review_count: 0, completed_jobs: 0 };
+        const rawSkills = profile.skills || user.skills || [];
+        return {
+          id: profile.user_id,
+          userId: profile.user_id,
+          name: user.username || 'Anonymous',
+          username: user.username || 'Anonymous',
+          avatarUrl: user.avatar_url || '',
+          title: profile.title || user.helper_title || 'Helper',
+          description: profile.description || user.helper_bio || 'Available to help with various tasks',
+          skills: normalizeSkills(rawSkills),
+          location: profile.location || user.location || 'Not specified',
+          availability: profile.availability || 'Contact for availability',
+          responseTime: profile.response_time || 'Usually responds within 24 hours',
+          rating: Math.round(Number(stats.avg_rating) * 10) / 10 || 0,
+          reviewCount: Number(stats.review_count) || 0,
+          completedJobs: Number(stats.completed_jobs) || 0,
+          bio: profile.bio || user.helper_bio || '',
+          experience: profile.experience || ['Contact for details'],
+          latestReview: latestReviewMap[profile.user_id] || null,
+          // helper UI flags (set later when profile opened)
+          canLeaveReview: false,
+          hasReviewed: false
+        };
+      });
 
     helpers.value = merged;
   } catch (err) {
