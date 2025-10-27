@@ -69,15 +69,15 @@
             <p class="acceptance-text">{{ message.message }}</p>
 
             <!-- Show "Proceed to Payment" button for payer -->
-            <div v-if="shouldShowPaymentButton && message.offer_amount && !jobCompletedExists"
+            <div v-if="shouldShowPaymentButton && message.offer_amount"
                  class="payment-action">
               <button @click="proceedToPayment(message)" class="payment-btn">
                 Proceed to Payment
               </button>
             </div>
 
-            <!-- Show "Leave a Review" button after job is completed (or in-progress if accepted) -->
-            <div v-if="jobCompletedExists && !hasReviewedOtherUser"
+            <!-- Show "Leave a Review" button for everyone after offer is accepted -->
+            <div v-if="!hasReviewedOtherUser"
                  class="review-action">
               <button @click="openReviewModal" class="review-btn">
                 ⭐ Leave a Review
@@ -256,7 +256,7 @@
             <label class="form-label">Your Review *</label>
             <textarea
               v-model="reviewComment"
-              placeholder="Share your experience working with {{ otherUser?.username }}..."
+              placeholder="Share your experience..."
               class="offer-textarea"
               rows="4"
             ></textarea>
@@ -366,17 +366,17 @@ const reviewHelperId = computed(() => {
 });
 
 // Check if the current user already reviewed the helper
+// Check if the current user already reviewed the other user
 const checkIfReviewed = async () => {
   try {
-    if (!reviewHelperId.value || !currentUserId.value) return;
-    const reviewType = isHelper.value ? 'helper_to_client' : 'client_to_helper';
-
+    if (!currentUserId.value || !otherUserId.value) return;
+    
+    // Check if current user already reviewed the other user
     const { data, error } = await supabase
       .from('reviews')
       .select('id')
-      .eq('helper_id', reviewHelperId.value)
+      .eq('helper_id', otherUserId.value)
       .eq('reviewer_id', currentUserId.value)
-      .eq('review_type', reviewType)
       .maybeSingle();
 
     if (error && error.code !== 'PGRST116') {
@@ -1049,27 +1049,28 @@ const submitReview = async () => {
   try {
     isProcessing.value = true;
 
-    const reviewType = isHelper.value ? 'helper_to_client' : 'client_to_helper';
-    const helperIdForInsert = reviewHelperId.value;
-    if (!helperIdForInsert) {
-      alert('Unable to determine helper to review.');
+    const personToReview = otherUserId.value;
+    
+    if (!personToReview) {
+      alert('Unable to determine who to review.');
+      isProcessing.value = false;
       return;
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('reviews')
       .insert([{
-        helper_id: helperIdForInsert,
+        helper_id: personToReview,
         reviewer_id: currentUserId.value,
         rating: reviewRating.value,
         comment: reviewComment.value.trim(),
-        review_type: reviewType,
         job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title
-      }]);
+      }])
+      .select();
 
     if (error) {
       console.error('Error submitting review:', error);
-      alert('Failed to submit review. Please try again.');
+      alert(`Failed to submit review: ${error.message || 'Please try again.'}`);
       return;
     }
 
@@ -1079,11 +1080,12 @@ const submitReview = async () => {
 
   } catch (error) {
     console.error('Error in submitReview:', error);
-    alert('Failed to submit review. Please try again.');
+    alert(`Failed to submit review: ${error.message || 'Please try again.'}`);
   } finally {
     isProcessing.value = false;
   }
 };
+
 </script>
 
 <style scoped>
