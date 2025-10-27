@@ -54,30 +54,32 @@ const fetchHelpers = async () => {
   try {
     isLoading.value = true;
 
+    // Start from helper_profiles instead of public_helpers to ensure newly signed up adventurers appear
+    const { data: profiles, error: profilesError } = await supabase
+      .from('helper_profiles')
+      .select('*')
+      .eq('is_active', true);
+
+    if (profilesError) throw profilesError;
+    if (!profiles || profiles.length === 0) { helpers.value = []; isLoading.value = false; return; }
+
+    const userIds = profiles.map(p => p.user_id);
+
+    // Fetch user data for these helper profiles
     const { data: usersData, error: usersError } = await supabase
-      .from('public_helpers')
-      .select('*');
+      .from('users')
+      .select('*')
+      .in('id', userIds);
 
-    if (usersError) throw usersError;
-    if (!usersData || usersData.length === 0) { helpers.value = []; isLoading.value = false; return; }
-
-    const userIds = usersData.map(u => u.id);
+    if (usersError) console.warn('users fetch error', usersError);
+    const usersMap = {};
+    (usersData || []).forEach(u => { usersMap[String(u.id)] = u; });
 
     // aggregated stats
     const { data: statsData, error: statsError } = await supabase.rpc('get_helper_stats');
     if (statsError) console.warn('get_helper_stats error', statsError);
     const statsMap = {};
     if (Array.isArray(statsData)) statsData.forEach(s => { statsMap[String(s.helper_id)] = s; });
-
-    // helper_profiles
-    const { data: profiles, error: profilesError } = await supabase
-      .from('helper_profiles')
-      .select('*')
-      .in('user_id', userIds)
-      .eq('is_active', true);
-    if (profilesError) console.warn('helper_profiles fetch error', profilesError);
-    const profilesMap = {};
-    (profiles || []).forEach(p => { profilesMap[String(p.user_id)] = p; });
 
     // Fetch reviews - FIXED: avoid ambiguous relationship
     const { data: reviewsData, error: reviewsError } = await supabase
@@ -121,28 +123,28 @@ const fetchHelpers = async () => {
     });
 
     // merge
-    const merged = usersData.map(user => {
-      const profile = profilesMap[user.id] || null;
-      const stats = statsMap[user.id] || { avg_rating: 0, review_count: 0, completed_jobs: 0 };
-      const rawSkills = (profile && profile.skills) || user.skills || [];
+    const merged = profiles.map(profile => {
+      const user = usersMap[profile.user_id] || null;
+      const stats = statsMap[profile.user_id] || { avg_rating: 0, review_count: 0, completed_jobs: 0 };
+      const rawSkills = profile.skills || (user && user.skills) || [];
       return {
-        id: user.id,
-        userId: user.id,
-        name: user.username || 'Anonymous',
-        username: user.username || 'Anonymous',
-        avatarUrl: user.avatar_url || '',
-        title: (profile && profile.title) || user.helper_title || 'Helper',
-        description: (profile && profile.description) || user.helper_bio || 'Available to help with various tasks',
+        id: profile.user_id,
+        userId: profile.user_id,
+        name: (user && user.username) || 'Anonymous',
+        username: (user && user.username) || 'Anonymous',
+        avatarUrl: (user && user.avatar_url) || '',
+        title: profile.title || (user && user.helper_title) || 'Helper',
+        description: profile.description || (user && user.helper_bio) || 'Available to help with various tasks',
         skills: normalizeSkills(rawSkills),
-        location: user.location || 'Not specified',
-        availability: (profile && profile.availability) || 'Contact for availability',
-        responseTime: (profile && profile.response_time) || 'Usually responds within 24 hours',
+        location: profile.location || (user && user.location) || 'Not specified',
+        availability: profile.availability || 'Contact for availability',
+        responseTime: profile.response_time || 'Usually responds within 24 hours',
         rating: Math.round(Number(stats.avg_rating) * 10) / 10 || 0,
         reviewCount: Number(stats.review_count) || 0,
         completedJobs: Number(stats.completed_jobs) || 0,
-        bio: (profile && profile.bio) || user.helper_bio || '',
-        experience: (profile && profile.experience) || ['Contact for details'],
-        latestReview: latestReviewMap[user.id] || null,
+        bio: profile.bio || (user && user.helper_bio) || '',
+        experience: profile.experience || ['Contact for details'],
+        latestReview: latestReviewMap[profile.user_id] || null,
         // helper UI flags (set later when profile opened)
         canLeaveReview: false,
         hasReviewed: false
@@ -408,51 +410,6 @@ const filteredHelpers = computed(() => {
 });
 
 const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
-
-// 4. Upsert user data into the users table (handles both new and existing auth users)
-const { error: upsertError } = await supabase
-  .from('users')
-  .upsert({
-    id: userId,
-    email: this.formData.email,
-    username: this.formData.username,
-    user_role: 'adventurer',
-    skills: this.skills,
-    location: this.formData.location,
-    bio: this.formData.bio,
-    service_types: serviceTypes,
-    is_helper: true, // Add this line
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }, {
-    onConflict: 'id'
-  });
-
-if (upsertError) {
-  throw new Error(upsertError.message);
-}
-
-// 5. Create helper_profiles entry so they appear in HelpersPage
-const { error: helperProfileError } = await supabase
-  .from('helper_profiles')
-  .insert({
-    user_id: userId,
-    title: this.formData.username, // or a default like "Adventurer"
-    description: this.formData.bio || 'Available to help with various tasks',
-    skills: this.skills,
-    availability: 'Contact for availability',
-    response_time: 'Usually responds within 24 hours',
-    bio: this.formData.bio,
-    experience: ['New adventurer'],
-    location: this.formData.location,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  });
-
-if (helperProfileError) {
-  throw new Error(helperProfileError.message);
-}
 </script>
 
 <template>
