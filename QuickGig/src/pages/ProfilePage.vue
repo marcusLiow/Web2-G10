@@ -1137,6 +1137,10 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 
 .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1rem; margin-bottom:1.5rem; }
 .stat-card { background:#fff; padding:1rem; border-radius:.5rem; box-shadow:0 1px 3px rgba(0,0,0,.08); border-left:4px solid transparent; }
+.stat-card-jobs { border-left-color:#3b82f6; }
+.stat-card-earnings { border-left-color:#10b981; }
+.stat-card-rating { border-left-color:#f59e0b; }
+.stat-card-listings { border-left-color:#8b5cf6; }
 .stat-number { font-size:1.5rem; font-weight:700; margin:0; }
 .stat-label { font-size:.9rem; color:#6b7280; margin-top:.25rem; }
 
