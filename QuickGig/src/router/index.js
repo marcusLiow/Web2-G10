@@ -44,6 +44,13 @@ const router = createRouter({
       name: 'profile',
       component: () => import('../pages/ProfilePage.vue')
     },
+    // NEW: Route for viewing other users' profiles (helpers)
+    {
+      path: '/profile/:userId',
+      name: 'UserProfile',
+      component: () => import('../pages/ViewProfile.vue'),
+      props: true
+    },
     {
       path: '/earnings',
       name: 'earnings',
@@ -129,7 +136,7 @@ const router = createRouter({
     {
       path: '/helper-chat/:id',
       name: 'HelperChat',
-      component: () => import('../pages/ChatConversation.vue'), 
+      component: () => import('../pages/ChatConversation.vue'),
       meta: { requiresAuth: true }
     }
   ],

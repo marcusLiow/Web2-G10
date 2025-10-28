@@ -88,6 +88,8 @@ export default {
           return;
         }
         
+        console.log('Attempting login with email:', this.email);
+        
         // Sign in with Supabase
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email: this.email,
@@ -96,6 +98,8 @@ export default {
         
         if (authError) throw authError;
         
+        console.log('Auth successful. User ID:', authData.user.id);
+        
         // Check if user exists in users table
         let { data: userData, error: userError } = await supabase
           .from('users')
@@ -103,8 +107,12 @@ export default {
           .eq('id', authData.user.id)
           .single();
         
+        console.log('User lookup result:', userData, 'Error:', userError);
+        
         // If user doesn't exist, create them
         if (userError && userError.code === 'PGRST116') {
+          console.log('User not found in users table. Creating new user record...');
+          
           const { data: newUser, error: insertError } = await supabase
             .from('users')
             .insert([{
@@ -119,9 +127,15 @@ export default {
             .select()
             .single();
           
-          if (insertError) throw insertError;
+          if (insertError) {
+            console.error('Error creating user:', insertError);
+            throw insertError;
+          }
+          
           userData = newUser;
+          console.log('New user created:', userData);
         } else if (userError) {
+          console.error('Error fetching user:', userError);
           throw userError;
         }
         
@@ -134,6 +148,11 @@ export default {
         if (userData?.avatar_url) {
           localStorage.setItem('avatarUrl', userData.avatar_url);
         }
+        
+        console.log('Stored in localStorage:');
+        console.log('- userId:', authData.user.id);
+        console.log('- username:', userData?.username || authData.user.email.split('@')[0]);
+        console.log('- email:', authData.user.email);
         
         // Dispatch event to notify navbar
         window.dispatchEvent(new Event('user-logged-in'));
