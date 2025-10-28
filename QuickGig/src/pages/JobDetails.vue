@@ -102,6 +102,13 @@ const posterInitials = computed(() => {
   return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
 });
 
+// Navigate to poster's profile page
+const goToPosterProfile = () => {
+  if (job.value && job.value.userId) {
+    router.push(`/profile/${job.value.userId}`);
+  }
+};
+
 // Fetch helper signup count
 const fetchHelperCount = async () => {
   if (!job.value?.id || !job.value?.requiresMultipleHelpers) return;
@@ -746,8 +753,17 @@ const submitOffer = async () => {
               />
               <span v-else class="poster-avatar-initials">{{ posterInitials }}</span>
             </div>
-            <div>
-              <p class="poster-name">{{ posterName || 'Loading...' }}</p>
+            <div class="poster-details">
+              <div class="poster-name-row">
+                <p class="poster-name">{{ posterName || 'Loading...' }}</p>
+                <button 
+                  v-if="!isOwnListing && posterName && job?.userId" 
+                  @click="goToPosterProfile" 
+                  class="view-poster-profile-btn"
+                >
+                  View Profile
+                </button>
+              </div>
               <p class="poster-label">Job Poster</p>
             </div>
           </div>
@@ -1506,10 +1522,42 @@ const submitOffer = async () => {
   font-weight: 600;
 }
 
+.poster-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.poster-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.125rem;
+  flex-wrap: wrap;
+}
+
 .poster-name {
   font-weight: 600;
   color: #111827;
-  margin: 0 0 0.125rem 0;
+  margin: 0;
+}
+
+.view-poster-profile-btn {
+  padding: 0.375rem 0.75rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.view-poster-profile-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
 }
 
 .poster-label {
@@ -1862,6 +1910,17 @@ const submitOffer = async () => {
     font-size: 1.5rem;
     margin-bottom: 1rem;
     padding-bottom: 0.75rem;
+  }
+
+  .poster-name-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .view-poster-profile-btn {
+    font-size: 0.6875rem;
+    padding: 0.3125rem 0.625rem;
   }
 
   .action-buttons {
