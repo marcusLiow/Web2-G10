@@ -125,17 +125,158 @@ onMounted(async () => {
   // Add keyboard event listener
   window.addEventListener('keydown', handleKeydown);
   
-  // Get job data from localStorage
-  const storedJob = localStorage.getItem('selectedJob');
-  if (storedJob) {
-    job.value = JSON.parse(storedJob);
+  // ✅ Get job ID from route params
+  const jobId = route.params.id;
+  
+  console.log('=== JOB DETAILS DEBUG ===');
+  console.log('Route params:', route.params);
+  console.log('Job ID from route:', jobId);
+  
+  if (!jobId) {
+    console.error('No job ID provided in route');
+    showToast('Invalid job link', 'error');
+    setTimeout(() => {
+      router.push('/jobs');
+    }, 1500);
+    return;
+  }
+  
+  try {
+    console.log('Attempting to fetch job from database with ID:', jobId);
     
-    console.log('Job data loaded:', job.value);
+    // ✅ FIXED: Fetch job and user data separately to avoid foreign key issues
+    const { data: jobData, error } = await supabase
+      .from('User-Job-Request')
+      .select('*')
+      .eq('id', jobId)
+      .single();
+    
+    console.log('Supabase query result:');
+    console.log('- Data:', jobData);
+    console.log('- Error:', error);
+    
+    if (error) {
+      console.error('Supabase error details:');
+      console.error('- Code:', error.code);
+      console.error('- Message:', error.message);
+      console.error('- Details:', error.details);
+      console.error('- Hint:', error.hint);
+      
+      // ✅ Fallback to localStorage if database fetch fails
+      console.log('Attempting fallback to localStorage...');
+      const storedJob = localStorage.getItem('selectedJob');
+      if (storedJob) {
+        const parsedJob = JSON.parse(storedJob);
+        console.log('Found job in localStorage:', parsedJob);
+        
+        // Check if the stored job ID matches
+        if (parsedJob.id == jobId) {
+          job.value = parsedJob;
+          console.log('Using localStorage data as fallback');
+          
+          // Continue with the rest of the setup
+          if (job.value.requiresMultipleHelpers && job.value.numberOfHelpers) {
+            maxHelpers.value = job.value.numberOfHelpers;
+            await fetchHelperCount();
+          }
+          
+          // Set up coordinates
+          if (job.value.coordinates && job.value.coordinates.lat && job.value.coordinates.lng) {
+            jobCoordinates.value = job.value.coordinates;
+          } else if (job.value.postal_code && apiKey) {
+            console.log('Geocoding postal code:', job.value.postal_code);
+            try {
+              const response = await fetch(
+                `https://maps.googleapis.com/maps/api/geocode/json?` +
+                `address=${job.value.postal_code}+Singapore&` +
+                `region=sg&` +
+                `key=${apiKey}`
+              );
+              
+              const data = await response.json();
+              
+              if (data.status === 'OK' && data.results.length > 0) {
+                jobCoordinates.value = {
+                  lat: data.results[0].geometry.location.lat,
+                  lng: data.results[0].geometry.location.lng
+                };
+                console.log('Geocoded coordinates from postal code:', jobCoordinates.value);
+              } else {
+                console.log('Postal code geocoding failed, using default');
+                jobCoordinates.value = { lat: 1.3521, lng: 103.8198 };
+              }
+            } catch (error) {
+              console.error('Error geocoding postal code:', error);
+              jobCoordinates.value = { lat: 1.3521, lng: 103.8198 };
+            }
+          } else {
+            jobCoordinates.value = { lat: 1.3521, lng: 103.8198 };
+          }
+          
+          return; // Exit early, we have our data
+        }
+      }
+      
+      showToast('Job not found', 'error');
+      setTimeout(() => {
+        router.push('/jobs');
+      }, 1500);
+      return;
+    }
+    
+    if (!jobData) {
+      console.error('No job data returned from database');
+      showToast('Job not found', 'error');
+      setTimeout(() => {
+        router.push('/jobs');
+      }, 1500);
+      return;
+    }
+    
+    console.log('Successfully fetched job from database:', jobData);
+    
+    // ✅ FIXED: Fetch username separately
+    let postedBy = 'Unknown';
+    if (jobData.user_id) {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', jobData.user_id)
+        .single();
+      
+      if (!userError && userData) {
+        postedBy = userData.username;
+      }
+    }
+    
+    // Transform the data to match the expected format
+    job.value = {
+      id: jobData.id,
+      name: jobData.title,
+      fullDescription: jobData.description,
+      budget: `$${jobData.payment}`,
+      category: jobData.category || 'Uncategorized',
+      location: jobData.location,
+      postal_code: jobData.postal_code,
+      date: new Date(jobData.created_at).toLocaleDateString('en-GB'),
+      postedBy: postedBy,
+      userId: jobData.user_id,
+      skills: ['General'],
+      images: jobData.images || [],
+      coordinates: jobData.coordinates,
+      expiration_date: jobData.expiration_date,
+      requiresMultipleHelpers: jobData.multiple_positions || jobData.requiresMultipleHelpers || false,
+      numberOfHelpers: jobData.positions_available || jobData.numberOfHelpers || 1
+    };
+    
+    console.log('Transformed job data:', job.value);
+    
+    // Update localStorage with fresh data for caching
+    localStorage.setItem('selectedJob', JSON.stringify(job.value));
     
     // Set max helpers if the job requires multiple helpers
     if (job.value.requiresMultipleHelpers && job.value.numberOfHelpers) {
       maxHelpers.value = job.value.numberOfHelpers;
-      // Fetch current helper count
       await fetchHelperCount();
     }
     
@@ -144,7 +285,7 @@ onMounted(async () => {
       jobCoordinates.value = job.value.coordinates;
       console.log('Using coordinates from database:', jobCoordinates.value);
     } 
-    // Otherwise use postal code to geocode (more accurate than full address)
+    // Otherwise use postal code to geocode
     else if (job.value.postal_code && apiKey) {
       console.log('Geocoding postal code:', job.value.postal_code);
       try {
@@ -172,13 +313,18 @@ onMounted(async () => {
         jobCoordinates.value = { lat: 1.3521, lng: 103.8198 };
       }
     } else {
-      // No coordinates, postal code, or API key - use default
       console.log('No coordinates or postal code available, using default Singapore location');
       jobCoordinates.value = { lat: 1.3521, lng: 103.8198 };
     }
-  } else {
-    // If no job data, redirect back to listings
-    router.push('/jobs');
+    
+  } catch (error) {
+    console.error('Unexpected error loading job data:', error);
+    console.error('Error type:', typeof error);
+    console.error('Error keys:', Object.keys(error));
+    showToast('Failed to load job details', 'error');
+    setTimeout(() => {
+      router.push('/jobs');
+    }, 1500);
   }
 });
 

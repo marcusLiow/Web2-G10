@@ -1,15 +1,23 @@
 <template>
   <div class="handler-page">
-    <div v-if="isLoading">
-      <p>Verifying payment...</p>
+    <div class="content-card">
+      <div v-if="isLoading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Verifying payment...</p>
       </div>
-    <div v-else-if="error">
-      <p class="error-message">Error: {{ error }}</p>
-      <button @click="goToChat">Return to Chat</button>
-    </div>
-    <div v-else>
-      <p class="success-message">Payment Confirmed!</p>
-      <p>Updating job status...</p>
+      
+      <div v-else-if="error" class="error-state">
+        <h2>❌ Payment Error</h2>
+        <p class="error-message">{{ error }}</p>
+        <button @click="goToChat" class="action-button">Return to Chat</button>
+      </div>
+      
+      <div v-else class="success-state">
+        <h2>✅ Payment Successful!</h2>
+        <p class="success-message">Your payment has been confirmed.</p>
+        <p>Job status updated. Redirecting to chat...</p>
+        <div class="spinner small"></div>
+      </div>
     </div>
   </div>
 </template>
@@ -17,7 +25,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { supabase } from '../supabase/config'; // Adjust path
+import { supabase } from '../supabase/config';
 
 const route = useRoute();
 const router = useRouter();
@@ -25,107 +33,148 @@ const isLoading = ref(true);
 const error = ref('');
 
 onMounted(async () => {
-  const { jobId, chatId, amount, payment_intent, payment_intent_client_secret, redirect_status } = route.query;
+  console.log('🔄 Payment Success Handler - Route Query:', route.query);
+  
+  const { jobId, chatId, amount, payment_intent, redirect_status, isHelperJob } = route.query;
 
-  // Basic check if Stripe returned success
-  if (redirect_status !== 'succeeded') {
-    error.value = 'Payment failed or was cancelled.';
+  // Validate required parameters
+  if (!jobId || !chatId || !amount) {
+    error.value = 'Missing payment information. Please contact support.';
     isLoading.value = false;
+    console.error('Missing params:', { jobId, chatId, amount });
     return;
   }
 
-  // **IMPORTANT:** In a real application, you would ideally have another
-  // Supabase Edge Function here to securely verify the payment_intent status
-  // with Stripe using the client_secret or payment_intent ID before updating
-  // your database. Directly trusting the redirect_status is less secure.
+  // Check if Stripe returned success
+  if (redirect_status !== 'succeeded') {
+    error.value = 'Payment was not completed successfully.';
+    isLoading.value = false;
+    console.error('Payment not succeeded. Status:', redirect_status);
+    return;
+  }
 
-  // For this example, we'll assume success and update the job
   try {
-    const { error: updateError } = await supabase
-      .from('User-Job-Request')
-      .update({
-        status: 'in_progress', // Or whatever status indicates paid/started
-        paid: true,           // Assuming you added a 'paid' column
-        payment_amount: Number(amount) // Store the paid amount
-       })
-      .eq('id', jobId);
+    const isHelper = isHelperJob === 'true';
+    console.log('Processing payment for:', isHelper ? 'Helper Job' : 'Regular Job');
 
-    if (updateError) throw updateError;
+    if (isHelper) {
+      // Handle helper job payment
+      await handleHelperJobPayment(chatId, amount, route.query.jobTitle);
+    } else {
+      // Handle regular job payment
+      await handleRegularJobPayment(jobId, chatId, amount);
+    }
 
-    // Optionally send a system message to the chat confirming payment
-    await supabase
-        .from('messages')
-        .insert({
-            chat_id: chatId,
-            sender_id: 'system', // Or fetch current user ID if needed
-            message: `Payment of $${Number(amount).toFixed(2)} confirmed. Job is now in progress.`,
-            message_type: 'system'
-        });
-
-    // Update chat last message
-     await supabase
-        .from('chats')
-        .update({ last_message: 'Payment Confirmed. Job in progress.' })
-        .eq('id', chatId);
-
-
-    // Redirect back to chat after a short delay
+    console.log('✅ Payment processing complete');
+    
+    // Redirect back to chat after success
     setTimeout(() => {
       router.push(`/chat/${chatId}`);
-    }, 2000); // 2-second delay
+    }, 2000);
 
   } catch (err) {
-    console.error("Error updating job status:", err);
-    error.value = 'Payment succeeded, but failed to update job status. Please contact support.';
+    console.error("❌ Error processing payment:", err);
+    error.value = `Payment succeeded, but failed to update job status: ${err.message}. Please contact support.`;
   } finally {
     isLoading.value = false;
   }
 });
 
- // Function to manually go back if something goes wrong
- const goToChat = () => {
-     const chatId = route.query.chatId;
-     if (chatId) {
-        router.push(`/chat/${chatId}`);
-     } else {
-        router.push('/chats'); // Fallback
-     }
- };
-
-// After successful payment, if it's a helper job:
-if (route.query.isHelperJob === 'true') {
-  // Extract job title from offer message
-  const jobTitle = route.query.jobTitle || 'Helper Service';
+const handleRegularJobPayment = async (jobId, chatId, amount) => {
+  console.log('Updating regular job:', jobId);
   
+  // Update job status
+  const { error: updateError } = await supabase
+    .from('User-Job-Request')
+    .update({
+      status: 'in-progress',
+      paid: true,
+      payment_amount: Number(amount)
+    })
+    .eq('id', jobId);
+
+  if (updateError) throw updateError;
+
+  // Send payment confirmation message
+  const currentUserId = localStorage.getItem('userId');
+  await supabase
+    .from('messages')
+    .insert({
+      chat_id: chatId,
+      sender_id: currentUserId,
+      message: `Payment of $${Number(amount).toFixed(2)} confirmed. Job is now in progress.`,
+      message_type: 'system',
+      read: false
+    });
+
+  // Update chat last message
+  await supabase
+    .from('chats')
+    .update({ 
+      last_message: 'Payment confirmed. Job in progress.',
+      last_message_time: new Date().toISOString()
+    })
+    .eq('id', chatId);
+};
+
+const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
+  console.log('Creating helper job record for chat:', chatId);
+  
+  // Get chat info to extract helper and client IDs
+  const { data: chatData, error: chatError } = await supabase
+    .from('helper_chats')
+    .select('helper_id, client_id')
+    .eq('id', chatId)
+    .single();
+
+  if (chatError) throw chatError;
+
   // Create helper_jobs record
   const { error: jobError } = await supabase
     .from('helper_jobs')
     .insert([{
-      helper_chat_id: route.query.chatId,
-      helper_id: chatInfo.value.helper_id,
-      client_id: chatInfo.value.client_id,
-      job_title: jobTitle,
-      agreed_amount: route.query.amount,
-      status: 'completed',
+      helper_chat_id: chatId,
+      helper_id: chatData.helper_id,
+      client_id: chatData.client_id,
+      job_title: jobTitle || 'Helper Service',
+      agreed_amount: Number(amount),
+      status: 'in-progress',
       payment_status: 'paid',
-      completed_at: new Date().toISOString()
+      started_at: new Date().toISOString()
     }]);
 
-  if (jobError) {
-    console.error('Error creating helper job:', jobError);
+  if (jobError) throw jobError;
+
+  // Send payment confirmation message
+  const currentUserId = localStorage.getItem('userId');
+  await supabase
+    .from('helper_messages')
+    .insert([{
+      helper_chat_id: chatId,
+      sender_id: currentUserId,
+      message: `Payment of $${Number(amount).toFixed(2)} confirmed. Job is now in progress.`,
+      message_type: 'system',
+      read: false
+    }]);
+
+  // Update helper chat last message
+  await supabase
+    .from('helper_chats')
+    .update({ 
+      last_message: 'Payment confirmed. Job in progress.',
+      last_message_time: new Date().toISOString()
+    })
+    .eq('id', chatId);
+};
+
+const goToChat = () => {
+  const chatId = route.query.chatId;
+  if (chatId) {
+    router.push(`/chat/${chatId}`);
   } else {
-    // Send completion message to chat
-    await supabase
-      .from('helper_messages')
-      .insert([{
-        helper_chat_id: route.query.chatId,
-        sender_id: currentUserId.value,
-        message: `Payment completed! Job marked as completed. You can now leave a review.`,
-        message_type: 'job_completed',
-        read: false
-      }]);
+    router.push('/chats');
   }
-}
+};
 </script>
 
 <style scoped>
@@ -134,15 +183,88 @@ if (route.query.isHelperJob === 'true') {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  background-color: #f8f9fa;
+  padding: 1rem;
+}
+
+.content-card {
+  background: white;
+  border-radius: 12px;
+  padding: 3rem 2rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 500px;
+  width: 100%;
   text-align: center;
-  font-family: sans-serif;
 }
-.error-message { color: red; margin-bottom: 1rem; }
-.success-message { color: green; }
-button {
-    margin-top: 1rem;
-    padding: 0.5rem 1rem;
-    cursor: pointer;
+
+.loading-state,
+.error-state,
+.success-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
 }
-/* Add styles for a spinner */
+
+h2 {
+  font-size: 1.75rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.spinner.small {
+  width: 2rem;
+  height: 2rem;
+  border-width: 2px;
+  margin-top: 0.5rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-message {
+  color: #dc2626;
+  background-color: #fee2e2;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+}
+
+.success-message {
+  color: #059669;
+  font-size: 1.125rem;
+  margin: 0.5rem 0;
+}
+
+.action-button {
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+
+.action-button:hover {
+  background: #1d4ed8;
+}
+
+p {
+  margin: 0.25rem 0;
+  color: #6b7280;
+}
 </style>

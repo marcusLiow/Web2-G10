@@ -163,6 +163,7 @@ const fetchJobChats = async () => {
         .eq('id', otherUserId)
         .single();
       
+      console.log(`User data for ${otherUserId}:`, userData);
       // Fetch job info
       const { data: jobData } = await supabase
         .from('User-Job-Request')

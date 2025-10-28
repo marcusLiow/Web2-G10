@@ -167,6 +167,7 @@ const clearFilters = () => {
 
 // Navigate to job details page instead of opening modal
 const viewJobDetails = (job) => {
+  console.log('Navigating to job details with ID:', job.id); // ✅ Debug log
   // Store job data in localStorage temporarily for the details page
   localStorage.setItem('selectedJob', JSON.stringify(job));
   // Navigate to job details page with job ID
