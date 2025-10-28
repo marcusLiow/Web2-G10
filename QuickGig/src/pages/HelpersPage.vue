@@ -244,6 +244,16 @@ const viewHelperProfile = async (helper) => {
 
 const closeModal = () => { showModal.value = false; selectedHelper.value = null; };
 
+// Navigate to helper's profile page
+const goToHelperProfile = () => {
+  if (selectedHelper.value && selectedHelper.value.userId) {
+    // Store userId before closing modal (which clears selectedHelper)
+    const userId = selectedHelper.value.userId;
+    closeModal();
+    router.push(`/profile/${userId}`);
+  }
+};
+
 const startChat = async () => {
   try {
     console.log('=== START CHAT DEBUG ===');
@@ -329,64 +339,25 @@ const startChat = async () => {
       console.log('Create error:', createError);
 
       if (createError) {
-        console.error('❌ Error creating helper chat:', createError);
-        console.error('Error code:', createError.code);
-        console.error('Error message:', createError.message);
-        console.error('Error details:', createError.details);
-        console.error('Error hint:', createError.hint);
-        throw createError;
+        console.error('Error creating chat:', createError);
+        alert('Failed to create chat. Please try again.');
+        return;
       }
 
       chatId = newChat.id;
       console.log('✅ Created new helper chat:', chatId);
     }
 
-    // Navigate to chat
-    console.log('Navigating to helper chat:', chatId);
-    router.push(`/helper-chat/${chatId}`);
+    console.log('Navigating to helper chats with chatId:', chatId);
     closeModal();
+    router.push(`/helper-chats?chatId=${chatId}`);
 
-  } catch (error) {
-    console.error('❌ CHAT ERROR:', error);
-    console.error('Error stack:', error.stack);
-    
-    let errorMsg = 'Failed to start chat. ';
-    
-    if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
-      errorMsg += 'Database table not found. Please run the migration SQL first.';
-    } else if (error.message?.includes('permission') || error.code === '42501') {
-      errorMsg += 'Permission denied. Please check RLS policies.';
-    } else {
-      errorMsg += error.message || 'Please try again.';
-    }
-    
-    alert(errorMsg);
-  }
-};
-
-/* Render stars as a string of filled/empty stars for display */
-const renderStars = (rating, max = 5) => {
-  const full = Math.floor(rating);
-  const half = rating % 1 >= 0.5;
-  const empty = max - full - (half ? 1 : 0);
-  let s = '★'.repeat(full);
-  if (half) s += '☆'; // use a lighter star for half (visually distinguishable)
-  s += '☆'.repeat(empty);
-  return s;
-};
-
-onMounted(async () => {
-  // set current user
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    currentUserId.value = sessionData?.session?.user?.id || localStorage.getItem('userId');
   } catch (err) {
-    currentUserId.value = localStorage.getItem('userId');
+    console.error('Unexpected error in startChat:', err);
+    alert('An error occurred. Please try again.');
   }
-  await fetchHelpers();
-});
+};
 
-/* --- Filtering --- */
 const filteredHelpers = computed(() => {
   const term = searchTerm.value.toLowerCase().trim();
   const skill = selectedSkill.value;
@@ -394,36 +365,64 @@ const filteredHelpers = computed(() => {
 
   if (term) {
     result = result.filter(h =>
-      (h.name && h.name.toLowerCase().includes(term)) ||
-      (h.title && h.title.toLowerCase().includes(term)) ||
-      (h.description && h.description.toLowerCase().includes(term))
+      h.name.toLowerCase().includes(term) ||
+      h.username.toLowerCase().includes(term) ||
+      h.title.toLowerCase().includes(term) ||
+      h.description.toLowerCase().includes(term) ||
+      h.bio.toLowerCase().includes(term)
     );
   }
 
   if (skill) {
-    result = result.filter(h => h.skills.some(s => (s.name || '').toLowerCase().includes(skill.toLowerCase())));
+    result = result.filter(h =>
+      h.skills.some(s => s.name.toLowerCase() === skill.toLowerCase())
+    );
   }
 
   return result;
 });
 
-const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
+function renderStars(rating) {
+  const fullStars = Math.floor(rating);
+  let stars = '';
+  for (let i = 0; i < fullStars; i++) stars += '★';
+  for (let i = fullStars; i < 5; i++) stars += '☆';
+  return stars;
+}
+
+const clearFilters = () => {
+  searchTerm.value = '';
+  selectedSkill.value = '';
+};
+
+onMounted(async () => {
+  const { data } = await supabase.auth.getSession();
+  currentUserId.value = data?.session?.user?.id || localStorage.getItem('userId');
+  await fetchHelpers();
+});
 </script>
 
 <template>
   <div class="page-wrapper">
     <div class="container">
+      <!-- Header -->
       <div class="header-section">
-        <h1 class="main-title">Browse Helpers</h1>
-        <p class="subtitle">Find skilled helpers ready to assist with your tasks.</p>
+        <h1 class="main-title">Discover Local Helpers</h1>
+        <p class="subtitle">Connect with skilled professionals in your area.</p>
       </div>
 
+      <!-- Search Card -->
       <div class="search-card">
         <div class="search-grid">
           <div class="search-group">
             <label class="search-label">Search Helpers</label>
-            <input v-model="searchTerm" placeholder="Search by name, title, or description..." class="search-input" />
+            <input
+              v-model="searchTerm"
+              placeholder="Search by name or description..."
+              class="search-input"
+            />
           </div>
+
           <div class="search-group">
             <label class="search-label">Filter by Skill</label>
             <select v-model="selectedSkill" class="search-select">
@@ -434,64 +433,69 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
         </div>
 
         <div v-if="selectedSkill" class="selected-filters">
-          <span class="filter-tag">Skill: {{ selectedSkill }} <button @click="selectedSkill = ''" class="remove-filter">✕</button></span>
+          <span class="filter-tag">
+            Skill: {{ selectedSkill }}
+            <button @click="selectedSkill = ''" class="remove-filter">✕</button>
+          </span>
           <button class="clear-btn" @click="clearFilters">Clear All</button>
         </div>
       </div>
 
+      <!-- Loading State -->
       <div v-if="isLoading" class="loading-state">
         <div class="spinner"></div>
         <p>Loading helpers...</p>
       </div>
 
+      <!-- Empty State -->
       <div v-else-if="filteredHelpers.length === 0" class="empty-state">
         <p>No helpers found matching your criteria.</p>
       </div>
 
+      <!-- Helpers Grid -->
       <div v-else class="helpers-grid">
         <div v-for="helper in filteredHelpers" :key="helper.id" class="helper-card">
-          <div class="helper-avatar">
-            <img v-if="helper.avatarUrl" :src="helper.avatarUrl" :alt="helper.name" class="avatar-img" />
-            <div v-else class="avatar-placeholder">{{ helper.name.charAt(0).toUpperCase() }}</div>
-          </div>
-
-          <div class="helper-content">
-            <div class="helper-header">
-              <div>
-                <h2 class="helper-name">{{ helper.name }}</h2>
-                <p class="helper-title">{{ helper.title }}</p>
-              </div>
-              <div class="helper-rate">{{ helper.hourlyRate }}</div>
+          <div class="helper-header">
+            <div class="helper-avatar">
+              <img v-if="helper.avatarUrl" :src="helper.avatarUrl" :alt="helper.name" class="avatar-img" />
+              <div v-else class="avatar-placeholder">{{ helper.name.charAt(0).toUpperCase() }}</div>
             </div>
-
-            <div class="helper-stats">
-              <div class="stat-item">
-                <span class="stars-inline" aria-hidden="true" :title="helper.rating + ' / 5'">{{ renderStars(helper.rating) }}</span>
+            <div class="helper-info">
+              <h3 class="helper-name">{{ helper.name }}</h3>
+              <p class="helper-title">{{ helper.title }}</p>
+              <div class="helper-rating">
+                <span class="stars">{{ renderStars(helper.rating) }}</span>
                 <span class="rating-text">{{ helper.rating }}</span>
-                <span class="separator">•</span>
-                <span class="review-count-inline">{{ helper.reviewCount }} reviews</span>
-              </div>
-              <div class="stat-item">
-                <span class="jobs-count">{{ helper.completedJobs }} jobs completed</span>
+                <span class="jobs-count">({{ helper.completedJobs }} jobs)</span>
               </div>
             </div>
-
-            <p class="helper-description">{{ helper.description }}</p>
-
-            <div class="helper-meta">
-              <div class="meta-item"><span class="icon">📍</span><span>{{ helper.location }}</span></div>
-              <div class="meta-item"><span class="icon">📅</span><span>{{ helper.availability }}</span></div>
-            </div>
-
-            <div class="skills-preview">
-              <span v-for="skill in helper.skills.slice(0,3)" :key="skill.name + (skill.level || '')" class="skill-badge">
-                {{ skill.name }}<span v-if="skill.level"> — {{ skill.level }}</span>
-              </span>
-              <span v-if="helper.skills.length > 3" class="more-skills">+{{ helper.skills.length - 3 }} more</span>
-            </div>
-
-            <button class="view-profile-btn" @click="viewHelperProfile(helper)">View Full Profile</button>
           </div>
+
+          <p class="helper-description">{{ helper.description }}</p>
+
+          <div class="helper-meta">
+            <div class="meta-item"><span class="icon">📍</span>{{ helper.location }}</div>
+            <div class="meta-item"><span class="icon">⏱️</span>{{ helper.responseTime }}</div>
+          </div>
+
+          <div class="skills-preview">
+            <span v-for="(skill, idx) in helper.skills.slice(0, 3)" :key="skill.name + String(idx)" class="skill-badge">
+              {{ skill.name }}
+            </span>
+            <span v-if="helper.skills.length > 3" class="more-skills">+{{ helper.skills.length - 3 }} more</span>
+          </div>
+
+          <!-- Latest Review Snippet -->
+          <div v-if="helper.latestReview" class="review-snippet">
+            <div class="snippet-top">
+              <span class="snippet-stars">{{ renderStars(helper.latestReview.rating) }}</span>
+              <span class="snippet-rating">{{ helper.latestReview.rating }}</span>
+              <span class="snippet-author">by {{ helper.latestReview.reviewerName }}</span>
+            </div>
+            <p class="snippet-comment">"{{ helper.latestReview.comment }}"</p>
+          </div>
+
+          <button class="view-profile-btn" @click="viewHelperProfile(helper)">View Profile</button>
         </div>
       </div>
     </div>
@@ -508,7 +512,12 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
                 <div v-else class="avatar-placeholder-large">{{ selectedHelper.name.charAt(0).toUpperCase() }}</div>
               </div>
               <div>
-                <h2 class="modal-name">{{ selectedHelper.name }}</h2>
+                <div class="name-and-button">
+                  <h2 class="modal-name">{{ selectedHelper.name }}</h2>
+                  <button @click="goToHelperProfile" class="view-profile-link-btn">
+                    View Profile
+                  </button>
+                </div>
                 <p class="modal-title">{{ selectedHelper.title }}</p>
                 <div class="modal-stats">
                   <span class="stars">{{ renderStars(selectedHelper.rating) }}</span>
@@ -543,28 +552,14 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
           <div class="modal-section">
             <h3 class="section-title">Experience & Qualifications</h3>
             <ul class="experience-list">
-              <li v-for="(exp, index) in selectedHelper.experience" :key="index">{{ exp }}</li>
+              <li v-for="(exp, idx) in selectedHelper.experience" :key="idx">{{ exp }}</li>
             </ul>
           </div>
 
-          <div class="modal-section">
-            <h3 class="section-title">Reviews ({{ selectedHelper.reviewCount }})</h3>
-            <!-- Only show review form when selectedHelper.canLeaveReview === true -->
-            <Reviews 
-              :helperId="selectedHelper.userId" 
-              :showForm="selectedHelper.canLeaveReview" 
-              :isHelperReviewing="isCurrentUserTheHelper"
-              :key="selectedHelper.userId" 
-            />
-            <div v-if="!selectedHelper.canLeaveReview && !selectedHelper.hasReviewed" class="review-note">
-              <small>You can only leave a review after you've completed a job with this helper.</small>
-            </div>
-            <div v-else-if="selectedHelper.hasReviewed" class="review-note">
-              <small>You've already left a review for this helper.</small>
-            </div>
-          </div>
+          <!-- Reviews Section with Reviews Component -->
+          <Reviews :helperId="selectedHelper.userId" />
 
-          <button class="chat-btn" @click="startChat">💬 Start Chat</button>
+          <button v-if="!isCurrentUserTheHelper" class="chat-btn" @click="startChat">Start Chat</button>
         </div>
       </div>
     </div>
@@ -572,30 +567,6 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
 </template>
 
 <style scoped>
-/* keep your existing styles and add a few for the stars/snippet */
-.snippet-top { display:flex; gap:0.5rem; align-items:center; margin-bottom:0.25rem; }
-.snippet-avatar { width:32px; height:32px; border-radius:50%; object-fit:cover; }
-.snippet-meta { display:flex; flex-direction:column; }
-.snippet-stars { color:#f59e0b; font-weight:700; font-size:0.95rem; line-height:1; }
-.stars-inline { color:#f59e0b; font-weight:700; margin-right:0.5rem; }
-.rating-text { font-weight:700; margin-left:0.35rem; }
-.snippet-comment { margin:0; font-style:italic; color:#374151; }
-.review-count-inline { color:#6b7280; margin-left:0.35rem; }
-.review-note {
-  margin-top: 0.5rem;
-  color: #6b7280;
-  font-size: 0.9rem;
-}
-
-.snippet-top { display:flex; gap:0.5rem; align-items:center; margin-bottom:0.25rem; }
-.snippet-avatar { width:32px; height:32px; border-radius:50%; object-fit:cover; }
-.snippet-meta { display:flex; flex-direction:column; }
-.snippet-stars { color:#f59e0b; font-weight:700; font-size:0.95rem; line-height:1; }
-.stars-inline { color:#f59e0b; font-weight:700; margin-right:0.5rem; }
-.rating-text { font-weight:700; margin-left:0.35rem; }
-.snippet-comment { margin:0; font-style:italic; color:#374151; }
-.review-count-inline { color:#6b7280; margin-left:0.35rem; }
-
 .review-snippet {
   margin: 0.75rem 0;
   padding: 0.75rem;
@@ -705,10 +676,10 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
 }
 
 .search-label {
-  font-size: 0.95rem;
   font-weight: 600;
   color: #374151;
   margin-bottom: 0.5rem;
+  font-size: 0.875rem;
 }
 
 .search-input,
@@ -823,7 +794,7 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
 /* Helpers Grid */
 .helpers-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 1.5rem;
 }
 
@@ -842,7 +813,7 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid #f3f4f6;
   display: flex;
-  gap: 1rem;
+  flex-direction: column;
 }
 
 .helper-card:hover {
@@ -850,9 +821,15 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
+.helper-header {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
 .helper-avatar {
-  width: 4.5rem;
-  height: 4.5rem;
+  width: 4rem;
+  height: 4rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -869,23 +846,13 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
 }
 
 .avatar-placeholder {
-  font-size: 2rem;
+  font-size: 1.75rem;
   font-weight: 600;
   color: #6b7280;
 }
 
-.helper-content {
+.helper-info {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.helper-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 0.75rem;
-  gap: 1rem;
 }
 
 .helper-name {
@@ -893,38 +860,28 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
   font-weight: 700;
   color: #111827;
   margin: 0 0 0.25rem 0;
-  line-height: 1.3;
 }
 
 .helper-title {
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   color: #6b7280;
-  margin: 0;
-  font-weight: 500;
+  margin: 0 0 0.5rem 0;
 }
 
-.helper-stats {
+.helper-rating {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
+  gap: 0.5rem;
   font-size: 0.875rem;
 }
 
 .stars {
+  color: #f59e0b;
   font-size: 1rem;
-  line-height: 1;
 }
 
 .rating-text {
-  font-weight: 600;
+  font-weight: 700;
   color: #374151;
 }
 
@@ -1114,11 +1071,38 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
   color: #6b7280;
 }
 
+/* Name and button container */
+.name-and-button {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
 .modal-name {
   font-size: 1.75rem;
   font-weight: 700;
   color: #111827;
-  margin: 0 0 0.25rem 0;
+  margin: 0;
+}
+
+.view-profile-link-btn {
+  padding: 0.5rem 1rem;
+  background: #6C5B7F;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.view-profile-link-btn:hover {
+  background: #5A4C6B;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(108, 91, 127, 0.3);
 }
 
 .modal-title {
@@ -1153,6 +1137,17 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
 @media (max-width: 640px) {
   .modal-quick-info {
     grid-template-columns: 1fr;
+  }
+  
+  .name-and-button {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .view-profile-link-btn {
+    font-size: 0.8125rem;
+    padding: 0.375rem 0.75rem;
   }
 }
 
