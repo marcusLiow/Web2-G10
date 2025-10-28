@@ -18,6 +18,10 @@ const isLoggedIn = ref(false);
 const isSubmitting = ref(false);
 const showDeleteModal = ref(false);
 
+// Profile picture state
+const posterAvatarUrl = ref(null);
+const posterName = ref('');
+
 // Helper counter state
 const helperSignupCount = ref(0);
 const maxHelpers = ref(0);
@@ -60,6 +64,43 @@ const isOwnListing = computed(() => {
 const checkLoginStatus = () => {
   isLoggedIn.value = localStorage.getItem('isLoggedIn') === 'true';
 };
+
+// Fetch poster's profile information including profile picture
+const fetchPosterProfile = async (userId) => {
+  try {
+    console.log('Fetching poster profile for userId:', userId);
+    
+    const { data, error } = await supabase
+      .from('users')
+      .select('username, avatar_url')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching poster profile:', error);
+      return;
+    }
+    
+    if (data) {
+      posterName.value = data.username || 'Unknown User';
+      posterAvatarUrl.value = data.avatar_url;
+      console.log('Poster profile loaded:', data);
+    }
+  } catch (error) {
+    console.error('Error in fetchPosterProfile:', error);
+  }
+};
+
+// Get initials from poster name for fallback
+const posterInitials = computed(() => {
+  if (!posterName.value) return '?';
+  
+  const names = posterName.value.trim().split(' ');
+  if (names.length === 1) {
+    return names[0].charAt(0).toUpperCase();
+  }
+  return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
+});
 
 // Fetch helper signup count
 const fetchHelperCount = async () => {
@@ -131,6 +172,11 @@ onMounted(async () => {
     job.value = JSON.parse(storedJob);
     
     console.log('Job data loaded:', job.value);
+    
+    // Fetch the poster's profile information
+    if (job.value.userId) {
+      await fetchPosterProfile(job.value.userId);
+    }
     
     // Set max helpers if the job requires multiple helpers
     if (job.value.requiresMultipleHelpers && job.value.numberOfHelpers) {
@@ -350,66 +396,39 @@ const deleteListing = async () => {
   }
 };
 
-const closeDeleteModal = () => {
-  showDeleteModal.value = false;
-};
-
-// Carousell-style Chat function
-const startChat = async () => {
+// Contact poster (navigate to chat)
+const contactPoster = async () => {
   if (!isLoggedIn.value) {
+    showToast('Please log in to contact the poster', 'error');
     router.push('/login');
     return;
   }
   
-  const currentUserId = localStorage.getItem('userId');
-  const jobPosterId = job.value.userId;
-  
-  console.log('=== STARTING CHAT ===');
-  console.log('Current user ID:', currentUserId);
-  console.log('Job poster ID:', jobPosterId);
-  console.log('Job ID:', job.value.id);
-  
-  // Check if user is trying to chat with themselves
-  if (currentUserId === jobPosterId) {
-    console.log('Cannot chat with yourself');
-    return;
-  }
-  
-  if (!jobPosterId) {
-    console.error('Job poster ID is missing!');
-    showToast('Unable to start chat: Job poster information missing', 'error');
-    return;
-  }
-  
   try {
+    const currentUserId = localStorage.getItem('userId');
+    
     // Check if chat already exists
-    const { data: existingChat, error: searchError } = await supabase
+    const { data: existingChat, error: chatError } = await supabase
       .from('chats')
       .select('id')
       .eq('job_id', job.value.id)
-      .eq('job_poster_id', jobPosterId)
       .eq('job_seeker_id', currentUserId)
-      .maybeSingle();
+      .single();
     
-    if (searchError) {
-      console.error('Error searching for chat:', searchError);
-      throw searchError;
+    if (chatError && chatError.code !== 'PGRST116') {
+      console.error('Error checking for existing chat:', chatError);
     }
     
-    let chatId;
-    
     if (existingChat) {
-      // Chat exists, use existing chat
-      chatId = existingChat.id;
-      console.log('Using existing chat:', chatId);
+      // Navigate to existing chat
+      router.push(`/chats?chatId=${existingChat.id}`);
     } else {
       // Create new chat
-      console.log('Creating new chat...');
       const { data: newChat, error: createError } = await supabase
         .from('chats')
         .insert([{
           job_id: job.value.id,
-          job_poster_id: jobPosterId,
+          job_poster_id: job.value.userId,
           job_seeker_id: currentUserId,
           last_message: 'Chat started',
           last_message_time: new Date().toISOString()
@@ -419,184 +438,31 @@ const startChat = async () => {
       
       if (createError) {
         console.error('Error creating chat:', createError);
-        console.error('Error details:', JSON.stringify(createError, null, 2));
-        throw createError;
+        showToast('Failed to start chat', 'error');
+        return;
       }
       
-      chatId = newChat.id;
-      console.log('Created new chat:', chatId);
-      
-      // Refresh helper count after creating a new chat
-      if (job.value.requiresMultipleHelpers) {
-        await fetchHelperCount();
-      }
+      // Navigate to new chat
+      router.push(`/chats?chatId=${newChat.id}`);
     }
-    
-    // Navigate to chat conversation
-    console.log('Navigating to chat:', chatId);
-    router.push(`/chat/${chatId}`);
-    
   } catch (error) {
-    console.error('Error starting chat:', error);
-    console.error('Full error:', JSON.stringify(error, null, 2));
-    showToast('Failed to start chat. Please try again', 'error');
+    console.error('Error in contactPoster:', error);
+    showToast('Failed to start chat', 'error');
   }
 };
 
-// Carousell-style Make Offer function
+// Make offer modal
 const openOfferModal = () => {
   if (!isLoggedIn.value) {
-    showToast('Please log in to make an offer', 'warning');
+    showToast('Please log in to make an offer', 'error');
     router.push('/login');
     return;
   }
   
-  // Pre-fill with the listed price
-  const budgetNumber = job.value.budget.replace('$', '');
-  offerAmount.value = budgetNumber;
   showOfferModal.value = true;
-};
-
-const submitOffer = async () => {
-  if (!offerAmount.value || offerAmount.value <= 0) {
-    showToast('Please enter a valid offer amount', 'warning');
-    return;
-  }
-  
-  if (isSubmitting.value) return;
-  
-  try {
-    isSubmitting.value = true;
-    
-    const currentUserId = localStorage.getItem('userId');
-    const jobPosterId = job.value.userId;
-    
-    console.log('=== SUBMITTING OFFER ===');
-    console.log('Offer amount:', offerAmount.value);
-    console.log('Offer message:', offerMessage.value);
-    
-    // Step 1: Check if chat already exists or create new one
-    const { data: existingChat, error: searchError } = await supabase
-      .from('chats')
-      .select('id')
-      .eq('job_id', job.value.id)
-      .eq('job_poster_id', jobPosterId)
-      .eq('job_seeker_id', currentUserId)
-      .maybeSingle();
-    
-    if (searchError) {
-      console.error('Error searching for chat:', searchError);
-      throw searchError;
-    }
-    
-    let chatId;
-    
-    if (existingChat) {
-      chatId = existingChat.id;
-      console.log('Using existing chat:', chatId);
-    } else {
-      // Create new chat
-      console.log('Creating new chat for offer...');
-      const { data: newChat, error: createError } = await supabase
-        .from('chats')
-        .insert([{
-          job_id: job.value.id,
-          job_poster_id: jobPosterId,
-          job_seeker_id: currentUserId,
-          last_message: `Offered $${offerAmount.value}`,
-          last_message_time: new Date().toISOString()
-        }])
-        .select()
-        .single();
-      
-      if (createError) {
-        console.error('Error creating chat:', createError);
-        throw createError;
-      }
-      
-      chatId = newChat.id;
-      console.log('Created new chat:', chatId);
-      
-      // Refresh helper count after creating a new chat
-      if (job.value.requiresMultipleHelpers) {
-        await fetchHelperCount();
-      }
-    }
-    
-    // Step 2: Send the offer message WITH METADATA
-    const offerMessageText = `Offered $${offerAmount.value}`;
-    
-    const { error: offerMsgError } = await supabase
-      .from('messages')
-      .insert([{
-        chat_id: chatId,
-        sender_id: currentUserId,
-        message: offerMessageText,
-        message_type: 'offer',           // ✅ NEW: Mark as offer
-        offer_amount: offerAmount.value,  // ✅ NEW: Store amount
-        offer_status: 'pending',          // ✅ NEW: Initial status
-        read: false
-      }]);
-    
-    if (offerMsgError) {
-      console.error('Error sending offer message:', offerMsgError);
-      throw offerMsgError;
-    }
-    
-    console.log('Offer message sent');
-    
-    // Step 3: Send additional message if provided (as regular message)
-    let lastMessage = offerMessageText;
-    
-    if (offerMessage.value.trim()) {
-      const { error: additionalMsgError } = await supabase
-        .from('messages')
-        .insert([{
-          chat_id: chatId,
-          sender_id: currentUserId,
-          message: offerMessage.value.trim(),
-          message_type: 'regular',  // ✅ Regular message
-          read: false
-        }]);
-      
-      if (additionalMsgError) {
-        console.error('Error sending additional message:', additionalMsgError);
-        throw additionalMsgError;
-      }
-      
-      console.log('Additional message sent');
-      lastMessage = offerMessage.value.trim();
-    }
-    
-    // Step 4: Update chat's last message
-    await supabase
-      .from('chats')
-      .update({
-        last_message: lastMessage,
-        last_message_time: new Date().toISOString()
-      })
-      .eq('id', chatId);
-    
-    // Reset modal
-    showOfferModal.value = false;
-    offerAmount.value = '';
-    offerMessage.value = '';
-    
-    // Show success toast
-    showToast('Offer sent successfully!', 'success');
-    
-    // Navigate to the chat after a brief delay
-    setTimeout(() => {
-      console.log('Navigating to chat:', chatId);
-      router.push(`/chat/${chatId}`);
-    }, 500);
-    
-  } catch (error) {
-    console.error('Error submitting offer:', error);
-    showToast('Failed to submit offer. Please try again', 'error');
-  } finally {
-    isSubmitting.value = false;
-  }
+  // Extract numeric value from budget (which includes $) or use price directly
+  const priceValue = job.value.budget ? job.value.budget.replace('$', '') : (job.value.price?.toString() || '');
+  offerAmount.value = priceValue;
 };
 
 const closeOfferModal = () => {
@@ -604,340 +470,435 @@ const closeOfferModal = () => {
   offerAmount.value = '';
   offerMessage.value = '';
 };
+
+const submitOffer = async () => {
+  if (!offerAmount.value) {
+    showToast('Please enter an offer amount', 'error');
+    return;
+  }
+  
+  try {
+    isSubmitting.value = true;
+    const currentUserId = localStorage.getItem('userId');
+    
+    // Check if chat already exists
+    let chatId;
+    const { data: existingChat, error: chatError } = await supabase
+      .from('chats')
+      .select('id')
+      .eq('job_id', job.value.id)
+      .eq('job_seeker_id', currentUserId)
+      .single();
+    
+    if (chatError && chatError.code !== 'PGRST116') {
+      console.error('Error checking for existing chat:', chatError);
+    }
+    
+    if (existingChat) {
+      chatId = existingChat.id;
+    } else {
+      // Create new chat
+      const { data: newChat, error: createError } = await supabase
+        .from('chats')
+        .insert([{
+          job_id: job.value.id,
+          job_poster_id: job.value.userId,
+          job_seeker_id: currentUserId,
+          last_message: `Offer: $${offerAmount.value}`,
+          last_message_time: new Date().toISOString()
+        }])
+        .select()
+        .single();
+      
+      if (createError) {
+        console.error('Error creating chat:', createError);
+        showToast('Failed to submit offer', 'error');
+        return;
+      }
+      
+      chatId = newChat.id;
+    }
+    
+    // Send offer message
+    const { error: messageError } = await supabase
+      .from('messages')
+      .insert([{
+        chat_id: chatId,
+        sender_id: currentUserId,
+        message: offerMessage.value || `I'd like to offer $${offerAmount.value} for this job.`,
+        offer_amount: parseFloat(offerAmount.value),
+        is_offer: true
+      }]);
+    
+    if (messageError) {
+      console.error('Error sending offer:', messageError);
+      showToast('Failed to submit offer', 'error');
+      return;
+    }
+    
+    showToast('Offer submitted successfully!', 'success');
+    closeOfferModal();
+    
+    // Navigate to chat
+    setTimeout(() => {
+      router.push(`/chats?chatId=${chatId}`);
+    }, 1000);
+    
+  } catch (error) {
+    console.error('Error submitting offer:', error);
+    showToast('Failed to submit offer', 'error');
+  } finally {
+    isSubmitting.value = false;
+  }
+};
 </script>
 
 <template>
   <div class="page-wrapper">
     <!-- Toast Notifications -->
     <div class="toast-container">
-      <transition-group name="toast">
-        <div 
-          v-for="toast in toasts" 
-          :key="toast.id"
-          :class="['toast', `toast-${toast.type}`]"
-          @click="removeToast(toast.id)"
-        >
-          <div class="toast-icon">
-            <svg v-if="toast.type === 'success'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-            <svg v-else-if="toast.type === 'error'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="15" y1="9" x2="9" y2="15"></line>
-              <line x1="9" y1="9" x2="15" y2="15"></line>
-            </svg>
-            <svg v-else-if="toast.type === 'warning'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-              <line x1="12" y1="9" x2="12" y2="13"></line>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-          </div>
-          <span class="toast-message">{{ toast.message }}</span>
-          <button class="toast-close" @click.stop="removeToast(toast.id)">✕</button>
-        </div>
-      </transition-group>
+      <div 
+        v-for="toast in toasts" 
+        :key="toast.id"
+        :class="['toast', `toast-${toast.type}`]"
+      >
+        <span class="toast-icon">
+          {{ toast.type === 'success' ? '✓' : toast.type === 'error' ? '✕' : 'ℹ' }}
+        </span>
+        <span class="toast-message">{{ toast.message }}</span>
+        <button @click="removeToast(toast.id)" class="toast-close">×</button>
+      </div>
     </div>
 
-    <div class="container">
-      <!-- Header with back button -->
-      <div class="header">
-        <button @click="goBack" class="back-button">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          Back to listings
-        </button>
-      </div>
+    <!-- Back Button -->
+    <button @click="goBack" class="back-button">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+      Back
+    </button>
 
-      <div v-if="job" class="details-container">
-        <!-- Main Content Grid -->
-        <div class="content-grid">
-          <!-- Left Column - Job Details -->
-          <div class="main-content">
-            <!-- Combined Overview Card -->
-            <div class="job-overview-card">
-              <!-- Image Gallery Section -->
-              <div v-if="job.images && job.images.length > 0" class="image-gallery-wrapper">
-                <div class="image-gallery-grid">
-                  <!-- Main Large Image (Left) -->
-                  <div class="main-image-container" @click="openImageModal(0)">
-                    <img 
-                      :src="job.images[0]" 
-                      :alt="`${job.name} - Image 1`"
-                      class="main-image"
-                    />
-                  </div>
-                  
-                  <!-- Right Column with 2 Images -->
-                  <div class="side-images-column">
-                    <!-- Top Right Image -->
-                    <div 
-                      v-if="job.images.length > 1"
-                      class="side-image-container" 
-                      @click="openImageModal(1)"
-                    >
-                      <img 
-                        :src="job.images[1]" 
-                        :alt="`${job.name} - Image 2`"
-                        class="side-image"
-                      />
-                    </div>
-                    
-                    <!-- Bottom Right Image -->
-                    <div 
-                      v-if="job.images.length > 2"
-                      class="side-image-container side-image-last" 
-                      @click="openImageModal(2)"
-                    >
-                      <img 
-                        :src="job.images[2]" 
-                        :alt="`${job.name} - Image 3`"
-                        class="side-image"
-                      />
-                    </div>
-                    
-                    <!-- Placeholder if less than 3 images -->
-                    <div 
-                      v-else-if="job.images.length === 2"
-                      class="side-image-container side-image-last placeholder"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                        <polyline points="21 15 16 10 5 21"></polyline>
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- Show All Images Button -->
-                <button class="show-all-btn" @click="openImageModal(0)">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                    <polyline points="21 15 16 10 5 21"></polyline>
-                  </svg>
-                  <span>Show all {{ job.images.length }} {{ job.images.length === 1 ? 'photo' : 'photos' }}</span>
-                </button>
-              </div>
-
-              <!-- Title, Category & Budget Section -->
-              <div class="header-section">
-                <div class="job-header">
-                  <h1 class="job-title">{{ job.name }}</h1>
-                  <span class="job-category-badge">{{ job.category }}</span>
-                </div>
-                
-                <div class="price-section">
-                  <span class="price-label">Budget</span>
-                  <span class="price-amount">{{ job.budget }}</span>
-                </div>
-              </div>
-
-              <!-- Description Section -->
-              <div class="description-section">
-                <h2 class="section-title">Description</h2>
-                <p class="description-text">{{ job.fullDescription }}</p>
-              </div>
-            </div>
-
-            <!-- Job Info Card -->
-            <div class="info-card">
-              <h2 class="section-title">Job Details</h2>
-              <div class="info-grid">
-                <div class="info-item">
-                  <span class="info-icon">📍</span>
-                  <div>
-                    <span class="info-label">Location</span>
-                    <span class="info-value">{{ job.location }}</span>
-                  </div>
-                </div>
-                <div class="info-item">
-                  <span class="info-icon">📅</span>
-                  <div>
-                    <span class="info-label">Posted on</span>
-                    <span class="info-value">{{ job.date }}</span>
-                  </div>
-                </div>
-                <div class="info-item">
-                  <span class="info-icon">👤</span>
-                  <div>
-                    <span class="info-label">Posted by</span>
-                    <span class="info-value">{{ job.postedBy }}</span>
-                  </div>
-                </div>
-                <div v-if="isOwnListing" class="info-item">
-                  <span class="info-icon">⏰</span>
-                  <div>
-                    <span class="info-label">Expiration</span>
-                    <span class="info-value" :class="`expiration-${expirationStatus}`">
-                      {{ formattedExpirationDate }}
-                    </span>
-                  </div>
-                </div>
-                <!-- Helper Signup Info - Only show for jobs requiring multiple helpers -->
-                <div v-if="job.requiresMultipleHelpers" class="info-item helper-info-item">
-                  <span class="info-icon">👥</span>
-                  <div>
-                    <span class="info-label">Helpers Signed Up</span>
-                    <span class="info-value helper-count-value">
-                      <strong>{{ helperSignupCount }}</strong> of <strong>{{ maxHelpers }}</strong>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Skills Card -->
-            <div class="skills-card">
-              <h2 class="section-title">Required Skills</h2>
-              <div class="skills-list">
-                <span v-for="skill in job.skills" :key="skill" class="skill-tag">
-                  {{ skill }}
-                </span>
-              </div>
-            </div>
-
-            <!-- Map Section -->
-            <div class="map-card">
-              <button @click="toggleMap" class="map-toggle-btn">
-                <span class="map-icon">📍</span>
-                {{ showMap ? 'Hide Location Map' : 'Show Location Map' }}
-              </button>
-              
-              <div v-if="showMap" class="map-container">
-                <div v-if="!jobCoordinates" class="map-loading">
-                  Loading map...
-                </div>
-                <GoogleMap
-                  v-else
-                  :api-key="apiKey"
-                  style="width: 100%; height: 400px; border-radius: 0.75rem;"
-                  :center="mapCenter"
-                  :zoom="15"
-                >
-                  <Marker 
-                    :options="{ position: mapCenter }"
-                    @click="showMapInfoWindow = true"
-                  />
-                  <InfoWindow
-                    v-if="showMapInfoWindow"
-                    :options="{ position: mapCenter }"
-                    @closeclick="showMapInfoWindow = false"
-                  >
-                    <div class="map-info-window">
-                      <h4>{{ job.name }}</h4>
-                      <p>{{ job.location }}</p>
-                    </div>
-                  </InfoWindow>
-                </GoogleMap>
-              </div>
+    <div v-if="job" class="job-container">
+      <!-- Main Content Area -->
+      <div class="main-content">
+        <!-- Job Title and Basic Info -->
+        <div class="job-header">
+          <!-- Job Title at top of container -->
+          <h1 class="job-header-title">{{ job.name || job.title }}</h1>
+          
+          <div class="header-top">
+            <div class="job-meta">
+              <span class="meta-item">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                {{ new Date(job.createdAt || job.date).toLocaleDateString() }}
+              </span>
+              <span class="meta-item">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                {{ job.postal_code }}
+              </span>
+              <span :class="['expiration-badge', expirationStatus]">
+                {{ formattedExpirationDate }}
+              </span>
             </div>
           </div>
 
-          <!-- Right Column - Action Card (Sticky) -->
-          <div class="sidebar">
-            <div class="action-card">
-              <div class="poster-info">
-                <div class="poster-avatar">
-                  {{ job.postedBy.charAt(0).toUpperCase() }}
-                </div>
-                <div>
-                  <p class="poster-name">{{ job.postedBy }}</p>
-                  <p class="poster-label">Job Poster</p>
-                </div>
-              </div>
+          <!-- Helper Progress Bar (only for multi-helper jobs) -->
+          <div v-if="job.requiresMultipleHelpers" class="helper-progress-section">
+            <div class="helper-progress-header">
+              <span class="helper-count-text">
+                <strong>{{ helperSignupCount }}</strong> of <strong>{{ maxHelpers }}</strong> helpers signed up
+              </span>
+              <span class="helper-percentage">
+                {{ Math.round((helperSignupCount / maxHelpers) * 100) }}%
+              </span>
+            </div>
+            <div class="progress-bar">
+              <div 
+                class="progress-fill" 
+                :style="{ width: `${Math.min((helperSignupCount / maxHelpers) * 100, 100)}%` }"
+              ></div>
+            </div>
+            <p v-if="helperSignupCount >= maxHelpers" class="helper-full-message">
+              ✓ All helper positions are filled!
+            </p>
+          </div>
+        </div>
 
-              <div class="price-highlight">
-                <span class="price-label">{{ isOwnListing ? 'Your Asking Price' : 'Asking Price' }}</span>
-                <span class="price-large">{{ job.budget }}</span>
-              </div>
-
-              <!-- Action Buttons - Different for own listing vs others -->
-              <div v-if="isOwnListing" class="action-buttons-own">
-                <button @click="viewChats" class="view-chats-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                  View Chats
-                </button>
-                <button @click="editListing" class="edit-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                  </svg>
-                  Edit Listing
-                </button>
-                <button @click="confirmDelete" class="delete-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  </svg>
-                  Delete
-                </button>
-              </div>
-
-              <!-- Carousell-style Action Buttons for non-owners -->
-              <div v-else class="action-buttons">
-                <button @click="startChat" class="chat-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                  Chat
-                </button>
-                <button @click="openOfferModal" class="offer-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-                    <line x1="7" y1="7" x2="7.01" y2="7"></line>
-                  </svg>
-                  Make Offer
-                </button>
-              </div>
-
-              <div class="safety-tips">
-                <p class="tips-title">💡 Tips</p>
-                <ul class="tips-list">
-                  <li>Meet in safe, public places</li>
-                  <li>Check credentials before hiring</li>
-                  <li>Use secure payment methods</li>
-                </ul>
+        <!-- Image Gallery -->
+        <div v-if="job.images && job.images.length > 0" class="image-gallery">
+          <div class="gallery-grid">
+            <div 
+              v-for="(image, index) in job.images" 
+              :key="index"
+              class="gallery-item"
+              @click="openImageModal(index)"
+            >
+              <img :src="image" :alt="`Job image ${index + 1}`" />
+              <div class="image-overlay">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  <line x1="11" y1="8" x2="11" y2="14"></line>
+                  <line x1="8" y1="11" x2="14" y2="11"></line>
+                </svg>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Job Description -->
+        <div class="detail-section">
+          <h2 class="section-title">Description</h2>
+          <p class="job-description">{{ job.description }}</p>
+        </div>
+
+        <!-- Job Details Grid -->
+        <div class="detail-section">
+          <h2 class="section-title">Job Details</h2>
+          <div class="details-grid">
+            <div class="detail-item">
+              <span class="detail-label">Category</span>
+              <span class="detail-value">{{ job.category }}</span>
+            </div>
+            <div v-if="job.subcategory" class="detail-item">
+              <span class="detail-label">Subcategory</span>
+              <span class="detail-value">{{ job.subcategory }}</span>
+            </div>
+            <div v-if="job.urgency" class="detail-item">
+              <span class="detail-label">Urgency</span>
+              <span class="detail-value">{{ job.urgency }}</span>
+            </div>
+            <div v-if="job.duration" class="detail-item">
+              <span class="detail-label">Duration</span>
+              <span class="detail-value">{{ job.duration }}</span>
+            </div>
+            <div v-if="job.scheduled_date" class="detail-item">
+              <span class="detail-label">Scheduled Date</span>
+              <span class="detail-value">{{ new Date(job.scheduled_date).toLocaleDateString() }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Location Section -->
+        <div class="detail-section">
+          <div class="location-header">
+            <h2 class="section-title">Location</h2>
+            <button @click="toggleMap" class="toggle-map-btn">
+              {{ showMap ? 'Hide Map' : 'Show Map' }}
+            </button>
+          </div>
+          <div class="location-info">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            <div>
+              <p class="location-address">{{ job.location }}</p>
+              <p class="location-postal">Postal Code: {{ job.postal_code }}</p>
+            </div>
+          </div>
+          
+          <div v-if="showMap && jobCoordinates" class="map-container">
+            <GoogleMap
+              :api-key="apiKey"
+              :center="mapCenter"
+              :zoom="15"
+              style="width: 100%; height: 100%"
+            >
+              <Marker 
+                :options="{ position: jobCoordinates }"
+                @click="showMapInfoWindow = !showMapInfoWindow"
+              />
+              <InfoWindow 
+                v-if="showMapInfoWindow"
+                :options="{ position: jobCoordinates }"
+              >
+                <div style="padding: 8px;">
+                  <strong>{{ job.name || job.title }}</strong>
+                  <p style="margin: 4px 0 0 0; font-size: 14px;">{{ job.location }}</p>
+                </div>
+              </InfoWindow>
+            </GoogleMap>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="action-card">
+          <!-- Poster Info with Profile Picture -->
+          <div class="poster-info">
+            <!-- Display profile picture if available, otherwise show initials -->
+            <div class="poster-avatar">
+              <img 
+                v-if="posterAvatarUrl" 
+                :src="posterAvatarUrl" 
+                :alt="posterName"
+                class="poster-avatar-image"
+              />
+              <span v-else class="poster-avatar-initials">{{ posterInitials }}</span>
+            </div>
+            <div>
+              <p class="poster-name">{{ posterName || 'Loading...' }}</p>
+              <p class="poster-label">Job Poster</p>
+            </div>
+          </div>
+
+          <!-- Price Highlight -->
+          <div class="price-highlight">
+            <span style="font-size: 0.875rem; color: #059669;">Offered Price</span>
+            <span class="price-large">{{ job.budget || '$' + job.price }}</span>
+          </div>
+
+          <!-- Action Buttons for non-owners -->
+          <div v-if="!isOwnListing" class="action-buttons">
+            <button @click="contactPoster" class="chat-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              Chat
+            </button>
+            <button @click="openOfferModal" class="offer-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              Make Offer
+            </button>
+          </div>
+
+          <!-- Action Buttons for owners -->
+          <div v-else class="action-buttons-own">
+            <button @click="viewChats" class="owner-btn primary-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              View All Offers
+            </button>
+            <button @click="editListing" class="owner-btn secondary-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Edit Listing
+            </button>
+            <button @click="confirmDelete" class="owner-btn danger-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Delete Listing
+            </button>
+          </div>
+
+          <!-- Safety Tips -->
+          <div class="safety-tips">
+            <h3 class="tips-title">💡 Safety Tips</h3>
+            <ul class="tips-list">
+              <li>Meet in a public place</li>
+              <li>Don't pay in advance</li>
+              <li>Check reviews and ratings</li>
+              <li>Trust your instincts</li>
+            </ul>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Image Modal/Lightbox -->
-    <div v-if="showImageModal && job.images" class="image-modal-overlay" @click="closeImageModal">
-      <div class="image-modal-content" @click.stop>
-        <button class="modal-close-btn" @click="closeImageModal">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+    <!-- Offer Modal -->
+    <div v-if="showOfferModal" class="modal-overlay" @click.self="closeOfferModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">Make an Offer</h2>
+          <button @click="closeOfferModal" class="close-btn">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="offer-info">
+            <p class="offer-job-title">{{ job.name || job.title }}</p>
+            <p class="offer-original-price">Listed Price: {{ job.budget || '$' + job.price }}</p>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">Your Offer Amount ($)</label>
+            <input 
+              v-model="offerAmount" 
+              type="number" 
+              class="offer-input"
+              placeholder="Enter your offer"
+              min="0"
+              step="0.01"
+            />
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">Message (Optional)</label>
+            <textarea 
+              v-model="offerMessage" 
+              class="offer-textarea"
+              placeholder="Add a message to your offer..."
+            ></textarea>
+          </div>
+          
+          <div class="modal-actions">
+            <button @click="closeOfferModal" class="cancel-btn">Cancel</button>
+            <button @click="submitOffer" :disabled="isSubmitting" class="submit-offer-btn">
+              {{ isSubmitting ? 'Submitting...' : 'Submit Offer' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">Delete Listing</h2>
+          <button @click="showDeleteModal = false" class="close-btn">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <p style="margin-bottom: 1.5rem; color: #374151;">
+            Are you sure you want to delete this listing? This action cannot be undone.
+          </p>
+          
+          <div class="modal-actions">
+            <button @click="showDeleteModal = false" class="cancel-btn">Cancel</button>
+            <button @click="deleteListing" :disabled="isSubmitting" class="submit-offer-btn">
+              {{ isSubmitting ? 'Deleting...' : 'Delete' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div v-if="showImageModal" class="modal-overlay" @click.self="closeImageModal">
+      <div class="image-modal-content">
+        <button @click="closeImageModal" class="modal-close-btn">×</button>
         
         <button 
           v-if="selectedImageIndex > 0"
-          class="modal-nav-btn prev-btn" 
-          @click="prevImage"
+          @click="prevImage" 
+          class="modal-nav-btn modal-nav-prev"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
+          ‹
         </button>
         
         <div class="modal-image-container">
           <img 
             :src="job.images[selectedImageIndex]" 
-            :alt="`${job.name} - Image ${selectedImageIndex + 1}`"
+            :alt="`Job image ${selectedImageIndex + 1}`"
             class="modal-image"
           />
           <div class="image-counter">
@@ -947,100 +908,30 @@ const closeOfferModal = () => {
         
         <button 
           v-if="selectedImageIndex < job.images.length - 1"
-          class="modal-nav-btn next-btn" 
-          @click="nextImage"
+          @click="nextImage" 
+          class="modal-nav-btn modal-nav-next"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
+          ›
         </button>
-      </div>
-    </div>
-
-    <!-- Make Offer Modal -->
-    <div v-if="showOfferModal" class="modal-overlay" @click="closeOfferModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h2 class="modal-title">Make an Offer</h2>
-          <button @click="closeOfferModal" class="close-btn">✕</button>
-        </div>
-
-        <div class="modal-body">
-          <div class="offer-info">
-            <p class="offer-job-title">{{ job.name }}</p>
-            <p class="offer-original-price">Listed price: {{ job.budget }}</p>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Your Offer ($)</label>
-            <input 
-              v-model="offerAmount" 
-              type="number" 
-              class="offer-input"
-              placeholder="Enter your offer amount"
-              min="1"
-              :disabled="isSubmitting"
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Message (Optional)</label>
-            <textarea 
-              v-model="offerMessage"
-              class="offer-textarea"
-              placeholder="Add a message to the job poster..."
-              rows="4"
-              :disabled="isSubmitting"
-            ></textarea>
-          </div>
-
-          <div class="modal-actions">
-            <button @click="closeOfferModal" class="cancel-btn" :disabled="isSubmitting">
-              Cancel
-            </button>
-            <button @click="submitOffer" class="submit-offer-btn" :disabled="isSubmitting">
-              {{ isSubmitting ? 'Sending...' : 'Send Offer' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="modal-overlay" @click="closeDeleteModal">
-      <div class="modal-content delete-modal" @click.stop>
-        <div class="modal-header">
-          <h2 class="modal-title">Delete Listing</h2>
-          <button @click="closeDeleteModal" class="close-btn">✕</button>
-        </div>
-
-        <div class="modal-body">
-          <div class="delete-warning">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="8" x2="12" y2="12"></line>
-              <line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
-            <p class="delete-message">Are you sure you want to delete this listing?</p>
-            <p class="delete-submessage">This action cannot be undone. All related chats will remain but the listing will be permanently removed.</p>
-          </div>
-
-          <div class="modal-actions">
-            <button @click="closeDeleteModal" class="cancel-btn" :disabled="isSubmitting">
-              Cancel
-            </button>
-            <button @click="deleteListing" class="confirm-delete-btn" :disabled="isSubmitting">
-              {{ isSubmitting ? 'Deleting...' : 'Delete Listing' }}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Toast Notification Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.page-wrapper {
+  min-height: 100vh;
+  background: #f9fafb;
+  padding: 1rem;
+}
+
+/* Toast Notifications */
 .toast-container {
   position: fixed;
   top: 1rem;
@@ -1048,8 +939,7 @@ const closeOfferModal = () => {
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  pointer-events: none;
+  gap: 0.75rem;
 }
 
 .toast {
@@ -1057,19 +947,23 @@ const closeOfferModal = () => {
   align-items: center;
   gap: 0.75rem;
   padding: 1rem 1.25rem;
-  background: white;
   border-radius: 0.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   min-width: 300px;
   max-width: 400px;
-  pointer-events: auto;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  animation: slideInRight 0.3s ease-out;
+  background: white;
 }
 
-.toast:hover {
-  transform: translateX(-4px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+@keyframes slideInRight {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .toast-success {
@@ -1080,34 +974,33 @@ const closeOfferModal = () => {
   border-left: 4px solid #ef4444;
 }
 
-.toast-warning {
-  border-left: 4px solid #f59e0b;
-}
-
 .toast-info {
   border-left: 4px solid #3b82f6;
 }
 
 .toast-icon {
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  font-weight: bold;
+  flex-shrink: 0;
 }
 
 .toast-success .toast-icon {
+  background: #d1fae5;
   color: #10b981;
 }
 
 .toast-error .toast-icon {
+  background: #fee2e2;
   color: #ef4444;
 }
 
-.toast-warning .toast-icon {
-  color: #f59e0b;
-}
-
 .toast-info .toast-icon {
+  background: #dbeafe;
   color: #3b82f6;
 }
 
@@ -1115,392 +1008,87 @@ const closeOfferModal = () => {
   flex: 1;
   color: #374151;
   font-size: 0.875rem;
-  font-weight: 500;
-  line-height: 1.4;
 }
 
 .toast-close {
-  flex-shrink: 0;
   background: none;
   border: none;
+  font-size: 1.5rem;
   color: #9ca3af;
-  font-size: 1.125rem;
   cursor: pointer;
   padding: 0;
-  width: 20px;
-  height: 20px;
+  width: 1.5rem;
+  height: 1.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   transition: color 0.2s;
 }
 
 .toast-close:hover {
-  color: #6b7280;
+  color: #4b5563;
 }
 
-/* Toast Animations */
-.toast-enter-active {
-  animation: toastSlideIn 0.3s ease;
-}
-
-.toast-leave-active {
-  animation: toastSlideOut 0.3s ease;
-}
-
-@keyframes toastSlideIn {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes toastSlideOut {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-}
-
-@media (max-width: 640px) {
-  .toast-container {
-    top: 0.5rem;
-    right: 0.5rem;
-    left: 0.5rem;
-  }
-  
-  .toast {
-    min-width: auto;
-    max-width: none;
-  }
-}
-
-/* All other styles */
-.action-buttons-own {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.view-chats-btn,
-.edit-btn,
-.delete-btn {
-  padding: 0.875rem 1rem;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border: none;
-}
-
-.view-chats-btn {
-  background: #3b82f6;
-  color: white;
-}
-
-.view-chats-btn:hover {
-  background: #2563eb;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-.edit-btn {
-  background: white;
-  color: #374151;
-  border: 2px solid #e5e7eb;
-}
-
-.edit-btn:hover {
-  background: #f9fafb;
-  border-color: #d1d5db;
-  transform: translateY(-1px);
-}
-
-.delete-btn {
-  background: white;
-  color: #dc2626;
-  border: 2px solid #fecaca;
-}
-
-.delete-btn:hover {
-  background: #fef2f2;
-  border-color: #fca5a5;
-  transform: translateY(-1px);
-}
-
-.delete-modal .modal-body {
-  padding: 1.5rem;
-}
-
-.delete-warning {
-  text-align: center;
-  padding: 1rem;
-}
-
-.delete-warning svg {
-  margin: 0 auto 1rem;
-}
-
-.delete-message {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0 0 0.5rem 0;
-}
-
-.delete-submessage {
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin: 0;
-  line-height: 1.5;
-}
-
-.confirm-delete-btn {
-  flex: 1;
-  padding: 0.875rem;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-  background: #dc2626;
-  color: white;
-}
-
-.confirm-delete-btn:hover {
-  background: #b91c1c;
-  transform: translateY(-1px);
-}
-
-.confirm-delete-btn:disabled,
-.submit-offer-btn:disabled,
-.cancel-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.offer-input:disabled,
-.offer-textarea:disabled {
-  background: #f3f4f6;
-  cursor: not-allowed;
-}
-
-.page-wrapper {
-  min-height: 100vh;
-  background: #f5f5f5;
-  padding: 1rem;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.header {
-  margin-bottom: 1.5rem;
-}
-
+/* Back Button */
 .back-button {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
+  padding: 0.625rem 1rem;
   background: white;
-  color: #374151;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
-  font-size: 1rem;
+  color: #374151;
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  margin-bottom: 1rem;
 }
 
 .back-button:hover {
   background: #f9fafb;
   border-color: #d1d5db;
+  transform: translateX(-2px);
 }
 
-.details-container {
-  animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.content-grid {
+/* Main Container */
+.job-container {
+  max-width: 1400px;
+  margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr 380px;
-  gap: 1.5rem;
+  gap: 2rem;
   align-items: start;
 }
 
-@media (max-width: 968px) {
-  .content-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .sidebar {
-    position: static !important;
-  }
-}
-
+/* Main Content */
 .main-content {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
 
-.job-overview-card {
+/* Job Header */
+.job-header {
   background: white;
   border-radius: 0.75rem;
-  overflow: hidden;
+  padding: 2rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.image-gallery-wrapper {
-  position: relative;
-  width: 100%;
-  height: 450px;
-  overflow: hidden;
-}
-
-.image-gallery-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 0.5rem;
-  height: 100%;
-}
-
-@media (max-width: 768px) {
-  .image-gallery-wrapper {
-    height: 300px;
-  }
-  
-  .image-gallery-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .side-images-column {
-    display: none;
-  }
-}
-
-.main-image-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  cursor: pointer;
-  background: #f3f4f6;
-}
-
-.main-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.main-image-container:hover .main-image {
-  transform: scale(1.05);
-}
-
-.side-images-column {
-  display: grid;
-  grid-template-rows: 1fr 1fr;
-  gap: 0.5rem;
-  height: 100%;
-}
-
-.side-image-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  cursor: pointer;
-  background: #f3f4f6;
-}
-
-.side-image-container.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: default;
-}
-
-.side-image-container.placeholder svg {
-  color: #d1d5db;
-}
-
-.side-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.side-image-container:hover .side-image {
-  transform: scale(1.05);
-}
-
-.show-all-btn {
-  position: absolute;
-  bottom: 1rem;
-  right: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+.job-header-title {
+  font-size: 1.75rem;
+  font-weight: 700;
   color: #111827;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  z-index: 10;
-}
-
-.show-all-btn:hover {
-  background: #f9fafb;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.show-all-btn svg {
-  flex-shrink: 0;
-}
-
-.header-section {
-  padding: 1.5rem;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.3;
+  padding-bottom: 1rem;
   border-bottom: 1px solid #e5e7eb;
 }
 
-.job-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
+.header-top {
   margin-bottom: 1rem;
 }
 
@@ -1508,225 +1096,267 @@ const closeOfferModal = () => {
   font-size: 2rem;
   font-weight: 700;
   color: #111827;
-  margin: 0;
-  line-height: 1.3;
-  flex: 1;
+  margin-bottom: 1rem;
+  line-height: 1.2;
 }
 
-.job-category-badge {
-  background: #dbeafe;
-  color: #1e40af;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.price-section {
+.job-meta {
   display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
 }
 
-.price-label {
-  font-size: 1rem;
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   color: #6b7280;
-  font-weight: 500;
+  font-size: 0.875rem;
 }
 
-.price-amount {
-  font-size: 1.875rem;
-  font-weight: 700;
+.meta-item svg {
+  flex-shrink: 0;
+}
+
+.expiration-badge {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.expiration-badge.never {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+.expiration-badge.active {
+  background: #d1fae5;
   color: #059669;
 }
 
-.description-section {
-  padding: 1.5rem;
+.expiration-badge.expiring-soon {
+  background: #fed7aa;
+  color: #ea580c;
 }
 
-.section-title {
-  font-size: 1.25rem;
+.expiration-badge.expired {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Helper Progress Section */
+.helper-progress-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.helper-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.helper-count-text {
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.helper-percentage {
+  font-size: 0.875rem;
   font-weight: 600;
-  color: #111827;
-  margin: 0 0 1rem 0;
+  color: #059669;
 }
 
-.description-text {
-  color: #4b5563;
-  line-height: 1.7;
-  margin: 0;
+.progress-bar {
+  width: 100%;
+  height: 0.5rem;
+  background: #e5e7eb;
+  border-radius: 9999px;
+  overflow: hidden;
 }
 
-.info-card, .skills-card, .map-card {
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+  transition: width 0.3s ease;
+  border-radius: 9999px;
+}
+
+.helper-full-message {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: #d1fae5;
+  border: 1px solid #86efac;
+  border-radius: 0.5rem;
+  color: #059669;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Image Gallery */
+.image-gallery {
   background: white;
   border-radius: 0.75rem;
   padding: 1.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.info-grid {
+.gallery-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 1rem;
 }
 
-.info-item {
+.gallery-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.gallery-item:hover {
+  transform: scale(1.02);
+}
+
+.gallery-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.75rem;
-  background: #f9fafb;
-  border-radius: 0.5rem;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: white;
 }
 
-/* Helper Info Item - Special styling */
-.helper-info-item {
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
+.gallery-item:hover .image-overlay {
+  opacity: 1;
 }
 
-.info-icon {
-  font-size: 1.25rem;
+/* Detail Sections */
+.detail-section {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.info-label {
-  display: block;
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin-bottom: 0.125rem;
-}
-
-.info-value {
-  display: block;
+.section-title {
+  font-size: 1.5rem;
   font-weight: 600;
   color: #111827;
+  margin-bottom: 1rem;
 }
 
-.helper-count-value {
-  color: #0369a1;
-  font-size: 1rem;
+.job-description {
+  color: #374151;
+  line-height: 1.75;
+  white-space: pre-wrap;
 }
 
-.helper-count-value strong {
-  font-weight: 700;
-  font-size: 1.1rem;
+/* Details Grid */
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
 }
 
-/* Expiration status colors */
-.expiration-never {
-  color: #6b7280;
-}
-
-.expiration-active {
-  color: #059669;
-}
-
-.expiration-expiring-soon {
-  color: #dc2626;
-  font-weight: 700;
-}
-
-.expiration-expired {
-  color: #991b1b;
-  font-weight: 700;
-  text-decoration: line-through;
-}
-
-.skills-list {
+.detail-item {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.5rem;
 }
 
-.skill-tag {
-  padding: 0.5rem 1rem;
-  background: #f3f4f6;
-  color: #374151;
-  border-radius: 0.375rem;
+.detail-label {
   font-size: 0.875rem;
+  color: #6b7280;
   font-weight: 500;
 }
 
-.map-toggle-btn {
-  width: 100%;
-  padding: 0.875rem;
-  background: #f3f4f6;
-  color: #374151;
-  border: 2px solid #e5e7eb;
-  border-radius: 0.5rem;
+.detail-value {
   font-size: 1rem;
+  color: #111827;
   font-weight: 600;
+}
+
+/* Location Section */
+.location-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.toggle-map-btn {
+  padding: 0.5rem 1rem;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
 }
 
-.map-toggle-btn:hover {
+.toggle-map-btn:hover {
   background: #e5e7eb;
-  border-color: #d1d5db;
 }
 
-.map-icon {
-  font-size: 1.125rem;
+.location-info {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.location-info svg {
+  flex-shrink: 0;
+  color: #dc2626;
+}
+
+.location-address {
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.25rem;
+}
+
+.location-postal {
+  font-size: 0.875rem;
+  color: #6b7280;
 }
 
 .map-container {
-  margin-top: 1rem;
-  border-radius: 0.75rem;
-  overflow: hidden;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.map-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
   height: 400px;
-  background: #f9fafb;
-  color: #6b7280;
-  font-size: 1rem;
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
 }
 
-.map-info-window {
-  padding: 0.5rem;
-  min-width: 200px;
-}
-
-.map-info-window h4 {
-  margin: 0 0 0.25rem 0;
-  color: #111827;
-  font-size: 1rem;
-}
-
-.map-info-window p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
-.image-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.2s ease;
-}
-
+/* Image Modal */
 .image-modal-content {
   position: relative;
-  width: 90%;
-  max-width: 1200px;
-  height: 90vh;
+  max-width: 90vw;
+  max-height: 90vh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1736,22 +1366,23 @@ const closeOfferModal = () => {
   position: absolute;
   top: -3rem;
   right: 0;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
+  background: rgba(0, 0, 0, 0.7);
   color: white;
-  width: 40px;
-  height: 40px;
+  border: none;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
+  font-size: 2rem;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
   transition: all 0.2s;
   z-index: 10;
 }
 
 .modal-close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.9);
   transform: scale(1.1);
 }
 
@@ -1759,53 +1390,41 @@ const closeOfferModal = () => {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
+  background: rgba(0, 0, 0, 0.7);
   color: white;
-  width: 50px;
-  height: 50px;
+  border: none;
+  width: 3rem;
+  height: 3rem;
   border-radius: 50%;
+  font-size: 2rem;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
   transition: all 0.2s;
   z-index: 10;
 }
 
 .modal-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.9);
   transform: translateY(-50%) scale(1.1);
 }
 
-.prev-btn {
-  left: -70px;
+.modal-nav-prev {
+  left: -4rem;
 }
 
-.next-btn {
-  right: -70px;
+.modal-nav-next {
+  right: -4rem;
 }
 
-@media (max-width: 768px) {
-  .prev-btn {
-    left: 10px;
+@media (max-width: 1024px) {
+  .modal-nav-prev {
+    left: 1rem;
   }
   
-  .next-btn {
-    right: 10px;
-  }
-  
-  .modal-close-btn {
-    top: 10px;
-    right: 10px;
-  }
-  
-  .job-title {
-    font-size: 1.5rem;
-  }
-
-  .job-header {
-    flex-direction: column;
+  .modal-nav-next {
+    right: 1rem;
   }
 }
 
@@ -1862,12 +1481,27 @@ const closeOfferModal = () => {
 .poster-avatar {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.poster-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.poster-avatar-initials {
+  color: white;
   font-size: 1.25rem;
   font-weight: 600;
 }
@@ -1946,6 +1580,63 @@ const closeOfferModal = () => {
   box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
 }
 
+/* Owner Action Buttons */
+.action-buttons-own {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.owner-btn {
+  padding: 0.875rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+}
+
+.primary-btn {
+  background: #dc2626;
+  color: white;
+}
+
+.primary-btn:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.secondary-btn {
+  background: white;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+}
+
+.secondary-btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  transform: translateY(-1px);
+}
+
+.danger-btn {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 2px solid #fecaca;
+}
+
+.danger-btn:hover {
+  background: #fecaca;
+  border-color: #fca5a5;
+  transform: translateY(-1px);
+}
+
 /* Safety Tips */
 .safety-tips {
   background: #fef3c7;
@@ -2006,6 +1697,15 @@ const closeOfferModal = () => {
   to { 
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -2135,9 +1835,33 @@ const closeOfferModal = () => {
   transform: translateY(-1px);
 }
 
+.submit-offer-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 @media (max-width: 768px) {
+  .job-container {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+  }
+
   .page-wrapper {
     padding: 0.5rem;
+  }
+
+  .job-header {
+    padding: 1.5rem;
+  }
+
+  .job-header-title {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
   }
 
   .action-buttons {
