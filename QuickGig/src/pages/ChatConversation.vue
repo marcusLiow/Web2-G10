@@ -7,13 +7,18 @@
         </svg>
       </button>
 
-      <div class="header-info">
+      <div class="header-info" @click="navigateToJobDetails" :class="{ 'clickable': !isHelperChat }">
         <div class="user-avatar">
           <span>{{ otherUser?.username?.charAt(0).toUpperCase() || '?' }}</span>
         </div>
         <div class="header-text">
           <h2 class="user-name">{{ otherUser?.username || 'Loading...' }}</h2>
-          <p class="job-title">{{ chatSubtitle }}</p>
+          <p class="job-title">
+            {{ chatSubtitle }}
+            <svg v-if="!isHelperChat" class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </p>
         </div>
       </div>
     </div>
@@ -68,12 +73,19 @@
           <div v-else-if="message.message_type === 'offer_accepted'" class="message-bubble accepted-bubble">
             <p class="acceptance-text">{{ message.message }}</p>
 
-            <!-- Show "Proceed to Payment" button for payer -->
-            <div v-if="shouldShowPaymentButton && message.offer_amount"
+            <!-- Show "Proceed to Payment" button for payer if not yet paid -->
+            <div v-if="shouldShowPaymentButton && message.offer_amount && !isPaymentCompleted"
                  class="payment-action">
               <button @click="proceedToPayment(message)" class="payment-btn">
                 Proceed to Payment
               </button>
+            </div>
+
+            <!-- Show "Payment Confirmed" message if payment is completed -->
+            <div v-else-if="shouldShowPaymentButton && isPaymentCompleted"
+                 class="payment-confirmed">
+              <div class="confirmed-icon">✓</div>
+              <p class="confirmed-text">Payment Confirmed</p>
             </div>
 
             <!-- Show "Leave a Review" button for everyone after offer is accepted -->
@@ -96,33 +108,43 @@
     </div>
 
     <div class="message-input-container">
-      <form @submit.prevent="sendMessage" class="message-form">
-        <input
-          v-model="newMessage"
-          type="text"
-          placeholder="Type a message..."
-          class="message-input"
-          :disabled="isSending"
-        />
-        <button
-          v-if="canMakeOffer"
-          type="button"
-          class="offer-btn"
-          @click="openMakeOfferModal"
-          :disabled="isSending"
-        >
-          Make Offer
-        </button>
-        <button
-          type="submit"
-          class="send-btn"
-          :disabled="!newMessage.trim() || isSending"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-        </button>
+      <form @submit.prevent="sendMessage" class="message-form row g-2 align-items-center">
+
+        <div class="col">
+          <input
+            v-model="newMessage"
+            type="text"
+            placeholder="Type a message..."
+            class="message-input form-control"
+            :disabled="isSending"
+          />
+        </div>
+
+        <div v-if="canMakeOffer" class="col-auto">
+          <button
+            type="button"
+            class="offer-btn btn btn-success" 
+            @click="openMakeOfferModal"
+            :disabled="isSending"
+          >
+            Offer
+          </button>
+        </div>
+
+        <div class="col-auto">
+          <button
+            type="submit"
+            class="send-btn btn btn-primary"
+            :disabled="!newMessage.trim() || isSending"
+            aria-label="Send Message"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+
       </form>
     </div>
 
@@ -135,11 +157,26 @@
         </div>
 
         <div class="modal-body">
+          <!-- Current Asking Price Display -->
+          <div class="current-price-section">
+            <div class="price-label-row">
+              <span class="price-label-text">Current Asking Price</span>
+            </div>
+            <div class="current-price-display">
+              ${{ jobInfo?.payment || '0.00' }}
+            </div>
+            <p class="price-subtext">Posted by {{ otherUser?.username }}</p>
+          </div>
+
+          <!-- Job Info -->
           <div class="job-info-box">
-            <p class="info-label">{{ isHelperChat ? 'Helper' : 'Job' }}</p>
+            <div class="job-info-header">
+              <p class="info-label">{{ isHelperChat ? 'Helper Service' : 'Job Title' }}</p>
+            </div>
             <p class="info-value">{{ isHelperChat ? otherUser?.username : jobInfo?.title }}</p>
           </div>
 
+          <!-- Helper Chat Job Title Input -->
           <div v-if="isHelperChat" class="form-group">
             <label class="form-label">Job Title *</label>
             <input
@@ -150,23 +187,39 @@
             />
           </div>
 
+          <!-- Your Offer Amount -->
           <div class="form-group">
-            <label class="form-label">Offer Amount ($) *</label>
-            <input
-              v-model="offerAmount"
-              type="number"
-              placeholder="Enter your offer amount"
-              class="offer-input"
-              min="1"
-              step="0.01"
-            />
+            <label class="form-label">Your Offer Amount ($) *</label>
+            <div class="offer-amount-input-wrapper">
+              <span class="currency-prefix">$</span>
+              <input
+                v-model="offerAmount"
+                type="number"
+                placeholder="Enter your offer"
+                class="offer-input offer-amount-input"
+                min="1"
+                step="0.01"
+              />
+            </div>
+            <div v-if="offerAmount && jobInfo?.payment" class="price-difference">
+              <span v-if="parseFloat(offerAmount) < parseFloat(jobInfo.payment)" class="difference-lower">
+                ${{ (parseFloat(jobInfo.payment) - parseFloat(offerAmount)).toFixed(2) }} lower than asking price
+              </span>
+              <span v-else-if="parseFloat(offerAmount) > parseFloat(jobInfo.payment)" class="difference-higher">
+                ${{ (parseFloat(offerAmount) - parseFloat(jobInfo.payment)).toFixed(2) }} higher than asking price
+              </span>
+              <span v-else class="difference-equal">
+                Matches asking price
+              </span>
+            </div>
           </div>
 
+          <!-- Optional Message -->
           <div class="form-group">
             <label class="form-label">Message (Optional)</label>
             <textarea
               v-model="offerMessage"
-              placeholder="Add a message with your offer..."
+              placeholder="Add a message to explain your offer or ask questions..."
               class="offer-textarea"
               rows="3"
             ></textarea>
@@ -175,7 +228,7 @@
           <div class="modal-actions">
             <button @click="closeMakeOfferModal" class="cancel-btn">Cancel</button>
             <button @click="submitOffer" class="submit-btn" :disabled="!canSubmitOffer || isProcessing">
-              Send Offer
+              {{ isProcessing ? 'Sending...' : 'Send Offer' }}
             </button>
           </div>
         </div>
@@ -293,6 +346,7 @@ const isSending = ref(false);
 const isProcessing = ref(false);
 const messagesContainer = ref(null);
 const jobCompletedExists = ref(false);
+const isPaymentCompleted = ref(false);
 let messageChannel = null;
 
 // Review-related refs
@@ -332,9 +386,17 @@ const chatSubtitle = computed(() => {
   return jobInfo.value?.title || 'Loading...';
 });
 
-// Permissions
-const canMakeOffer = computed(() => isPayer.value);
-const canAcceptOffer = computed(() => isHelper.value);
+// Permissions - ✅ CHANGED: Both users can make offers now
+const canMakeOffer = computed(() => {
+  // Both the job poster and job seeker can make offers
+  return true;
+});
+
+const canAcceptOffer = computed(() => {
+  // Anyone who receives an offer can accept it
+  return true;
+});
+
 const shouldShowPaymentButton = computed(() => isPayer.value);
 
 const canSubmitOffer = computed(() => {
@@ -430,6 +492,8 @@ const loadChatData = async () => {
     }
 
     chatInfo.value = chat;
+    
+    console.log('Chat data loaded:', chat); // Debug log to see what job_id is stored
 
     const otherId = isHelperChat.value
       ? (chat.helper_id === currentUserId.value ? chat.client_id : chat.helper_id)
@@ -446,15 +510,18 @@ const loadChatData = async () => {
     }
 
     // Load job info only for job chats
-    if (!isHelperChat.value) {
+    if (!isHelperChat.value && chat.job_id) {
       const { data: job, error: jobError } = await supabase
         .from('User-Job-Request')
-        .select('title, payment')
+        .select('id, title, payment')
         .eq('id', chat.job_id)
         .single();
 
-      if (!jobError) {
+      if (!jobError && job) {
         jobInfo.value = job;
+        console.log('Job info loaded:', job); // Debug log
+      } else {
+        console.error('Error loading job:', jobError);
       }
     }
 
@@ -473,7 +540,7 @@ const checkJobCompleted = async () => {
     if (isHelperChat.value) {
       const { data, error } = await supabase
         .from(completedTable)
-        .select('id, status')
+        .select('id, status, payment_status')
         .eq('helper_chat_id', chatId)
         .maybeSingle();
 
@@ -482,10 +549,11 @@ const checkJobCompleted = async () => {
       }
 
       jobCompletedExists.value = !!data && (data.status === 'completed' || data.status === 'in-progress' || !!data.id);
+      isPaymentCompleted.value = data?.payment_status === 'paid';
     } else {
       const { data, error } = await supabase
         .from(completedTable)
-        .select('status')
+        .select('status, paid')
         .eq('id', chatInfo.value?.job_id)
         .single();
 
@@ -493,6 +561,7 @@ const checkJobCompleted = async () => {
         console.error('Error checking job status:', error);
       }
       jobCompletedExists.value = data?.status === 'in-progress' || data?.status === 'completed';
+      isPaymentCompleted.value = data?.paid === true;
     }
   } catch (error) {
     console.error('Error in checkJobCompleted:', error);
@@ -615,15 +684,41 @@ const submitOffer = async () => {
     isProcessing.value = true;
     const chatId = route.params.id;
 
+    // ✅ Check if there's a pending offer from the other user
+    const pendingOfferFromOther = messages.value.find(
+      m => m.message_type === 'offer' && 
+           m.offer_status === 'pending' && 
+           m.sender_id !== currentUserId.value
+    );
+
+    // ✅ If there's a pending offer, mark it as countered
+    if (pendingOfferFromOther) {
+      const { error: updateError } = await supabase
+        .from(messagesTable.value)
+        .update({ offer_status: 'countered' })
+        .eq('id', pendingOfferFromOther.id);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      const msgIndex = messages.value.findIndex(m => m.id === pendingOfferFromOther.id);
+      if (msgIndex !== -1) {
+        messages.value[msgIndex].offer_status = 'countered';
+      }
+    }
+
     const offerText = isHelperChat.value
       ? `Offer: $${offerAmount.value} for ${offerJobTitle.value}`
       : `Offer: $${offerAmount.value}`;
+
+    // ✅ Determine if this is a counter offer or initial offer
+    const messageType = pendingOfferFromOther ? 'counter_offer' : 'offer';
 
     const offerData = {
       [chatIdColumn.value]: chatId,
       sender_id: currentUserId.value,
       message: offerText,
-      message_type: 'offer',
+      message_type: messageType,
       offer_amount: offerAmount.value,
       offer_status: 'pending',
       read: false
@@ -818,11 +913,6 @@ const acceptOffer = async (offerMessage) => {
     await checkJobCompleted();
     await checkIfReviewed();
 
-    alert('Offer accepted successfully!');
-
-  } catch (error) {
-    console.error('Error accepting offer:', error);
-    alert('Failed to accept offer. Please try again.');
   } finally {
     isProcessing.value = false;
   }
@@ -989,6 +1079,11 @@ const subscribeToMessages = () => {
 
           window.dispatchEvent(new Event('chat-read'));
         }
+        
+        // Check if it's a system message about payment
+        if (payload.new.message_type === 'system' && payload.new.message.includes('Payment')) {
+          await checkJobCompleted();
+        }
       }
     )
     .on(
@@ -1086,16 +1181,44 @@ const submitReview = async () => {
   }
 };
 
+const navigateToJobDetails = () => {
+  // Only navigate for regular job chats, not helper chats
+  if (!isHelperChat.value && chatInfo.value?.job_id) {
+    // Use the job_id from the chat
+    router.push(`/job/${chatInfo.value.job_id}`);
+  }
+};
 </script>
 
 <style scoped>
-/* Copy all the styles from your existing ChatConversation.vue */
+/* --- CORRECTED FIX --- */
 .chat-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  background: #f5f5f5;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* 
+    This is the key change. We use a dynamic viewport height unit (dvh).
+    100dvh represents 100% of the dynamic viewport height, which adjusts
+    for mobile browser UI like the address bar appearing and disappearing.
+    We then subtract the space taken by the sticky navbar.
+    'var(--navbar-height)' would be ideal, but since we don't have that,
+    we can use a reasonable estimate or set it in a parent component.
+    For now, let's assume a navbar height. A more robust solution is
+    to set this value via JavaScript if it's dynamic.
+    
+    A simpler approach that avoids calc() is to set the container that
+    holds the navbar and router-view to height: 100vh and be a flex-column,
+    but this change is self-contained to the component.
+
+    Let's go back to the most robust, self-contained Flexbox solution.
+  */
+  height: 100dvh; /* Use dynamic viewport height */
+  max-height: 100dvh;
+  padding-top: 80px; /* Add padding to offset the navbar. Adjust this value to your navbar's height */
+  box-sizing: border-box; /* Ensures padding is included in the height calculation */
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
 }
 
 .chat-header {
@@ -1106,10 +1229,34 @@ const submitReview = async () => {
   background: white;
   border-bottom: 1px solid #e5e7eb;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  flex-shrink: 0; /* Prevents the header from shrinking */
+  position: fixed; /* Fix the header to the top of the .chat-page container */
+  top: 80px; /* Position it right below the main navbar */
+  left: 0;
+  width: 100%;
+  z-index: 20; /* Ensure it's above the messages container */
+  box-sizing: border-box;
 }
+
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  background: #f9fafb;
+  min-height: 0;
+  /* Add padding to the top to avoid content being hidden by the fixed chat-header */
+  padding: 1.5rem;
+  /* We need to calculate the top padding to be the header's height */
+  padding-top: calc(1.5rem + 80px); /* Adjust 80px to your chat-header's actual height */
+}
+
+.message-input-container {
+  padding: 1rem 1.5rem;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0; /* Prevents the input area from shrinking */
+}
+/* --- END OF FIX --- */
+
 
 .back-btn {
   background: none;
@@ -1133,13 +1280,30 @@ const submitReview = async () => {
   align-items: center;
   gap: 1rem;
   flex: 1;
+  min-width: 0;
+}
+
+.header-info.clickable {
+  cursor: pointer;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  margin: -0.5rem;
+  transition: background-color 0.2s;
+}
+
+.header-info.clickable:hover {
+  background-color: #f9fafb;
+}
+
+.header-info.clickable:active {
+  background-color: #f3f4f6;
 }
 
 .user-avatar {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #2563eb;
   color: white;
   display: flex;
   align-items: center;
@@ -1172,13 +1336,28 @@ const submitReview = async () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
-.messages-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.5rem;
-  background: #f9fafb;
+.chevron-icon {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.clickable .job-title {
+  color: #2563eb;
+}
+
+.clickable:hover .job-title {
+  color: #1d4ed8;
+}
+
+.clickable:hover .chevron-icon {
+  opacity: 1;
+  transform: translateX(2px);
+  transition: all 0.2s;
 }
 
 .loading-messages {
@@ -1447,15 +1626,6 @@ const submitReview = async () => {
   transform: translateY(-1px);
 }
 
-.message-input-container {
-  padding: 1rem 1.5rem;
-  background: white;
-  border-top: 1px solid #e5e7eb;
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
-}
-
 .message-form {
   display: flex;
   gap: 0.5rem;
@@ -1550,11 +1720,36 @@ const submitReview = async () => {
   border-radius: 1rem;
   max-width: 500px;
   width: 100%;
-  max-height: 90vh;
+  max-height: 80vh; /* I limited the height so it doesnt get blocked by navbar on large screen*/
   overflow-y: auto;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  padding-right: 6px;
+}
+.modal-content::-webkit-scrollbar {
+  width: 6px; /* Width of the scrollbar */
+  height: 6px;
 }
 
+.modal-content::-webkit-scrollbar-track {
+  background: transparent; /* Make the track invisible */
+  border-radius: 1rem; /* Match modal's border-radius if possible */
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background-color: #adb5bd; /* Color of the scrollbar thumb (the bar) */
+  border-radius: 3px; /* Rounded corners for the thumb */
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background-color: #6c757d; /* Darker color on hover */
+}
+
+/* Explicitly hide the scrollbar arrow buttons */
+.modal-content::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -1709,10 +1904,55 @@ const submitReview = async () => {
   transform: none;
 }
 
+.payment-confirmed {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f0fdf4;
+  border: 2px solid #10b981;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.own-message .payment-confirmed {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.confirmed-icon {
+  width: 32px;
+  height: 32px;
+  background: #10b981;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.confirmed-text {
+  margin: 0;
+  font-weight: 600;
+  color: #065f46;
+  font-size: 0.9rem;
+}
+
+.own-message .confirmed-text {
+  color: white;
+}
+
 @media (max-width: 768px) {
   .message-bubble {
     max-width: 85%;
   }
+  .modal-content {
+  max-height: 60vh; /* I limited the height so it doesnt get blocked by navbar on small screen*/
+}
+
 
   .offer-bubble {
     max-width: 90%;
@@ -1775,5 +2015,175 @@ const submitReview = async () => {
 .star-btn:hover {
   opacity: 1;
   transform: scale(1.1);
+}
+
+/* Simplified Make Offer Modal Styles */
+.current-price-section {
+  background: #f9fafb;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  border: 1px solid #e5e7eb;
+}
+
+.price-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.price-label-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #6b7280;
+}
+
+.current-price-display {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #111827;
+}
+
+.price-subtext {
+  font-size: 0.875rem;
+  margin: 0;
+  color: #6b7280;
+}
+
+.job-info-box {
+  background: #f9fafb;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.job-info-header {
+  margin-bottom: 0.5rem;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.offer-amount-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currency-prefix {
+  position: absolute;
+  left: 1rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #6b7280;
+  pointer-events: none;
+}
+
+.offer-amount-input {
+  padding-left: 2.5rem !important;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.price-difference {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: center;
+  border: 1px solid;
+}
+
+.difference-lower {
+  display: block;
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #86efac;
+}
+
+.difference-higher {
+  display: block;
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+
+.difference-equal {
+  display: block;
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #93c5fd;
+}
+
+.submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Simplified modal header */
+.modal-content {
+  animation: modalSlideUp 0.3s ease;
+}
+
+/* Simplified modal header */
+.modal-content {
+  animation: modalSlideUp 0.3s ease;
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  background: white;
+  color: #111827;
+  border-bottom: 2px solid #e5e7eb;
+  border-radius: 1rem 1rem 0 0;
+}
+
+.modal-header .modal-title {
+  color: #111827;
+}
+
+.modal-header .close-btn {
+  color: #6b7280;
+}
+
+.modal-header .close-btn:hover {
+  background: #f3f4f6;
+}
+
+@media (max-width: 768px) {
+  .current-price-display {
+    font-size: 2rem;
+  }
+  
+  .current-price-section {
+    padding: 1.25rem;
+  }
 }
 </style>

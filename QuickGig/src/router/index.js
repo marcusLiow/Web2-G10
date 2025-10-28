@@ -10,12 +10,14 @@ import Onboarding from '@/pages/Onboarding.vue'
 import AdventurerSignUp from '@/pages/AdventurerSignUp.vue'
 import maptest from '@/pages/maptest.vue'
 import HelpersPage from '../pages/HelpersPage.vue'
-import Spending from '../pages/Spending.vue'
 import editjob from '@/pages/editjob.vue'
 import JobMap from '@/pages/JobMap.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  scrollBehavior(to, from, savedPosition) {
+    return { top: 0 }
+  },
   routes: [
     {
       path: '/',
@@ -53,11 +55,6 @@ const router = createRouter({
       path: '/earnings',
       name: 'earnings',
       component: () => import('../pages/Earnings.vue')
-    },
-    {
-      path: '/spending',
-      name: 'spending',
-      component: () => import('../pages/Spending.vue')
     },
     {
       path: '/jobs',
@@ -142,7 +139,7 @@ const router = createRouter({
       component: () => import('../pages/ChatConversation.vue'),
       meta: { requiresAuth: true }
     }
-  ]
+  ],
 })
 
 export default router

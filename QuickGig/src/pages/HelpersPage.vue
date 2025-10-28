@@ -57,8 +57,9 @@ const fetchHelpers = async () => {
     // Fetch from public_helpers (your friend's change used 'users' table with is_helper flag)
     // Choose the one that matches your database schema
     const { data: usersData, error: usersError } = await supabase
-      .from('public_helpers')
-      .select('*');
+      .from('users')
+      .select('*')
+      .eq('is_helper', true);
 
     if (usersError) throw usersError;
     if (!usersData || usersData.length === 0) { helpers.value = []; isLoading.value = false; return; }
@@ -530,18 +531,19 @@ onMounted(async () => {
               <!-- MERGED: Name and View Profile button on same line -->
               <div class="name-and-button">
                 <h2 class="modal-name">{{ selectedHelper.name }}</h2>
-                <button @click="goToHelperProfile" class="view-profile-link-btn">
-                  View Full Profile
-                </button>
-              </div>
-              <p class="modal-title">{{ selectedHelper.title }}</p>
-              <div class="modal-stats">
-                <span class="stars">{{ renderStars(selectedHelper.rating) }}</span>
-                <span class="rating-text">{{ selectedHelper.rating }}</span>
-                <span class="separator">•</span>
-                <span>{{ selectedHelper.reviewCount }} reviews</span>
-                <span class="separator">•</span>
-                <span>{{ selectedHelper.completedJobs }} jobs</span>
+                <p class="modal-title">{{ selectedHelper.title }}</p>
+          <div class="modal-stats d-flex flex-column flex-md-row align-items-md-center flex-wrap">
+
+            <div class="d-flex align-items-center me-md-2"> <span class="stars me-1">{{ renderStars(selectedHelper.rating) }}</span>
+              <span class="rating-text">{{ selectedHelper.rating }}</span>
+            </div>
+
+            <div class="mt-1 mt-md-0 me-md-2"> 
+              <span class="separator d-none d-md-inline">•</span> <span>{{ selectedHelper.reviewCount }} reviews</span>
+              <span class="separator d-none d-md-inline">•</span> <span>{{ selectedHelper.completedJobs }} jobs</span>
+            </div>
+
+          </div>
               </div>
             </div>
           </div>

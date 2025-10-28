@@ -10,6 +10,9 @@ const selectedCategory = ref('');
 const isLoading = ref(true);
 const isLoggedIn = ref(false);
 
+// ✅ NEW: Store accepted offer counts for each job
+const acceptedOfferCounts = ref({});
+
 // Categories list
 const categories = [
   'Construction',
@@ -46,6 +49,72 @@ const deleteExpiredPosts = async () => {
   }
 };
 
+// ✅ NEW: Fetch accepted offer counts for all jobs
+const fetchAcceptedOfferCounts = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('chats')
+      .select('job_id, job_seeker_id')
+      .eq('offer_accepted', true);
+    
+    if (error) throw error;
+    
+    // Count unique job seekers per job
+    const counts = {};
+    data.forEach(chat => {
+      if (!counts[chat.job_id]) {
+        counts[chat.job_id] = new Set();
+      }
+      counts[chat.job_id].add(chat.job_seeker_id);
+    });
+    
+    // Convert Sets to counts
+    const result = {};
+    Object.keys(counts).forEach(jobId => {
+      result[jobId] = counts[jobId].size;
+    });
+    
+    acceptedOfferCounts.value = result;
+    console.log('Accepted offer counts:', result);
+  } catch (error) {
+    console.error('Error fetching accepted offer counts:', error);
+  }
+};
+
+// ✅ NEW: Check if a job is fully filled
+const isJobFullyFilled = (job) => {
+  const acceptedCount = acceptedOfferCounts.value[job.id] || 0;
+  const requiresMultiple = job.requiresMultipleHelpers || job.multiple_positions;
+  const requiredCount = job.numberOfHelpers || job.positions_available || 1;
+  
+  // ✅ EXTENSIVE DEBUGGING
+  console.log('=== JOB FILL CHECK ===');
+  console.log('Job ID:', job.id);
+  console.log('Job Name:', job.name);
+  console.log('Requires Multiple Helpers:', requiresMultiple);
+  console.log('Required Count:', requiredCount);
+  console.log('Accepted Count:', acceptedCount);
+  
+  let isFilled = false;
+  
+  // If job doesn't require multiple helpers
+  if (!requiresMultiple) {
+    // Hide if ANY offer accepted
+    isFilled = acceptedCount > 0;
+    console.log('Single helper job - isFilled:', isFilled);
+  } else {
+    // For jobs requiring multiple helpers
+    // Only hide if ALL positions filled
+    isFilled = acceptedCount >= requiredCount;
+    console.log('Multiple helper job - isFilled:', isFilled);
+  }
+  
+  console.log('Final decision - Hide job?', isFilled);
+  console.log('======================');
+  
+  return isFilled;
+};
+
 // Fetch jobs from Supabase
 const fetchJobs = async () => {
   try {
@@ -53,22 +122,25 @@ const fetchJobs = async () => {
     
     console.log('Fetching jobs from Supabase...');
     
+    // ✅ IMPORTANT: Fetch ALL jobs with status 'open', not filtered by accepted offers yet
     const { data: jobsData, error: jobsError } = await supabase
       .from('User-Job-Request')
       .select('*')
-      .eq('status', 'open')
+      .eq('status', 'open')  // ✅ Make sure this column exists and is set correctly
       .order('created_at', { ascending: false });
 
     if (jobsError) throw jobsError;
 
-    console.log('Jobs fetched:', jobsData);
+    console.log('Jobs fetched from database:', jobsData?.length || 0);
+    console.log('Raw jobs data:', jobsData);
+
+    // ✅ Fetch accepted offer counts
+    await fetchAcceptedOfferCounts();
 
     // Fetch user data for each job
     const transformedJobs = await Promise.all(jobsData.map(async (job) => {
       let postedBy = 'Anonymous';
       let contactEmail = 'N/A';
-      
-      console.log('Job user_id:', job.user_id);
       
       if (job.user_id) {
         const { data: userData, error: userError } = await supabase
@@ -77,15 +149,11 @@ const fetchJobs = async () => {
           .eq('id', job.user_id)
           .single();
         
-        console.log('User data for job:', userData, 'Error:', userError);
-        
         if (!userError && userData) {
           postedBy = userData.username || 'Anonymous';
-          contactEmail = 'Contact via chat'; // Don't expose email publicly
+          contactEmail = 'Contact via chat';
         }
       }
-      
-      console.log('Final postedBy:', postedBy, 'Email:', contactEmail);
 
       return {
         id: job.id,
@@ -105,13 +173,14 @@ const fetchJobs = async () => {
         userId: job.user_id,
         images: job.images || [],
         expiration_date: job.expiration_date || null,
+        status: job.status,  // ✅ ADD: Include status
         
         // Multiple helpers fields - use both naming conventions
         multiple_positions: job.multiple_positions || false,
-        requiresMultipleHelpers: job.requiresMultipleHelpers || job.multiple_positions || false,  // ✅ ADD THIS
+        requiresMultipleHelpers: job.requiresMultipleHelpers || job.multiple_positions || false,
         
         positions_available: job.positions_available || 1,
-        numberOfHelpers: job.numberOfHelpers || job.positions_available || 1,  // ✅ ADD THIS
+        numberOfHelpers: job.numberOfHelpers || job.positions_available || 1,
         
         positions_filled: job.positions_filled || 0,
         payment_type: job.payment_type || 'per_person'
@@ -119,7 +188,8 @@ const fetchJobs = async () => {
     }));
 
     jobs.value = transformedJobs;
-    console.log('Final jobs array:', jobs.value);
+    console.log('Total transformed jobs:', jobs.value.length);
+    console.log('Jobs with multiple helpers:', jobs.value.filter(j => j.requiresMultipleHelpers).length);
   } catch (error) {
     console.error('Error fetching jobs:', error);
     jobs.value = [];
@@ -144,6 +214,20 @@ const filteredJobs = computed(() => {
   const category = selectedCategory.value;
   let result = jobs.value;
 
+  console.log('=== FILTERING JOBS ===');
+  console.log('Total jobs before filtering:', result.length);
+
+  // ✅ FIXED: Filter out fully filled jobs
+  result = result.filter(job => {
+    const shouldKeep = !isJobFullyFilled(job);
+    if (!shouldKeep) {
+      console.log(`Filtering OUT job: ${job.name} (ID: ${job.id})`);
+    }
+    return shouldKeep;
+  });
+  
+  console.log('Jobs after fill status filter:', result.length);
+
   if (term) {
     result = result.filter(
       job =>
@@ -151,12 +235,15 @@ const filteredJobs = computed(() => {
         job.description.toLowerCase().includes(term) ||
         job.location.toLowerCase().includes(term)
     );
+    console.log('Jobs after search filter:', result.length);
   }
 
   if (category) {
     result = result.filter(job => job.category === category);
+    console.log('Jobs after category filter:', result.length);
   }
 
+  console.log('===================');
   return result;
 });
 
@@ -167,11 +254,44 @@ const clearFilters = () => {
 
 // Navigate to job details page instead of opening modal
 const viewJobDetails = (job) => {
+  console.log('Navigating to job details with ID:', job.id); // ✅ Debug log
   // Store job data in localStorage temporarily for the details page
   localStorage.setItem('selectedJob', JSON.stringify(job));
   // Navigate to job details page with job ID
   router.push(`/job/${job.id}`);
 };
+
+// ✅ ADD: Debug function to check specific job (call from browser console)
+const debugJob = async (jobId) => {
+  console.log('=== DEBUGGING JOB ===');
+  console.log('Job ID:', jobId);
+  
+  // Check database
+  const { data: dbJob, error } = await supabase
+    .from('User-Job-Request')
+    .select('*')
+    .eq('id', jobId)
+    .single();
+  
+  console.log('Database job:', dbJob);
+  console.log('Database error:', error);
+  
+  // Check accepted offers
+  const { data: chats, error: chatError } = await supabase
+    .from('chats')
+    .select('*')
+    .eq('job_id', jobId)
+    .eq('offer_accepted', true);
+  
+  console.log('Accepted chats:', chats);
+  console.log('Chat error:', chatError);
+  console.log('=====================');
+};
+
+// ✅ Expose for debugging in browser console
+if (typeof window !== 'undefined') {
+  window.debugJob = debugJob;
+}
 </script>
 
 <template>

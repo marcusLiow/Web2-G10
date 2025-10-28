@@ -196,10 +196,13 @@ const handleSubmit = async () => {
   paymentError.value = '';
 
   try {
+    // Determine if this is a helper job
+    const isHelperJob = route.query.isHelperJob === 'true';
+    
     const { error, paymentIntent } = await stripe.value.confirmPayment({
       elements: elements.value,
       confirmParams: {
-        return_url: `${window.location.origin}/payment-success?jobId=${jobId.value}&chatId=${chatId.value}&amount=${totalAmount.value}`,
+        return_url: `${window.location.origin}/payment-success?jobId=${jobId.value}&chatId=${chatId.value}&amount=${totalAmount.value}&isHelperJob=${isHelperJob}&jobTitle=${encodeURIComponent(jobTitle.value)}`,
       },
       redirect: 'if_required',
     });
@@ -212,7 +215,7 @@ const handleSubmit = async () => {
       console.log('✅ Payment succeeded!');
       paymentSuccessful.value = true;
       
-      // Redirect after short delay with proper status
+      // Redirect after short delay with all required parameters
       setTimeout(() => {
         router.push({
           path: '/payment-success',
@@ -221,7 +224,9 @@ const handleSubmit = async () => {
             chatId: chatId.value,
             amount: totalAmount.value,
             payment_intent: paymentIntent.id,
-            redirect_status: 'succeeded', // Add this!
+            redirect_status: 'succeeded',
+            isHelperJob: isHelperJob,
+            jobTitle: jobTitle.value
           }
         });
       }, 1500);

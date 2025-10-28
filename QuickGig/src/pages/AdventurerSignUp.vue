@@ -399,6 +399,7 @@ export default {
 
         // 2. Get the user ID from auth
         const userId = authData.user?.id;
+
         if (!userId) {
           throw new Error('Failed to retrieve user ID after signup');
         }
@@ -408,7 +409,7 @@ export default {
         if (this.formData.serviceTypes.inPerson) serviceTypes.push('in-person');
         if (this.formData.serviceTypes.remote) serviceTypes.push('remote');
 
-        // 4. Upsert user data into the users table (handles both new and existing auth users)
+        // 4. Upsert user data into the users table
         const { error: upsertError } = await supabase
           .from('users')
           .upsert({
@@ -420,6 +421,7 @@ export default {
             location: this.formData.location,
             bio: this.formData.bio,
             service_types: serviceTypes,
+            is_helper: true, // ← Mark them as a helper
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }, {
@@ -428,6 +430,32 @@ export default {
 
         if (upsertError) {
           throw new Error(upsertError.message);
+        }
+
+        // 5. Create helper_profiles entry to make them visible in HelpersPage
+        const { error: helperProfileError } = await supabase
+          .from('helper_profiles')
+          .insert({
+            user_id: userId,
+            title: this.formData.username, // Use username as their title
+            description: this.formData.bio || 'Available to help with various tasks',
+            skills: this.skills.map(s => ({ 
+              name: s.name, 
+              level: s.level || 'Beginner', 
+              jobs: 0 
+            })),
+            availability: 'Contact for availability', // Default availability
+            response_time: 'Usually responds within 24 hours', // Default response time
+            bio: this.formData.bio,
+            experience: ['New adventurer'], // Default experience
+            location: this.formData.location,
+            is_active: true, // ← This makes them visible in HelpersPage
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+
+        if (helperProfileError) {
+          throw new Error(helperProfileError.message);
         }
 
         // Store user info in localStorage

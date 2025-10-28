@@ -1873,7 +1873,7 @@ const submitOffer = async () => {
   border-radius: 0.5rem;
   font-size: 1rem;
   font-weight: 600;
-  cursor: pointer;
+   cursor: pointer;
   transition: all 0.2s;
   border: none;
 }
@@ -1948,6 +1948,11 @@ const submitOffer = async () => {
 
   .modal-content {
     margin: 1rem;
+  }
+
+  .action-buttons {
+    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 }
 </style>
