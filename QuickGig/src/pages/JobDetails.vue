@@ -21,6 +21,7 @@ const showDeleteModal = ref(false);
 // Helper counter state
 const helperSignupCount = ref(0);
 const maxHelpers = ref(0);
+const isFullyBooked = ref(false); // ✅ NEW: Track if all positions filled
 
 // Toast notification state
 const toasts = ref([]);
@@ -82,7 +83,11 @@ const fetchHelperCount = async () => {
     const uniqueHelpers = new Set(data?.map(chat => chat.job_seeker_id) || []);
     helperSignupCount.value = uniqueHelpers.size;
     
+    // ✅ NEW: Check if job is fully booked
+    isFullyBooked.value = helperSignupCount.value >= maxHelpers.value;
+    
     console.log('Helper signup count (accepted offers only):', helperSignupCount.value);
+    console.log('Is fully booked:', isFullyBooked.value);
   } catch (error) {
     console.error('Error in fetchHelperCount:', error);
   }
@@ -934,6 +939,7 @@ const closeOfferModal = () => {
                     <span class="info-label">Helpers Signed Up</span>
                     <span class="info-value helper-count-value">
                       <strong>{{ helperSignupCount }}</strong> of <strong>{{ maxHelpers }}</strong>
+                      <span v-if="isFullyBooked" class="fully-booked-badge">FULL</span>
                     </span>
                   </div>
                 </div>
@@ -1758,6 +1764,17 @@ const closeOfferModal = () => {
   font-size: 1.1rem;
 }
 
+.fully-booked-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: #dc2626;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 0.25rem;
+}
+
 /* Expiration status colors */
 .expiration-never {
   color: #6b7280;
@@ -2257,7 +2274,7 @@ const closeOfferModal = () => {
   border-radius: 0.5rem;
   font-size: 1rem;
   font-weight: 600;
-  cursor: pointer;
+   cursor: pointer;
   transition: all 0.2s;
   border: none;
 }
@@ -2286,17 +2303,13 @@ const closeOfferModal = () => {
     padding: 0.5rem;
   }
 
-  .action-buttons {
-    grid-template-columns: 1fr;
-  }
-  
-  .action-buttons-own {
-    display: flex;
-    flex-direction: column;
-  }
-
   .modal-content {
     margin: 1rem;
+  }
+
+  .action-buttons {
+    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 }
 </style>

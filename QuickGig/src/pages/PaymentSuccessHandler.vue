@@ -83,11 +83,56 @@ onMounted(async () => {
 const handleRegularJobPayment = async (jobId, chatId, amount) => {
   console.log('Updating regular job:', jobId);
   
+  // ✅ FIXED: Check if this is a multi-helper job before changing status
+  const { data: jobData, error: jobFetchError } = await supabase
+    .from('User-Job-Request')
+    .select('multiple_positions, positions_available')
+    .eq('id', jobId)
+    .single();
+  
+  if (jobFetchError) {
+    console.error('Error fetching job data:', jobFetchError);
+    throw jobFetchError;
+  }
+  
+  let newStatus = 'in-progress';  // Default for single-helper jobs
+  
+  // ✅ For multi-helper jobs, check if all positions are now filled
+  if (jobData.multiple_positions) {
+    console.log('Multi-helper job detected, checking fill status...');
+    
+    // Count how many unique helpers have accepted offers
+    const { data: acceptedChats, error: countError } = await supabase
+      .from('chats')
+      .select('job_seeker_id')
+      .eq('job_id', jobId)
+      .eq('offer_accepted', true);
+    
+    if (countError) {
+      console.error('Error counting accepted offers:', countError);
+      throw countError;
+    }
+    
+    const uniqueHelpers = new Set(acceptedChats?.map(c => c.job_seeker_id) || []).size;
+    const requiredHelpers = jobData.positions_available || 1;
+    
+    console.log(`Helpers filled: ${uniqueHelpers} of ${requiredHelpers}`);
+    
+    // Only change to 'in-progress' if ALL positions are filled
+    if (uniqueHelpers >= requiredHelpers) {
+      newStatus = 'in-progress';
+      console.log('All positions filled - marking as in-progress');
+    } else {
+      newStatus = 'open';  // ✅ Keep as 'open' if not all positions filled
+      console.log('Not all positions filled - keeping as open');
+    }
+  }
+  
   // Update job status
   const { error: updateError } = await supabase
     .from('User-Job-Request')
     .update({
-      status: 'in-progress',
+      status: newStatus,  // ✅ Use calculated status
       paid: true,
       payment_amount: Number(amount)
     })

@@ -73,12 +73,19 @@
           <div v-else-if="message.message_type === 'offer_accepted'" class="message-bubble accepted-bubble">
             <p class="acceptance-text">{{ message.message }}</p>
 
-            <!-- Show "Proceed to Payment" button for payer -->
-            <div v-if="shouldShowPaymentButton && message.offer_amount"
+            <!-- Show "Proceed to Payment" button for payer if not yet paid -->
+            <div v-if="shouldShowPaymentButton && message.offer_amount && !isPaymentCompleted"
                  class="payment-action">
               <button @click="proceedToPayment(message)" class="payment-btn">
                 Proceed to Payment
               </button>
+            </div>
+
+            <!-- Show "Payment Confirmed" message if payment is completed -->
+            <div v-else-if="shouldShowPaymentButton && isPaymentCompleted"
+                 class="payment-confirmed">
+              <div class="confirmed-icon">✓</div>
+              <p class="confirmed-text">Payment Confirmed</p>
             </div>
 
             <!-- Show "Leave a Review" button for everyone after offer is accepted -->
@@ -329,6 +336,7 @@ const isSending = ref(false);
 const isProcessing = ref(false);
 const messagesContainer = ref(null);
 const jobCompletedExists = ref(false);
+const isPaymentCompleted = ref(false);
 let messageChannel = null;
 
 // Review-related refs
@@ -522,7 +530,7 @@ const checkJobCompleted = async () => {
     if (isHelperChat.value) {
       const { data, error } = await supabase
         .from(completedTable)
-        .select('id, status')
+        .select('id, status, payment_status')
         .eq('helper_chat_id', chatId)
         .maybeSingle();
 
@@ -531,10 +539,11 @@ const checkJobCompleted = async () => {
       }
 
       jobCompletedExists.value = !!data && (data.status === 'completed' || data.status === 'in-progress' || !!data.id);
+      isPaymentCompleted.value = data?.payment_status === 'paid';
     } else {
       const { data, error } = await supabase
         .from(completedTable)
-        .select('status')
+        .select('status, paid')
         .eq('id', chatInfo.value?.job_id)
         .single();
 
@@ -542,6 +551,7 @@ const checkJobCompleted = async () => {
         console.error('Error checking job status:', error);
       }
       jobCompletedExists.value = data?.status === 'in-progress' || data?.status === 'completed';
+      isPaymentCompleted.value = data?.paid === true;
     }
   } catch (error) {
     console.error('Error in checkJobCompleted:', error);
@@ -1058,6 +1068,11 @@ const subscribeToMessages = () => {
             .eq('id', payload.new.id);
 
           window.dispatchEvent(new Event('chat-read'));
+        }
+        
+        // Check if it's a system message about payment
+        if (payload.new.message_type === 'system' && payload.new.message.includes('Payment')) {
+          await checkJobCompleted();
         }
       }
     )
@@ -1852,6 +1867,47 @@ const navigateToJobDetails = () => {
   background: #9ca3af;
   cursor: not-allowed;
   transform: none;
+}
+
+.payment-confirmed {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f0fdf4;
+  border: 2px solid #10b981;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.own-message .payment-confirmed {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.confirmed-icon {
+  width: 32px;
+  height: 32px;
+  background: #10b981;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.confirmed-text {
+  margin: 0;
+  font-weight: 600;
+  color: #065f46;
+  font-size: 0.9rem;
+}
+
+.own-message .confirmed-text {
+  color: white;
 }
 
 @media (max-width: 768px) {
