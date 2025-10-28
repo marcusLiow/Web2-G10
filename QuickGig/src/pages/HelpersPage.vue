@@ -54,6 +54,8 @@ const fetchHelpers = async () => {
   try {
     isLoading.value = true;
 
+    // Fetch from public_helpers (your friend's change used 'users' table with is_helper flag)
+    // Choose the one that matches your database schema
     const { data: usersData, error: usersError } = await supabase
       .from('public_helpers')
       .select('*');
@@ -69,7 +71,7 @@ const fetchHelpers = async () => {
     const statsMap = {};
     if (Array.isArray(statsData)) statsData.forEach(s => { statsMap[String(s.helper_id)] = s; });
 
-    // helper_profiles
+    // helper_profiles - only fetch active profiles
     const { data: profiles, error: profilesError } = await supabase
       .from('helper_profiles')
       .select('*')
@@ -120,34 +122,36 @@ const fetchHelpers = async () => {
       }
     });
 
-    // merge
-    const merged = usersData.map(user => {
-      const profile = profilesMap[user.id] || null;
-      const stats = statsMap[user.id] || { avg_rating: 0, review_count: 0, completed_jobs: 0 };
-      const rawSkills = (profile && profile.skills) || user.skills || [];
-      return {
-        id: user.id,
-        userId: user.id,
-        name: user.username || 'Anonymous',
-        username: user.username || 'Anonymous',
-        avatarUrl: user.avatar_url || '',
-        title: (profile && profile.title) || user.helper_title || 'Helper',
-        description: (profile && profile.description) || user.helper_bio || 'Available to help with various tasks',
-        skills: normalizeSkills(rawSkills),
-        location: user.location || 'Not specified',
-        availability: (profile && profile.availability) || 'Contact for availability',
-        responseTime: (profile && profile.response_time) || 'Usually responds within 24 hours',
-        rating: Math.round(Number(stats.avg_rating) * 10) / 10 || 0,
-        reviewCount: Number(stats.review_count) || 0,
-        completedJobs: Number(stats.completed_jobs) || 0,
-        bio: (profile && profile.bio) || user.helper_bio || '',
-        experience: (profile && profile.experience) || ['Contact for details'],
-        latestReview: latestReviewMap[user.id] || null,
-        // helper UI flags (set later when profile opened)
-        canLeaveReview: false,
-        hasReviewed: false
-      };
-    });
+    // MERGED: Filter to only include users with active helper profiles (from friend's version)
+    const merged = usersData
+      .filter(user => profilesMap[user.id]) // Only include users with active helper profiles
+      .map(user => {
+        const profile = profilesMap[user.id];
+        const stats = statsMap[user.id] || { avg_rating: 0, review_count: 0, completed_jobs: 0 };
+        const rawSkills = profile.skills || user.skills || [];
+        return {
+          id: user.id,
+          userId: user.id,
+          name: user.username || 'Anonymous',
+          username: user.username || 'Anonymous',
+          avatarUrl: user.avatar_url || '',
+          title: profile.title || user.helper_title || 'Helper',
+          description: profile.description || user.helper_bio || 'Available to help with various tasks',
+          skills: normalizeSkills(rawSkills),
+          location: profile.location || user.location || 'Not specified', // Better priority
+          availability: profile.availability || 'Contact for availability',
+          responseTime: profile.response_time || 'Usually responds within 24 hours',
+          rating: Math.round(Number(stats.avg_rating) * 10) / 10 || 0,
+          reviewCount: Number(stats.review_count) || 0,
+          completedJobs: Number(stats.completed_jobs) || 0,
+          bio: profile.bio || user.helper_bio || user.bio || '', // Better fallback
+          experience: profile.experience || ['Contact for details'],
+          latestReview: latestReviewMap[user.id] || null,
+          // helper UI flags (set later when profile opened)
+          canLeaveReview: false,
+          hasReviewed: false
+        };
+      });
 
     helpers.value = merged;
   } catch (err) {
@@ -244,7 +248,7 @@ const viewHelperProfile = async (helper) => {
 
 const closeModal = () => { showModal.value = false; selectedHelper.value = null; };
 
-// Navigate to helper's profile page
+// KEPT FROM YOUR VERSION: Navigate to helper's profile page
 const goToHelperProfile = () => {
   if (selectedHelper.value && selectedHelper.value.userId) {
     // Store userId before closing modal (which clears selectedHelper)
@@ -335,11 +339,17 @@ const startChat = async () => {
         .select()
         .single();
 
-      console.log('Create chat result:', newChat);
+      console.log('Create result:', newChat);
       console.log('Create error:', createError);
 
       if (createError) {
-        console.error('Error creating chat:', createError);
+        console.error('Failed to create chat:', createError);
+        alert('Failed to create chat. Please try again.');
+        return;
+      }
+
+      if (!newChat || !newChat.id) {
+        console.error('Chat created but no ID returned');
         alert('Failed to create chat. Please try again.');
         return;
       }
@@ -348,37 +358,35 @@ const startChat = async () => {
       console.log('✅ Created new helper chat:', chatId);
     }
 
-    console.log('Navigating to helper chats with chatId:', chatId);
+    console.log('Navigating to helper chat:', chatId);
     closeModal();
     router.push(`/helper-chats?chatId=${chatId}`);
 
   } catch (err) {
-    console.error('Unexpected error in startChat:', err);
+    console.error('Error in startChat:', err);
     alert('An error occurred. Please try again.');
   }
 };
 
+/* --- Computed / filtering --- */
 const filteredHelpers = computed(() => {
-  const term = searchTerm.value.toLowerCase().trim();
-  const skill = selectedSkill.value;
   let result = helpers.value;
-
-  if (term) {
-    result = result.filter(h =>
-      h.name.toLowerCase().includes(term) ||
-      h.username.toLowerCase().includes(term) ||
-      h.title.toLowerCase().includes(term) ||
-      h.description.toLowerCase().includes(term) ||
-      h.bio.toLowerCase().includes(term)
-    );
+  // Search filter
+  if (searchTerm.value.trim()) {
+    const term = searchTerm.value.toLowerCase();
+    result = result.filter(h => {
+      const nameMatch = h.name.toLowerCase().includes(term);
+      const titleMatch = h.title.toLowerCase().includes(term);
+      const descMatch = h.description.toLowerCase().includes(term);
+      return nameMatch || titleMatch || descMatch;
+    });
   }
-
-  if (skill) {
-    result = result.filter(h =>
-      h.skills.some(s => s.name.toLowerCase() === skill.toLowerCase())
-    );
+  // Skill filter
+  if (selectedSkill.value) {
+    result = result.filter(h => {
+      return h.skills.some(sk => sk.name.toLowerCase() === selectedSkill.value.toLowerCase());
+    });
   }
-
   return result;
 });
 
@@ -390,11 +398,6 @@ function renderStars(rating) {
   return stars;
 }
 
-const clearFilters = () => {
-  searchTerm.value = '';
-  selectedSkill.value = '';
-};
-
 onMounted(async () => {
   const { data } = await supabase.auth.getSession();
   currentUserId.value = data?.session?.user?.id || localStorage.getItem('userId');
@@ -404,214 +407,214 @@ onMounted(async () => {
 
 <template>
   <div class="page-wrapper">
-    <div class="container">
-      <!-- Header -->
-      <div class="header-section">
-        <h1 class="main-title">Discover Local Helpers</h1>
-        <p class="subtitle">Connect with skilled professionals in your area.</p>
+    <!-- Header -->
+    <div class="header">
+      <h1 class="page-title">Find a Helper</h1>
+      <p class="page-subtitle">Connect with skilled helpers in your area</p>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.35-4.35"></path>
+        </svg>
+        <input 
+          v-model="searchTerm" 
+          type="text" 
+          placeholder="Search helpers by name, title, or description..." 
+          class="search-input"
+        />
       </div>
 
-      <!-- Search Card -->
-      <div class="search-card">
-        <div class="search-grid">
-          <div class="search-group">
-            <label class="search-label">Search Helpers</label>
-            <input
-              v-model="searchTerm"
-              placeholder="Search by name or description..."
-              class="search-input"
-            />
-          </div>
+      <div class="skill-filter">
+        <label for="skill-select" class="filter-label">Filter by skill:</label>
+        <select v-model="selectedSkill" id="skill-select" class="select-input">
+          <option value="">All Skills</option>
+          <option v-for="skill in skillsList" :key="skill" :value="skill">{{ skill }}</option>
+        </select>
+      </div>
+    </div>
 
-          <div class="search-group">
-            <label class="search-label">Filter by Skill</label>
-            <select v-model="selectedSkill" class="search-select">
-              <option value="">-- Select a skill --</option>
-              <option v-for="skill in skillsList" :key="skill" :value="skill">{{ skill }}</option>
-            </select>
+    <!-- Loading State -->
+    <div v-if="isLoading" class="loading-container">
+      <div class="spinner"></div>
+      <p>Loading helpers...</p>
+    </div>
+
+    <!-- No Results -->
+    <div v-else-if="filteredHelpers.length === 0" class="no-results">
+      <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="no-results-icon">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <h3>No helpers found</h3>
+      <p>Try adjusting your search or filters</p>
+    </div>
+
+    <!-- Helpers Grid -->
+    <div v-else class="helpers-grid">
+      <div 
+        v-for="helper in filteredHelpers" 
+        :key="helper.id" 
+        class="helper-card"
+      >
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="helper-avatar">
+            <img v-if="helper.avatarUrl" :src="helper.avatarUrl" :alt="helper.name" class="avatar-img" />
+            <div v-else class="avatar-placeholder">{{ helper.name.charAt(0).toUpperCase() }}</div>
+          </div>
+          <div class="helper-info">
+            <h3 class="helper-name">{{ helper.name }}</h3>
+            <p class="helper-title">{{ helper.title }}</p>
+            <div class="helper-rating">
+              <span class="stars">{{ renderStars(helper.rating) }}</span>
+              <span class="rating-text">{{ helper.rating }}</span>
+              <span class="review-count">({{ helper.reviewCount }})</span>
+            </div>
           </div>
         </div>
 
-        <div v-if="selectedSkill" class="selected-filters">
-          <span class="filter-tag">
-            Skill: {{ selectedSkill }}
-            <button @click="selectedSkill = ''" class="remove-filter">✕</button>
+        <!-- Description -->
+        <p class="helper-description">{{ helper.description }}</p>
+
+        <!-- Meta Info -->
+        <div class="helper-meta">
+          <div class="meta-item">
+            <span class="icon">📍</span>
+            <span>{{ helper.location }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="icon">✓</span>
+            <span>{{ helper.completedJobs }} jobs completed</span>
+          </div>
+        </div>
+
+        <!-- Skills Preview -->
+        <div class="skills-preview">
+          <span 
+            v-for="(skill, idx) in helper.skills.slice(0, 3)" 
+            :key="skill.name + String(idx)" 
+            class="skill-badge"
+          >
+            {{ skill.name }}
           </span>
-          <button class="clear-btn" @click="clearFilters">Clear All</button>
+          <span v-if="helper.skills.length > 3" class="more-skills">
+            +{{ helper.skills.length - 3 }} more
+          </span>
         </div>
-      </div>
 
-      <!-- Loading State -->
-      <div v-if="isLoading" class="loading-state">
-        <div class="spinner"></div>
-        <p>Loading helpers...</p>
-      </div>
-
-      <!-- Empty State -->
-      <div v-else-if="filteredHelpers.length === 0" class="empty-state">
-        <p>No helpers found matching your criteria.</p>
-      </div>
-
-      <!-- Helpers Grid -->
-      <div v-else class="helpers-grid">
-        <div v-for="helper in filteredHelpers" :key="helper.id" class="helper-card">
-          <div class="helper-header">
-            <div class="helper-avatar">
-              <img v-if="helper.avatarUrl" :src="helper.avatarUrl" :alt="helper.name" class="avatar-img" />
-              <div v-else class="avatar-placeholder">{{ helper.name.charAt(0).toUpperCase() }}</div>
-            </div>
-            <div class="helper-info">
-              <h3 class="helper-name">{{ helper.name }}</h3>
-              <p class="helper-title">{{ helper.title }}</p>
-              <div class="helper-rating">
-                <span class="stars">{{ renderStars(helper.rating) }}</span>
-                <span class="rating-text">{{ helper.rating }}</span>
-                <span class="jobs-count">({{ helper.completedJobs }} jobs)</span>
-              </div>
-            </div>
-          </div>
-
-          <p class="helper-description">{{ helper.description }}</p>
-
-          <div class="helper-meta">
-            <div class="meta-item"><span class="icon">📍</span>{{ helper.location }}</div>
-            <div class="meta-item"><span class="icon">⏱️</span>{{ helper.responseTime }}</div>
-          </div>
-
-          <div class="skills-preview">
-            <span v-for="(skill, idx) in helper.skills.slice(0, 3)" :key="skill.name + String(idx)" class="skill-badge">
-              {{ skill.name }}
-            </span>
-            <span v-if="helper.skills.length > 3" class="more-skills">+{{ helper.skills.length - 3 }} more</span>
-          </div>
-
-          <!-- Latest Review Snippet -->
-          <div v-if="helper.latestReview" class="review-snippet">
-            <div class="snippet-top">
-              <span class="snippet-stars">{{ renderStars(helper.latestReview.rating) }}</span>
-              <span class="snippet-rating">{{ helper.latestReview.rating }}</span>
-              <span class="snippet-author">by {{ helper.latestReview.reviewerName }}</span>
-            </div>
-            <p class="snippet-comment">"{{ helper.latestReview.comment }}"</p>
-          </div>
-
-          <button class="view-profile-btn" @click="viewHelperProfile(helper)">View Profile</button>
-        </div>
+        <!-- View Profile Button -->
+        <button @click="viewHelperProfile(helper)" class="view-profile-btn">
+          View Profile
+        </button>
       </div>
     </div>
 
     <!-- Modal -->
-    <div v-if="showModal" class="modal-overlay" @click="closeModal">
-      <div class="modal-content" @click.stop>
-        <button class="close-btn" @click="closeModal">✕</button>
-        <div v-if="selectedHelper">
-          <div class="modal-header">
-            <div class="profile-section">
-              <div class="profile-avatar-large">
-                <img v-if="selectedHelper.avatarUrl" :src="selectedHelper.avatarUrl" :alt="selectedHelper.name" class="avatar-img-large" />
-                <div v-else class="avatar-placeholder-large">{{ selectedHelper.name.charAt(0).toUpperCase() }}</div>
+    <div v-if="showModal && selectedHelper" class="modal-overlay" @click.self="closeModal">
+      <div class="modal-content">
+        <button @click="closeModal" class="close-btn">×</button>
+
+        <!-- Modal Header -->
+        <div class="modal-header">
+          <div class="profile-section">
+            <div class="profile-avatar-large">
+              <img v-if="selectedHelper.avatarUrl" :src="selectedHelper.avatarUrl" :alt="selectedHelper.name" class="avatar-img-large" />
+              <div v-else class="avatar-placeholder-large">{{ selectedHelper.name.charAt(0).toUpperCase() }}</div>
+            </div>
+            <div>
+              <!-- MERGED: Name and View Profile button on same line -->
+              <div class="name-and-button">
+                <h2 class="modal-name">{{ selectedHelper.name }}</h2>
+                <button @click="goToHelperProfile" class="view-profile-link-btn">
+                  View Full Profile
+                </button>
               </div>
-              <div>
-                <div class="name-and-button">
-                  <h2 class="modal-name">{{ selectedHelper.name }}</h2>
-                  <button @click="goToHelperProfile" class="view-profile-link-btn">
-                    View Profile
-                  </button>
-                </div>
-                <p class="modal-title">{{ selectedHelper.title }}</p>
-                <div class="modal-stats">
-                  <span class="stars">{{ renderStars(selectedHelper.rating) }}</span>
-                  <span class="rating-text">{{ selectedHelper.rating }}</span>
-                  <span class="separator">•</span>
-                  <span>{{ selectedHelper.reviewCount }} reviews</span>
-                  <span class="separator">•</span>
-                  <span>{{ selectedHelper.completedJobs }} jobs</span>
-                </div>
+              <p class="modal-title">{{ selectedHelper.title }}</p>
+              <div class="modal-stats">
+                <span class="stars">{{ renderStars(selectedHelper.rating) }}</span>
+                <span class="rating-text">{{ selectedHelper.rating }}</span>
+                <span class="separator">•</span>
+                <span>{{ selectedHelper.reviewCount }} reviews</span>
+                <span class="separator">•</span>
+                <span>{{ selectedHelper.completedJobs }} jobs</span>
               </div>
             </div>
           </div>
-
-          <div class="modal-quick-info">
-            <div class="info-item"><span class="icon">📍</span><div><div class="info-label">Location</div><div class="info-value">{{ selectedHelper.location }}</div></div></div>
-            <div class="info-item"><span class="icon">📅</span><div><div class="info-label">Availability</div><div class="info-value">{{ selectedHelper.availability }}</div></div></div>
-            <div class="info-item"><span class="icon">⏱️</span><div><div class="info-label">Response Time</div><div class="info-value">{{ selectedHelper.responseTime }}</div></div></div>
-          </div>
-
-          <div class="modal-section"><h3 class="section-title">About</h3><p class="section-text">{{ selectedHelper.bio }}</p></div>
-
-          <div class="modal-section">
-            <h3 class="section-title">Skills & Expertise</h3>
-            <div class="skills-list">
-              <span v-for="(skill, idx) in selectedHelper.skills" :key="skill.name + String(idx)" class="skill-tag">
-                <strong>{{ skill.name }}</strong><small v-if="skill.level"> — {{ skill.level }}</small>
-                <div v-if="skill.jobs != null" class="skill-meta">({{ skill.jobs }} jobs)</div>
-              </span>
-            </div>
-          </div>
-
-          <div class="modal-section">
-            <h3 class="section-title">Experience & Qualifications</h3>
-            <ul class="experience-list">
-              <li v-for="(exp, idx) in selectedHelper.experience" :key="idx">{{ exp }}</li>
-            </ul>
-          </div>
-
-          <!-- Reviews Section with Reviews Component -->
-          <Reviews :helperId="selectedHelper.userId" />
-
-          <button v-if="!isCurrentUserTheHelper" class="chat-btn" @click="startChat">Start Chat</button>
         </div>
+
+        <!-- Quick Info -->
+        <div class="modal-quick-info">
+          <div class="info-item">
+            <span class="icon">📍</span>
+            <div>
+              <div class="info-label">Location</div>
+              <div class="info-value">{{ selectedHelper.location }}</div>
+            </div>
+          </div>
+          <div class="info-item">
+            <span class="icon">📅</span>
+            <div>
+              <div class="info-label">Availability</div>
+              <div class="info-value">{{ selectedHelper.availability }}</div>
+            </div>
+          </div>
+          <div class="info-item">
+            <span class="icon">⏱️</span>
+            <div>
+              <div class="info-label">Response Time</div>
+              <div class="info-value">{{ selectedHelper.responseTime }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- About Section -->
+        <div class="modal-section">
+          <h3 class="section-title">About</h3>
+          <p class="section-text">{{ selectedHelper.bio }}</p>
+        </div>
+
+        <!-- Skills Section -->
+        <div class="modal-section">
+          <h3 class="section-title">Skills & Expertise</h3>
+          <div class="skills-list">
+            <span v-for="(skill, idx) in selectedHelper.skills" :key="skill.name + String(idx)" class="skill-tag">
+              <strong>{{ skill.name }}</strong>
+              <small v-if="skill.level"> — {{ skill.level }}</small>
+              <div v-if="skill.jobs != null" class="skill-meta">({{ skill.jobs }} jobs)</div>
+            </span>
+          </div>
+        </div>
+
+        <!-- Experience Section -->
+        <div class="modal-section">
+          <h3 class="section-title">Experience & Qualifications</h3>
+          <ul class="experience-list">
+            <li v-for="(exp, idx) in selectedHelper.experience" :key="idx">{{ exp }}</li>
+          </ul>
+        </div>
+
+        <!-- Reviews Section -->
+        <Reviews :helperId="selectedHelper.userId" />
+
+        <!-- Chat Button -->
+        <button 
+          v-if="!isCurrentUserTheHelper" 
+          class="chat-btn" 
+          @click="startChat"
+        >
+          Start Chat
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.review-snippet {
-  margin: 0.75rem 0;
-  padding: 0.75rem;
-  background: #fff8f0;
-  border: 1px solid #fde3c6;
-  border-radius: 0.5rem;
-  color: #4b5563;
-}
-
-.snippet-top {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.95rem;
-  margin-bottom: 0.375rem;
-}
-
-.snippet-stars {
-  font-size: 0.95rem;
-  color: #f59e0b;
-}
-
-.snippet-rating {
-  font-weight: 700;
-  color: #374151;
-}
-
-.snippet-author {
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
-.snippet-comment {
-  margin: 0;
-  font-style: italic;
-  color: #374151;
-}
-
-/* small helper to show review count inline */
-.review-count-inline {
-  color: #6b7280;
-  font-weight: 500;
-}
-
-/* (Styles are the same as before - kept for continuity and to avoid styling regressions) */
 * {
   box-sizing: border-box;
 }
@@ -623,149 +626,97 @@ onMounted(async () => {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-/* Header */
-.header-section {
+.header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 2rem;
 }
 
-.main-title {
-  font-size: 3.5rem;
+.page-title {
+  font-size: 2.5rem;
   font-weight: 700;
-  color: #6C5B7F;
+  color: #111827;
   margin: 0 0 0.5rem 0;
-  letter-spacing: -0.02em;
 }
 
-.subtitle {
-  font-size: 1.25rem;
+.page-subtitle {
+  font-size: 1.125rem;
   color: #6b7280;
   margin: 0;
 }
 
-/* Search Card */
-.search-card {
-  background: white;
-  border-radius: 1rem;
-  padding: 2rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  margin-bottom: 2rem;
-}
-
-.search-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-@media (max-width: 768px) {
-  .search-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.search-group {
+.filters {
+  max-width: 1200px;
+  margin: 0 auto 2rem;
   display: flex;
-  flex-direction: column;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
 }
 
-.search-label {
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
+.search-box {
+  flex: 1;
+  min-width: 250px;
+  position: relative;
 }
 
-.search-input,
-.search-select {
-  padding: 0.875rem 1rem;
-  font-size: 1rem;
-  border: 2px solid #e5e7eb;
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.875rem 1rem 0.875rem 3rem;
+  border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
+  font-size: 1rem;
   transition: all 0.2s;
   background: white;
 }
 
-.search-input:focus,
-.search-select:focus {
+.search-input:focus {
   outline: none;
   border-color: #6C5B7F;
   box-shadow: 0 0 0 3px rgba(108, 91, 127, 0.1);
 }
 
-.search-input::placeholder {
-  color: #9ca3af;
-}
-
-/* Selected Filters */
-.selected-filters {
+.skill-filter {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
   align-items: center;
-  padding-top: 1rem;
-  border-top: 1px solid #e5e7eb;
+  gap: 0.5rem;
 }
 
-.filter-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: #E8E3ED;
-  color: #4A3F5C;
-  border-radius: 9999px;
+.filter-label {
   font-size: 0.875rem;
   font-weight: 500;
-  border: 1px solid #C7BDD6;
+  color: #374151;
 }
 
-.remove-filter {
-  background: none;
-  border: none;
-  color: #4A3F5C;
-  cursor: pointer;
-  font-size: 1.125rem;
-  line-height: 1;
-  padding: 0;
-  margin-left: 0.25rem;
-  transition: all 0.2s;
-}
-
-.remove-filter:hover {
-  transform: scale(1.2);
-  color: #6C5B7F;
-}
-
-.clear-btn {
-  padding: 0.5rem 1rem;
-  background: transparent;
-  color: #dc2626;
-  border: none;
-  font-size: 0.875rem;
-  font-weight: 600;
+.select-input {
+  padding: 0.875rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  background: white;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.clear-btn:hover {
-  color: #991b1b;
-  text-decoration: underline;
+.select-input:focus {
+  outline: none;
+  border-color: #6C5B7F;
+  box-shadow: 0 0 0 3px rgba(108, 91, 127, 0.1);
 }
 
-/* Loading State */
-.loading-state {
+.loading-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 4rem 2rem;
+  min-height: 50vh;
   color: #6b7280;
 }
 
@@ -783,45 +734,52 @@ onMounted(async () => {
   to { transform: rotate(360deg); }
 }
 
-/* Empty State */
-.empty-state {
+.no-results {
   text-align: center;
   padding: 4rem 2rem;
   color: #6b7280;
-  font-size: 1.125rem;
 }
 
-/* Helpers Grid */
+.no-results-icon {
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.no-results h3 {
+  font-size: 1.5rem;
+  margin: 0 0 0.5rem 0;
+  color: #374151;
+}
+
+.no-results p {
+  font-size: 1rem;
+  margin: 0;
+}
+
 .helpers-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-@media (max-width: 768px) {
-  .helpers-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Helper Card */
 .helper-card {
   background: white;
-  border-radius: 1rem;
-  padding: 1.75rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid #f3f4f6;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
   display: flex;
   flex-direction: column;
 }
 
 .helper-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
 }
 
-.helper-header {
+.card-header {
   display: flex;
   gap: 1rem;
   margin-bottom: 1rem;
@@ -834,7 +792,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   background: #f9fafb;
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -846,32 +804,37 @@ onMounted(async () => {
 }
 
 .avatar-placeholder {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 600;
   color: #6b7280;
 }
 
 .helper-info {
   flex: 1;
+  min-width: 0;
 }
 
 .helper-name {
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 600;
   color: #111827;
   margin: 0 0 0.25rem 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .helper-title {
-  font-size: 0.875rem;
+  font-size: 0.95rem;
   color: #6b7280;
   margin: 0 0 0.5rem 0;
+  font-weight: 500;
 }
 
 .helper-rating {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
   font-size: 0.875rem;
 }
 
@@ -885,7 +848,7 @@ onMounted(async () => {
   color: #374151;
 }
 
-.jobs-count {
+.review-count {
   color: #6b7280;
   font-weight: 500;
 }
@@ -1071,7 +1034,7 @@ onMounted(async () => {
   color: #6b7280;
 }
 
-/* Name and button container */
+/* MERGED: Name and button container */
 .name-and-button {
   display: flex;
   align-items: center;
@@ -1086,6 +1049,7 @@ onMounted(async () => {
   margin: 0;
 }
 
+/* MERGED: View Profile button in modal */
 .view-profile-link-btn {
   padding: 0.5rem 1rem;
   background: #6C5B7F;
