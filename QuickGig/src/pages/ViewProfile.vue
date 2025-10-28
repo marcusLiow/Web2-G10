@@ -53,10 +53,15 @@ const fetchHelperProfile = async (userId) => {
       .from('public_helpers')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
-    if (userError) throw userError;
+    if (userError) {
+      console.error('Error fetching user data:', userError);
+      router.push('/helpers');
+      return;
+    }
     if (!userData) {
+      console.warn('User not found');
       router.push('/helpers');
       return;
     }
