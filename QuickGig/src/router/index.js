@@ -10,7 +10,6 @@ import Onboarding from '@/pages/Onboarding.vue'
 import AdventurerSignUp from '@/pages/AdventurerSignUp.vue'
 import maptest from '@/pages/maptest.vue'
 import HelpersPage from '../pages/HelpersPage.vue'
-import Spending from '../pages/Spending.vue'
 import editjob from '@/pages/editjob.vue'
 import JobMap from '@/pages/JobMap.vue'
 
@@ -49,11 +48,6 @@ const router = createRouter({
       path: '/earnings',
       name: 'earnings',
       component: () => import('../pages/Earnings.vue')
-    },
-    {
-      path: '/spending',
-      name: 'spending',
-      component: () => import('../pages/Spending.vue')
     },
     {
       path: '/jobs',

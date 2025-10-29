@@ -108,7 +108,8 @@
     </div>
 
     <div class="message-input-container">
-      <form @submit.prevent="sendMessage" class="message-form">
+      <form @submit.prevent="sendMessage" class="message-form row g-2 align-items-center">
+
         <input
           v-model="newMessage"
           type="text"
@@ -116,6 +117,7 @@
           class="message-input"
           :disabled="isSending"
         />
+        <div v-if="canMakeOffer" class="col-auto">
         <button
           v-if="canMakeOffer"
           type="button"
@@ -125,6 +127,9 @@
         >
           Make Offer
         </button>
+        </div>
+
+        <div class="col-auto">
         <button
           type="submit"
           class="send-btn"
@@ -134,7 +139,7 @@
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
           </svg>
-        </button>
+        </button></div>
       </form>
     </div>
 
@@ -1710,9 +1715,33 @@ const navigateToJobDetails = () => {
   border-radius: 1rem;
   max-width: 500px;
   width: 100%;
-  max-height: 90vh;
+  max-height: 80vh;
   overflow-y: auto;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+.modal-content::-webkit-scrollbar {
+  width: 6px; /* Width of the scrollbar */
+  height: 6px;
+}
+.modal-content::-webkit-scrollbar-track {
+  background: transparent; /* Make the track invisible */
+  border-radius: 1rem; /* Match modal's border-radius if possible */
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background-color: #adb5bd; /* Color of the scrollbar thumb (the bar) */
+  border-radius: 3px; /* Rounded corners for the thumb */
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background-color: #6c757d; /* Darker color on hover */
+}
+
+/* Explicitly hide the scrollbar arrow buttons */
+.modal-content::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
 }
 
 .modal-header {
@@ -1921,6 +1950,7 @@ const navigateToJobDetails = () => {
 
   .modal-content {
     margin: 1rem;
+    max-height: 60vh; /* I limited the height so it doesnt get blocked by navbar on small screen*/
   }
 
   .offer-btn {
