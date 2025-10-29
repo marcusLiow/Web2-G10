@@ -515,14 +515,18 @@ const clearFilters = () => { searchTerm.value = ''; selectedSkill.value = ''; };
               <div>
                 <h2 class="modal-name">{{ selectedHelper.name }}</h2>
                 <p class="modal-title">{{ selectedHelper.title }}</p>
-                <div class="modal-stats">
-                  <span class="stars">{{ renderStars(selectedHelper.rating) }}</span>
-                  <span class="rating-text">{{ selectedHelper.rating }}</span>
-                  <span class="separator">•</span>
-                  <span>{{ selectedHelper.reviewCount }} reviews</span>
-                  <span class="separator">•</span>
-                  <span>{{ selectedHelper.completedJobs }} jobs</span>
-                </div>
+                  <div class="modal-stats d-flex flex-column flex-md-row align-items-md-center flex-wrap">
+
+                    <div class="d-flex align-items-center me-md-2"> <span class="stars me-1">{{ renderStars(selectedHelper.rating) }}</span>
+                      <span class="rating-text">{{ selectedHelper.rating }}</span>
+                    </div>
+
+                    <div class="mt-1 mt-md-0 me-md-2"> 
+                      <span class="separator d-none d-md-inline">•</span> <span>{{ selectedHelper.reviewCount }} reviews</span>
+                      <span class="separator d-none d-md-inline">•</span> <span>{{ selectedHelper.completedJobs }} jobs</span>
+                    </div>
+
+                  </div>
               </div>
             </div>
           </div>

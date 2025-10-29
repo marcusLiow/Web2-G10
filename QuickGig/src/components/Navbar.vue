@@ -12,7 +12,6 @@
           
           <!-- Show Dashboard link only when logged in -->
           <router-link v-if="isLoggedIn" to="/earnings" class="nav-link">Earnings</router-link>
-          <router-link v-if="isLoggedIn" to="/spending" class="nav-link">Spendings</router-link>
           
           <!-- Chat Button (only when logged in) with notification badge -->
           <router-link v-if="isLoggedIn" to="/chats" class="chat-button-wrapper" title="Chats">
