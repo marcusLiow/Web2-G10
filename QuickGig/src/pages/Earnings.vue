@@ -1,6 +1,14 @@
 <template>
   <div class="container mt-4">
-
+<div v-if="viewMode === 'earnings'" class="text-center mb-4">
+      <button
+        @click="generateEarningsPDF"
+        :disabled="isGeneratingPDF || loading"  
+        class="btn btn-secondary"
+      >
+        {{ isGeneratingPDF ? 'Generating...' : 'Download Yearly Report (PDF)' }}
+      </button>
+      </div>
     <div class="text-center mb-4">
       <div class="btn-group" role="group" aria-label="View Toggle">
         <button
@@ -19,6 +27,7 @@
         >
           My Spending
         </button>
+        
       </div>
     </div>
 
@@ -102,13 +111,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'; // Added watch
+import jsPDF from 'jspdf'; // <-- Import jsPDF
+import 'jspdf-autotable'; // <-- Import jsPDF-AutoTable
+import { ref, onMounted, computed, watch } from 'vue'; 
 import { supabase } from '../supabase/config';
 
 // --- State ---
 const loading = ref(true);
 const error = ref(null);
-const viewMode = ref('earnings'); // 'earnings' or 'spending'
+const viewMode = ref('earnings'); // Default to earnings
+const isGeneratingPDF = ref(false); // <-- State for PDF generation
 
 // --- Data Refs ---
 const allFetchedEarnings = ref([]);
@@ -141,8 +153,8 @@ const chartTitle = computed(() => viewMode.value === 'earnings' ? 'Earnings (Las
 const listTitle = computed(() => viewMode.value === 'earnings' ? 'Recent Earnings' : 'My Job Postings');
 const emptyListMessage = computed(() => viewMode.value === 'earnings' ? 'No recent earnings found.' : 'You have not posted any jobs.');
 const totalColorClass = computed(() => viewMode.value === 'earnings' ? 'text-success' : 'text-primary');
-const currentMonthPrefix = computed(() => viewMode.value === 'earnings' ? '+' : '-');
-const allTimePrefix = computed(() => viewMode.value === 'earnings' ? '+' : '-');
+const currentMonthPrefix = computed(() => viewMode.value === 'earnings' ? '+' : '-'); // Not currently used, but available
+const allTimePrefix = computed(() => viewMode.value === 'earnings' ? '+' : '-'); // Not currently used, but available
 
 const displayedListItems = computed(() => {
   return viewMode.value === 'earnings' ? allFetchedEarnings.value : allFetchedJobs.value;
@@ -189,10 +201,12 @@ onMounted(async () => {
 function updateDisplayData() {
   const dataSet = viewMode.value === 'earnings' ? allFetchedEarnings.value : allFetchedJobs.value;
   const amountField = viewMode.value === 'earnings' ? 'net_amount' : 'payment';
-  const statusToCheck = viewMode.value === 'earnings' ? 'completed' : 'completed'; // Both use 'completed' for totals/chart
+  // Determine status to check based on view mode (only count completed for totals/chart)
+  const statusToCheck = 'completed'; // Always check for 'completed' status for these totals
 
   const today = new Date();
   const monthlyTotals = new Map();
+  // Initialize map for the last 6 months including the current one
   for (let i = 5; i >= 0; i--) {
     const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -201,6 +215,7 @@ function updateDisplayData() {
 
   let allTimeTotalCalc = 0;
   for (const item of dataSet) {
+    // Only add to totals/chart if the status is 'completed'
     if (item.status === statusToCheck) {
       allTimeTotalCalc += item[amountField];
       const date = new Date(item.created_at);
@@ -214,7 +229,9 @@ function updateDisplayData() {
   allTimeTotal.value = allTimeTotalCalc;
 
   const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  // Ensure the key exists before getting, default to 0
   currentMonthTotal.value = monthlyTotals.get(currentMonthKey) || 0.00;
+
 
   // Update chart
   updateChart(monthlyTotals);
@@ -227,7 +244,8 @@ function updateChart(monthlyTotals) {
   const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
 
   for (const [monthKey, total] of monthlyTotals.entries()) {
-    const date = new Date(`${monthKey}-02`);
+    // Ensure date parsing is robust (use day 02 to avoid timezone issues near month end)
+    const date = new Date(`${monthKey}-02T00:00:00`);
     categories.push(monthFormatter.format(date));
     seriesData.push(total.toFixed(2));
   }
@@ -238,18 +256,110 @@ function updateChart(monthlyTotals) {
   }];
 
   chartOptions.value = {
-    ...chartOptions.value,
-    colors: [viewMode.value === 'earnings' ? '#1b9e77' : '#0d6efd'], // Green for earnings, Blue for spending
+    ...chartOptions.value, // Keep existing base options
+    colors: [viewMode.value === 'earnings' ? '#1b9e77' : '#0d6efd'], // Update color
     yaxis: {
-       ...chartOptions.value.yaxis,
-       title: { text: viewMode.value === 'earnings' ? 'Earnings ($)' : 'Spending ($)' }
+       ...chartOptions.value.yaxis, // Keep existing yaxis settings
+       title: { text: viewMode.value === 'earnings' ? 'Earnings ($)' : 'Spending ($)' } // Update title
     },
     xaxis: {
-      ...chartOptions.value.xaxis,
-      categories: categories
+      ...chartOptions.value.xaxis, // Keep existing xaxis settings
+      categories: categories // Update categories
     }
+    // Ensure tooltip formatter is correct
+    // tooltip: { y: { formatter: (val) => "$ " + parseFloat(val).toFixed(2) } } // More precise tooltip
   };
 }
+
+// --- PDF Generation Function (Modified) ---
+const generateEarningsPDF = async () => {
+  // Only disable if currently generating or initial data load is happening
+  if (isGeneratingPDF.value || loading.value) return;
+
+  isGeneratingPDF.value = true;
+  console.log('Generating PDF report...');
+
+  try {
+    // 1. Get User Info
+    const { data: { user } } = await supabase.auth.getUser();
+    const username = user?.email || 'User';
+
+    // 2. Define Date Range (Past Year)
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setFullYear(endDate.getFullYear() - 1);
+    const dateRangeStr = `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+
+    // 3. Filter Earnings Data for the Past Year
+    const oneYearAgo = startDate.getTime();
+    const earningsLastYear = allFetchedEarnings.value.filter(earning => {
+      const earningDate = new Date(earning.created_at).getTime();
+      return earningDate >= oneYearAgo && earning.status === 'completed'; // Only completed earnings
+    }).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // Sort chronologically
+
+    // 4. Calculate Total for the Report (will be 0 if empty)
+    const totalEarningsLastYear = earningsLastYear.reduce((sum, earning) => sum + earning.net_amount, 0);
+
+    // 5. Initialize jsPDF
+    const doc = new jsPDF();
+
+    // 6. Add Content to PDF
+    doc.setFontSize(18);
+    doc.text('Earnings Report', 14, 22);
+
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`User: ${username}`, 14, 30);
+    doc.text(`Period: ${dateRangeStr}`, 14, 36);
+    doc.text(`Total Earnings (Past Year): $${totalEarningsLastYear.toFixed(2)}`, 14, 42);
+
+    // 7. Prepare Data for AutoTable
+    const tableColumn = ["Date", "Job Title", "Amount ($)"];
+    const tableRows = [];
+
+    earningsLastYear.forEach(earning => {
+      const earningData = [
+        formatJobDate(earning.created_at), // Use your existing date formatter
+        earning.job_title || 'N/A',
+        earning.net_amount.toFixed(2),
+      ];
+      tableRows.push(earningData);
+    });
+
+    // 8. Add Table using AutoTable
+    doc.autoTable({
+      head: [tableColumn],
+      body: tableRows,
+      startY: 50, // Start table below the header text
+      theme: 'grid',
+      headStyles: { fillColor: [22, 160, 133] }, // Header color
+      styles: { fontSize: 10 },
+      columnStyles: {
+        2: { halign: 'right' } // Align amount column right
+      },
+      // ADDED: Add text below table if body is empty
+      didDrawPage: function (data) {
+        if (tableRows.length === 0) {
+          doc.setFontSize(10);
+          doc.setTextColor(150); // Gray color
+          doc.text("No completed earnings recorded in this period.", 14, data.cursor.y + 10);
+        }
+      }
+    });
+
+    // 9. Save the PDF
+    const fileName = `Earnings_Report_${endDate.toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+
+    console.log('PDF report generated:', fileName);
+
+  } catch (err) {
+    console.error('Error generating PDF:', err);
+    alert('Failed to generate PDF report. Please try again.');
+  } finally {
+    isGeneratingPDF.value = false;
+  }
+};
 
 // --- Helper Functions ---
 function getStatusBadgeClass(status) {
@@ -264,8 +374,9 @@ function getStatusBadgeClass(status) {
 
 function formatJobDate(dateString) {
   if (!dateString) return '';
+  // Ensure consistent date formatting
   return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric', month: 'long', day: 'numeric',
+    year: 'numeric', month: 'short', day: 'numeric', // Using short month for brevity
   });
 }
 </script>
