@@ -177,50 +177,48 @@
 
           <div v-if="activeTab === 'jobs'" class="tab-content">
             <div class="content-body">
-              <h2>Job History</h2>
+              <h2>My Job History (as Helper)</h2>
               <div v-if="completedJobs.length" class="jobs-list">
-                <div v-for="job in completedJobs" :key="job.id" class="job-card">
+                
+                <div v-for="job in completedJobs" :key="job.id || job.job_title" class="job-card">
                   <div>
-                    <h3>{{ job.title }}</h3>
-                    <p class="job-description">{{ job.description }}</p>
-                    <p class="job-date">Posted: {{ formatDateShort(job.created_at) }}</p>
+                    <h3>{{ job.job_title }}</h3>
+                    <p class="completed-by">
+                      <strong>Job Poster:</strong> {{ job.posterName }}
+                    </p>
+                    <p class="job-date">Completed: {{ formatDateShort(job.created_at) }}</p>
                   </div>
                   <div class="job-right">
-                    <p class="job-amount">${{ job.payment }}</p>
+                    <p class="job-amount">Earned: ${{ (job.agreed_amount || 0).toFixed(2) }}</p>
                     <span class="status-badge status-completed">COMPLETED</span>
                   </div>
                 </div>
-              </div>
+                </div>
               <div v-else class="empty-state">
                 <div class="empty-icon-text">No Jobs</div>
                 <p class="empty-title">No completed jobs yet</p>
-                <p class="empty-text">Your completed jobs will appear here</p>
+                <p class="empty-text">Jobs you complete as a helper will appear here.</p>
               </div>
             </div>
           </div>
 
           <div v-if="activeTab === 'listings'" class="tab-content">
             <div class="content-body">
-              <h2>My Job Listings</h2>
+              <h2>My Job Listings (All)</h2>
 
-              <!-- Defensive guard: ensure activeListings is defined -->
-              <div v-if="activeListings && activeListings.length" class="listings-list">
-                <div v-for="listing in activeListings" :key="listing.id" class="listing-card">
+              <div v-if="userListings && userListings.length" class="listings-list">
+                <div v-for="listing in userListings" :key="listing.id" class="listing-card">
                   <div class="listing-main">
                     <div class="listing-header-row">
                       <h3>{{ listing.title }}</h3>
                       <span :class="['listing-status-badge', getStatusClass(listing.status)]">{{ (listing.status || '').toUpperCase() }}</span>
                     </div>
                     <p class="listing-description">{{ listing.description }}</p>
+                    
+                    <div v-if="listing.status === 'completed' && listing.completedBy && listing.completedBy.length > 0" class="completed-by-wrapper">
+                      <strong>Completed By:</strong> {{ listing.completedBy.join(', ') }}
+                    </div>
                     <div class="listing-details">
-                      <div class="listing-detail-item">
-                        <span class="detail-label">Location:</span>
-                        <span>{{ listing.location }}</span>
-                      </div>
-                      <div v-if="listing.category" class="listing-detail-item">
-                        <span class="detail-label">Category:</span>
-                        <span>{{ listing.category }}</span>
-                      </div>
                       <div class="listing-detail-item">
                         <span class="detail-label">Posted:</span>
                         <span>{{ formatDateShort(listing.created_at) }}</span>
@@ -230,21 +228,17 @@
 
                   <div class="listing-footer">
                     <p class="listing-payment">${{ listing.payment }}</p>
+                    
                     <div class="listing-actions">
-                      <button @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">Mark as Completed</button>
-                      <button @click="editListing(listing)" class="btn-action btn-action-edit" type="button">Edit</button>
-                      <button @click="deleteListing(listing.id)" class="btn-action btn-action-delete" type="button">Delete</button>
+                      <button v-if="listing.status === 'in-progress'" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">Mark as Completed</button>
+                      <button v-if="listing.status === 'open'" @click="editListing(listing)" class="btn-action btn-action-edit" type="button">Edit</button>
+                      <button v-if="listing.status === 'open'" @click="deleteListing(listing.id)" class="btn-action btn-action-delete" type="button">Delete</button>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div v-else class="empty-state">
-                <div class="empty-icon-text">No Listings</div>
-                <p class="empty-title">No listings yet</p>
-                <p class="empty-text">You haven't created any job listings yet. Start posting to find help!</p>
               </div>
-            </div>
           </div>
         </section>
       </template>
@@ -558,6 +552,52 @@ function removeHelperSkill(i) { editForm.helper_skills.splice(i, 1); }
 function addExperience() { editForm.experience.push(''); }
 function removeExperience(i) { editForm.experience.splice(i, 1); }
 
+async function loadCompletedJobs(uid) {
+  try {
+    if (!uid) {
+      completedJobs.value = [];
+      return;
+    }
+
+    // 1. Fetch completed jobs where the current user was the helper
+    const { data: jobsData, error: jobsError } = await supabase
+      .from('helper_jobs')
+      .select('job_title, agreed_amount, client_id, created_at, status') // Get client_id to find poster's name
+      .eq('helper_id', uid)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false });
+
+    if (jobsError) throw jobsError;
+    if (!jobsData || jobsData.length === 0) {
+      completedJobs.value = [];
+      return;
+    }
+
+    // 2. Get the poster (client) names
+    const clientIds = [...new Set(jobsData.map(job => job.client_id))];
+    const { data: usersData, error: usersError } = await supabase
+      .from('users')
+      .select('id, username')
+      .in('id', clientIds);
+
+    if (usersError) throw usersError;
+
+    const userMap = new Map(usersData.map(user => [user.id, user.username]));
+
+    // 3. Combine the data
+    const enrichedJobs = jobsData.map(job => ({
+      ...job,
+      posterName: userMap.get(job.client_id) || 'Unknown Poster'
+    }));
+
+    completedJobs.value = enrichedJobs;
+
+  } catch (e) {
+    console.error('loadCompletedJobs (as helper) error', e);
+    completedJobs.value = [];
+  }
+}
+
 function renderStars(n) {
   const full = Math.floor(n);
   return '★'.repeat(full);
@@ -762,27 +802,75 @@ async function loadUserReviews(helperId) {
 async function loadUserListings(uid) {
   try {
     if (!uid) return;
-    const { data, error } = await supabase.from('User-Job-Request').select('*').eq('user_id', uid).order('created_at', { ascending: false });
-    if (error) { console.warn('listings fetch error', error); userListings.value = []; return; }
-    userListings.value = data || [];
+
+    // 1. Fetch ALL listings by this user, regardless of status
+    const { data: listingsData, error } = await supabase
+      .from('User-Job-Request')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('listings fetch error', error);
+      userListings.value = [];
+      return;
+    }
+    if (!listingsData) {
+      userListings.value = [];
+      return;
+    }
+
+    // 2. Enrich listings with helper data if completed
+    const enrichedListings = await Promise.all(listingsData.map(async (listing) => {
+      // If the job isn't completed, just return it
+      if (listing.status !== 'completed') {
+        return listing;
+      }
+
+      // If it is completed, find the helper(s)
+      let completedBy = [];
+      try {
+        // Find accepted chat(s) for this job
+        const { data: chatData, error: chatError } = await supabase
+          .from('chats')
+          .select('job_seeker_id') // Get the helper's ID
+          .eq('job_id', listing.id)
+          .eq('offer_accepted', true); // Only accepted offers
+
+        if (chatError) throw chatError;
+
+        if (chatData && chatData.length > 0) {
+          const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+          
+          // Get usernames for these helper IDs
+          const { data: usersData, error: userError } = await supabase
+            .from('users')
+            .select('username')
+            .in('id', helperIds);
+
+          if (userError) throw userError;
+          completedBy = usersData ? usersData.map(u => u.username || 'Unknown') : [];
+        }
+      } catch (enrichError) {
+        console.error(`Error fetching helper for listing ${listing.id}:`, enrichError);
+        completedBy = ['Error fetching helper'];
+      }
+
+      return {
+        ...listing,
+        completedBy: completedBy // Add the array of helper names
+      };
+    }));
+
+    userListings.value = enrichedListings;
+
   } catch (e) {
     console.error('loadUserListings error', e);
     userListings.value = [];
   }
 }
 
-async function loadCompletedJobs(uid) {
-  try {
-    if (!uid) return;
-    const { data, error } = await supabase.from('User-Job-Request').select('*').eq('user_id', uid).eq('status', 'completed').order('created_at', { ascending: false });
-    if (error) { console.warn('completed jobs fetch error', error); completedJobs.value = []; return; }
-    completedJobs.value = data || [];
-    user.stats.jobsCompleted = completedJobs.value.length;
-  } catch (e) {
-    console.error('loadCompletedJobs error', e);
-    completedJobs.value = [];
-  }
-}
+
 /*send notif when paid*/
 async function markAsCompleted(jobId) {
   if (!jobId) {
@@ -790,79 +878,82 @@ async function markAsCompleted(jobId) {
     return;
   }
 
-  // Confirmation dialog
   if (!confirm('Are you sure you want to mark this job as completed? This will notify the helper(s) and move the job to history.')) {
     return;
   }
 
   try {
-    const userId = currentUserId.value; // Assuming currentUserId is already defined and loaded
+    const userId = currentUserId.value;
 
-    // --- Step 1: Update the job status to completed ---
+    // --- Step 1: Update the job status in the database ---
+    // We get the 'title' back for the notification
     const { data: updatedJob, error: updateError } = await supabase
       .from('User-Job-Request')
-      .update({
-        status: 'completed'
-      })
+      .update({ status: 'completed' })
       .eq('id', jobId)
-      .eq('user_id', userId) // Ensure only the owner can update
-      .select('title') // Select the title for the notification message
-      .single(); // Expecting only one job to be updated
+      .eq('user_id', userId)
+      .select('title')
+      .single();
 
-    if (updateError) {
-      console.error('Error marking job as completed:', updateError);
-      alert(`Failed to mark job as completed: ${updateError.message}`);
-      return;
-    }
+    if (updateError) throw updateError;
+    const jobTitle = updatedJob.title || 'your recent job';
 
-    if (!updatedJob) {
-      alert('Job not found or you do not have permission to update it.');
-      return;
-    }
-
-    const jobTitle = updatedJob.title || 'your recent job'; // Get job title for message
-
-    // --- Step 2: Find the helper(s) associated with this job ---
+    // --- Step 2: Find helper IDs AND Names ---
+    let helperNames = [];
+    let helperIds = [];
     const { data: chatData, error: chatError } = await supabase
-      .from('chats') // Assuming 'chats' table links jobs and helpers
-      .select('job_seeker_id') // Get the helper's user ID
+      .from('chats')
+      .select('job_seeker_id') // Get the helper's ID
       .eq('job_id', jobId)
-      .eq('offer_accepted', true); // Find chats where an offer was accepted
+      .eq('offer_accepted', true);
 
-    if (chatError) {
-      console.error('Error finding helpers for notification:', chatError);
-      // Proceed even if helper finding fails, the job is already marked complete.
+    if (chatError) throw chatError;
+
+    if (chatData && chatData.length > 0) {
+      helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+
+      // --- ADDED: Fetch helper names for immediate UI update ---
+      const { data: usersData, error: userError } = await supabase
+        .from('users')
+        .select('username')
+        .in('id', helperIds);
+      
+      if (userError) throw userError;
+      helperNames = usersData ? usersData.map(u => u.username || 'Unknown') : [];
     }
 
     // --- Step 3: Insert notifications for each helper ---
-    if (chatData && chatData.length > 0) {
-      const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))]; // Get unique helper IDs
-
+    if (helperIds.length > 0) {
       const notifications = helperIds.map(helperId => ({
-        user_id: helperId, // The recipient of the notification
+        user_id: helperId, // The recipient
         message: `Job '${jobTitle}' has been marked as completed. Payment should be processed shortly.`,
-        // Optional: Add a link to their earnings page or the job history
-        // link: '/earnings'
+        link: '/wallet' // Link to their earnings/wallet
       }));
 
       const { error: notificationError } = await supabase
-        .from('notifications') // Your notifications table
+        .from('notifications')
         .insert(notifications);
 
       if (notificationError) {
         console.error('Error sending notifications:', notificationError);
-        // Don't necessarily block the user, maybe just log this error.
-      } else {
-        console.log(`Notifications sent to ${helperIds.length} helper(s).`);
       }
-    } else {
-      console.warn(`No accepted helpers found for job ${jobId} to notify.`);
     }
 
-    // --- Step 4: Show success and refresh local data ---
+    // --- Step 4: UPDATE LOCAL STATE (THE FIX) ---
+    // Find the job in our local userListings array
+    const jobIndex = userListings.value.findIndex(job => job.id === jobId);
+    
+    if (jobIndex !== -1) {
+      // Manually update the data. This forces Vue to re-render.
+      userListings.value[jobIndex].status = 'completed';
+      userListings.value[jobIndex].completedBy = helperNames;
+    }
+    // --- END FIX ---
+
     alert('Job marked as completed successfully! Helper(s) notified.');
 
-    // Refresh the listings and completed jobs locally
+    // Re-fetch data in the background to ensure consistency
+    // (This will run after the UI has already updated)
     await loadUserListings(userId);
     await loadCompletedJobs(userId);
 
@@ -1505,5 +1596,37 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
     margin-top: 0;
     text-align: center;
   }
+}
+.completed-by {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.completed-by strong {
+  color: #374151;
+}
+
+.completed-by-wrapper {
+  font-size: 0.9rem;
+  color: #374151;
+  background: #f0fdf4; /* Light green background */
+  border: 1px solid #bbf7d0; /* Green border */
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.completed-by-wrapper strong {
+  color: #166534; /* Darker green */
+}
+
+/* Make "Job History" amount stand out */
+.job-right .job-amount {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #16a34a; /* Green for earnings */
 }
 </style>
