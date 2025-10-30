@@ -10,7 +10,6 @@ import Onboarding from '@/pages/Onboarding.vue'
 import AdventurerSignUp from '@/pages/AdventurerSignUp.vue'
 import maptest from '@/pages/maptest.vue'
 import HelpersPage from '../pages/HelpersPage.vue'
-import Spending from '../pages/Spending.vue'
 import editjob from '@/pages/editjob.vue'
 import JobMap from '@/pages/JobMap.vue'
 
@@ -45,15 +44,17 @@ const router = createRouter({
       name: 'profile',
       component: () => import('../pages/ProfilePage.vue')
     },
+    // NEW: Route for viewing other users' profiles (helpers)
+    {
+      path: '/profile/:userId',
+      name: 'UserProfile',
+      component: () => import('../pages/ViewProfile.vue'),
+      props: true
+    },
     {
       path: '/earnings',
       name: 'earnings',
       component: () => import('../pages/Earnings.vue')
-    },
-    {
-      path: '/spending',
-      name: 'spending',
-      component: () => import('../pages/Spending.vue')
     },
     {
       path: '/jobs',
@@ -135,7 +136,7 @@ const router = createRouter({
     {
       path: '/helper-chat/:id',
       name: 'HelperChat',
-      component: () => import('../pages/ChatConversation.vue'), 
+      component: () => import('../pages/ChatConversation.vue'),
       meta: { requiresAuth: true }
     }
   ],

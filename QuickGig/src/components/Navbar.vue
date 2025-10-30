@@ -500,10 +500,9 @@ export default {
 }
 
 .nav-link {
+  color: #ffffff !important;
+  font-weight: 600;
   text-decoration: none;
-  color: white;
-  font-weight: bold;
-  transition: all 0.3s;
   white-space: nowrap;
   font-size: 1.1em;
   padding-bottom: 0.25rem;
@@ -511,7 +510,10 @@ export default {
 }
 
 .nav-link:hover {
-  opacity: 0.8;
+  transform: translateY(-2px);
+  text-shadow: 0 0 4px rgba(255, 255, 255, 0.4),
+               0 0 10px rgba(255, 255, 255, 0.25);
+  color: #f9fafb !important; /* slightly softer off-white */
 }
 
 .nav-link.router-link-active,

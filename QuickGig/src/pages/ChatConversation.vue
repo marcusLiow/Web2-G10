@@ -88,11 +88,16 @@
               <p class="confirmed-text">Payment Confirmed</p>
             </div>
 
-            <!-- Show "Leave a Review" button for everyone after offer is accepted -->
-            <div v-if="!hasReviewedOtherUser"
-                 class="review-action">
+            <!-- Show "Leave a Review" or "Edit Review" button -->
+            <div v-if="!hasReviewedOtherUser" class="review-action">
               <button @click="openReviewModal" class="review-btn">
                 ⭐ Leave a Review
+              </button>
+            </div>
+            <!-- Always show review button -->
+            <div class="review-action">
+              <button @click="openReviewModal" class="review-btn">
+                {{ hasReviewedOtherUser ? '✏️ Edit Your Review' : '⭐ Leave a Review' }}
               </button>
             </div>
 
@@ -108,7 +113,8 @@
     </div>
 
     <div class="message-input-container">
-      <form @submit.prevent="sendMessage" class="message-form">
+      <form @submit.prevent="sendMessage" class="message-form row g-2 align-items-center">
+
         <input
           v-model="newMessage"
           type="text"
@@ -116,6 +122,7 @@
           class="message-input"
           :disabled="isSending"
         />
+        <div v-if="canMakeOffer" class="col-auto">
         <button
           v-if="canMakeOffer"
           type="button"
@@ -125,6 +132,9 @@
         >
           Make Offer
         </button>
+        </div>
+
+        <div class="col-auto">
         <button
           type="submit"
           class="send-btn"
@@ -134,7 +144,7 @@
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
           </svg>
-        </button>
+        </button></div>
       </form>
     </div>
 
@@ -419,9 +429,15 @@ const reviewHelperId = computed(() => {
 
 // Check if the current user already reviewed the helper
 // Check if the current user already reviewed the other user
+// Check if the current user already reviewed the other user
+// Check if the current user already reviewed the other user
+// Check if the current user already reviewed the other user
 const checkIfReviewed = async () => {
   try {
-    if (!currentUserId.value || !otherUserId.value) return;
+    if (!currentUserId.value || !otherUserId.value) {
+      hasReviewedOtherUser.value = false;
+      return;
+    }
     
     // Check if current user already reviewed the other user
     const { data, error } = await supabase
@@ -433,10 +449,17 @@ const checkIfReviewed = async () => {
 
     if (error && error.code !== 'PGRST116') {
       console.error('Error checking review:', error);
+      hasReviewedOtherUser.value = false;
+      return;
     }
+    
+    console.log('Check if reviewed - data:', data, 'currentUser:', currentUserId.value, 'otherUser:', otherUserId.value, 'isHelper:', isHelper.value);
+    
+    // Only set to true if a review actually exists
     hasReviewedOtherUser.value = !!data;
   } catch (err) {
     console.error('Error in checkIfReviewed:', err);
+    hasReviewedOtherUser.value = false;
   }
 };
 
@@ -1142,16 +1165,33 @@ const submitReview = async () => {
       return;
     }
 
-    const { data, error } = await supabase
+const { data, error } = await supabase
       .from('reviews')
-      .insert([{
-        helper_id: personToReview,
-        reviewer_id: currentUserId.value,
+      .update({
         rating: reviewRating.value,
         comment: reviewComment.value.trim(),
-        job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title
-      }])
+        job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title,
+        updated_at: new Date().toISOString()
+      })
+      .eq('helper_id', personToReview)
+      .eq('reviewer_id', currentUserId.value)
       .select();
+
+    // If no rows updated, insert a new review
+    if (!error && (!data || data.length === 0)) {
+      const { data: insertData, error: insertError } = await supabase
+        .from('reviews')
+        .insert([{
+          helper_id: personToReview,
+          reviewer_id: currentUserId.value,
+          rating: reviewRating.value,
+          comment: reviewComment.value.trim(),
+          job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title
+        }])
+        .select();
+      
+      if (insertError) throw insertError;
+    }
 
     if (error) {
       console.error('Error submitting review:', error);
@@ -1181,7 +1221,6 @@ const navigateToJobDetails = () => {
 </script>
 
 <style scoped>
-/* --- CORRECTED FIX --- */
 .chat-page {
   display: flex;
   flex-direction: column;
@@ -1710,11 +1749,60 @@ const navigateToJobDetails = () => {
   border-radius: 1rem;
   max-width: 500px;
   width: 100%;
-  max-height: 90vh;
+  max-height: 80vh;
   overflow-y: auto;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  padding-right: 6px;
+}
+.modal-content::-webkit-scrollbar {
+  width: 6px; /* Width of the scrollbar */
+  height: 6px;
+}
+.modal-content::-webkit-scrollbar {
+  width: 6px; /* Width of the scrollbar */
+  height: 6px;
+}
+.modal-content::-webkit-scrollbar-track {
+  background: transparent; /* Make the track invisible */
+  border-radius: 1rem; /* Match modal's border-radius if possible */
 }
 
+.modal-content::-webkit-scrollbar-thumb {
+  background-color: #adb5bd; /* Color of the scrollbar thumb (the bar) */
+  border-radius: 3px; /* Rounded corners for the thumb */
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background-color: #6c757d; /* Darker color on hover */
+}
+
+/* Explicitly hide the scrollbar arrow buttons */
+.modal-content::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: transparent; /* Make the track invisible */
+  border-radius: 1rem; /* Match modal's border-radius if possible */
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background-color: #adb5bd; /* Color of the scrollbar thumb (the bar) */
+  border-radius: 3px; /* Rounded corners for the thumb */
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background-color: #6c757d; /* Darker color on hover */
+}
+
+/* Explicitly hide the scrollbar arrow buttons */
+.modal-content::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -1914,6 +2002,10 @@ const navigateToJobDetails = () => {
   .message-bubble {
     max-width: 85%;
   }
+  .modal-content {
+  max-height: 60vh; /* I limited the height so it doesnt get blocked by navbar on small screen*/
+}
+
 
   .offer-bubble {
     max-width: 90%;
@@ -1921,6 +2013,7 @@ const navigateToJobDetails = () => {
 
   .modal-content {
     margin: 1rem;
+    max-height: 60vh; /* I limited the height so it doesnt get blocked by navbar on small screen*/
   }
 
   .offer-btn {
