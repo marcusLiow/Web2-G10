@@ -88,11 +88,16 @@
               <p class="confirmed-text">Payment Confirmed</p>
             </div>
 
-            <!-- Show "Leave a Review" button for everyone after offer is accepted -->
-            <div v-if="!hasReviewedOtherUser"
-                 class="review-action">
+            <!-- Show "Leave a Review" or "Edit Review" button -->
+            <div v-if="!hasReviewedOtherUser" class="review-action">
               <button @click="openReviewModal" class="review-btn">
                 ⭐ Leave a Review
+              </button>
+            </div>
+            <!-- Always show review button -->
+            <div class="review-action">
+              <button @click="openReviewModal" class="review-btn">
+                {{ hasReviewedOtherUser ? '✏️ Edit Your Review' : '⭐ Leave a Review' }}
               </button>
             </div>
 
@@ -424,9 +429,15 @@ const reviewHelperId = computed(() => {
 
 // Check if the current user already reviewed the helper
 // Check if the current user already reviewed the other user
+// Check if the current user already reviewed the other user
+// Check if the current user already reviewed the other user
+// Check if the current user already reviewed the other user
 const checkIfReviewed = async () => {
   try {
-    if (!currentUserId.value || !otherUserId.value) return;
+    if (!currentUserId.value || !otherUserId.value) {
+      hasReviewedOtherUser.value = false;
+      return;
+    }
     
     // Check if current user already reviewed the other user
     const { data, error } = await supabase
@@ -438,10 +449,17 @@ const checkIfReviewed = async () => {
 
     if (error && error.code !== 'PGRST116') {
       console.error('Error checking review:', error);
+      hasReviewedOtherUser.value = false;
+      return;
     }
+    
+    console.log('Check if reviewed - data:', data, 'currentUser:', currentUserId.value, 'otherUser:', otherUserId.value, 'isHelper:', isHelper.value);
+    
+    // Only set to true if a review actually exists
     hasReviewedOtherUser.value = !!data;
   } catch (err) {
     console.error('Error in checkIfReviewed:', err);
+    hasReviewedOtherUser.value = false;
   }
 };
 
@@ -1147,16 +1165,33 @@ const submitReview = async () => {
       return;
     }
 
-    const { data, error } = await supabase
+const { data, error } = await supabase
       .from('reviews')
-      .insert([{
-        helper_id: personToReview,
-        reviewer_id: currentUserId.value,
+      .update({
         rating: reviewRating.value,
         comment: reviewComment.value.trim(),
-        job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title
-      }])
+        job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title,
+        updated_at: new Date().toISOString()
+      })
+      .eq('helper_id', personToReview)
+      .eq('reviewer_id', currentUserId.value)
       .select();
+
+    // If no rows updated, insert a new review
+    if (!error && (!data || data.length === 0)) {
+      const { data: insertData, error: insertError } = await supabase
+        .from('reviews')
+        .insert([{
+          helper_id: personToReview,
+          reviewer_id: currentUserId.value,
+          rating: reviewRating.value,
+          comment: reviewComment.value.trim(),
+          job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title
+        }])
+        .select();
+      
+      if (insertError) throw insertError;
+    }
 
     if (error) {
       console.error('Error submitting review:', error);
@@ -1186,7 +1221,6 @@ const navigateToJobDetails = () => {
 </script>
 
 <style scoped>
-/* --- CORRECTED FIX --- */
 .chat-page {
   display: flex;
   flex-direction: column;
