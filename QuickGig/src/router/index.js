@@ -142,6 +142,11 @@ const router = createRouter({
       path: '/helper/:id',
       name: 'HelperProfile',
       component: () => import('../pages/HelperProfile.vue')
+    },
+    {
+      path: '/user/:id',
+      name: 'ViewProfile',
+      component: () => import('../pages/ViewProfile.vue')
     }
   ],
 })
