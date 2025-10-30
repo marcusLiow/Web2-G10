@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { supabase } from '../supabase/config';
 import { useRouter } from 'vue-router';
+import { supabase } from '../supabase/config';
 import Reviews from './Reviews.vue';
 
 const router = useRouter();
@@ -54,8 +54,6 @@ const fetchHelpers = async () => {
   try {
     isLoading.value = true;
 
-    // Fetch from public_helpers (your friend's change used 'users' table with is_helper flag)
-    // Choose the one that matches your database schema
     const { data: usersData, error: usersError } = await supabase
       .from('users')
       .select('*')
@@ -66,13 +64,11 @@ const fetchHelpers = async () => {
 
     const userIds = usersData.map(u => u.id);
 
-    // aggregated stats
     const { data: statsData, error: statsError } = await supabase.rpc('get_helper_stats');
     if (statsError) console.warn('get_helper_stats error', statsError);
     const statsMap = {};
     if (Array.isArray(statsData)) statsData.forEach(s => { statsMap[String(s.helper_id)] = s; });
 
-    // helper_profiles - only fetch active profiles
     const { data: profiles, error: profilesError } = await supabase
       .from('helper_profiles')
       .select('*')
@@ -82,7 +78,6 @@ const fetchHelpers = async () => {
     const profilesMap = {};
     (profiles || []).forEach(p => { profilesMap[String(p.user_id)] = p; });
 
-    // Fetch reviews - FIXED: avoid ambiguous relationship
     const { data: reviewsData, error: reviewsError } = await supabase
       .from('reviews')
       .select('helper_id, rating, comment, created_at, reviewer_id')
@@ -91,7 +86,6 @@ const fetchHelpers = async () => {
     
     if (reviewsError) console.warn('reviews fetch error', reviewsError);
     
-    // Fetch reviewer details separately
     let reviewersMap = {};
     if (reviewsData && reviewsData.length > 0) {
       const reviewerIds = [...new Set(reviewsData.map(r => r.reviewer_id).filter(Boolean))];
@@ -123,9 +117,8 @@ const fetchHelpers = async () => {
       }
     });
 
-    // MERGED: Filter to only include users with active helper profiles (from friend's version)
     const merged = usersData
-      .filter(user => profilesMap[user.id]) // Only include users with active helper profiles
+      .filter(user => profilesMap[user.id])
       .map(user => {
         const profile = profilesMap[user.id];
         const stats = statsMap[user.id] || { avg_rating: 0, review_count: 0, completed_jobs: 0 };
@@ -139,16 +132,15 @@ const fetchHelpers = async () => {
           title: profile.title || user.helper_title || 'Helper',
           description: profile.description || user.helper_bio || 'Available to help with various tasks',
           skills: normalizeSkills(rawSkills),
-          location: profile.location || user.location || 'Not specified', // Better priority
+          location: profile.location || user.location || 'Not specified',
           availability: profile.availability || 'Contact for availability',
           responseTime: profile.response_time || 'Usually responds within 24 hours',
           rating: Math.round(Number(stats.avg_rating) * 10) / 10 || 0,
           reviewCount: Number(stats.review_count) || 0,
           completedJobs: Number(stats.completed_jobs) || 0,
-          bio: profile.bio || user.helper_bio || user.bio || '', // Better fallback
+          bio: profile.bio || user.helper_bio || user.bio || '',
           experience: profile.experience || ['Contact for details'],
           latestReview: latestReviewMap[user.id] || null,
-          // helper UI flags (set later when profile opened)
           canLeaveReview: false,
           hasReviewed: false
         };
@@ -163,216 +155,13 @@ const fetchHelpers = async () => {
   }
 };
 
-const fetchHelperStatsFor = async (helperId) => {
-  try {
-    if (!helperId) return;
-    const { data, error } = await supabase.rpc('get_helper_stats_for', { helper_uuid: helperId });
-    if (error) { console.error('get_helper_stats_for error', error); return; }
-    const row = Array.isArray(data) ? data[0] : data;
-    if (!row) return;
-    if (selectedHelper.value && selectedHelper.value.userId === helperId) {
-      selectedHelper.value.rating = Number(row.avg_rating) || 0;
-      selectedHelper.value.reviewCount = Number(row.review_count) || 0;
-      selectedHelper.value.completedJobs = Number(row.completed_jobs) || 0;
-    }
-  } catch (err) {
-    console.error('fetchHelperStatsFor error:', err);
-  }
+// Navigate directly to helper profile page
+const viewHelperProfile = (helper) => {
+  router.push(`/helper/${helper.userId}`);
 };
 
-/* --- Review / eligibility checks --- */
-const checkReviewEligibility = async (helperId) => {
-  // default
-  if (!selectedHelper.value) return;
-  selectedHelper.value.canLeaveReview = false;
-  selectedHelper.value.hasReviewed = false;
-
-  try {
-    // ensure we have currentUserId
-    if (!currentUserId.value) {
-      const { data: sessionData } = await supabase.auth.getSession();
-      currentUserId.value = sessionData?.session?.user?.id || localStorage.getItem('userId');
-    }
-    if (!currentUserId.value) return;
-
-    // Check helper_jobs: allow review if there's a completed or in-progress job between current user and this helper
-    const { data: jobData, error: jobError } = await supabase
-      .from('helper_jobs')
-      .select('id,status')
-      .eq('helper_id', helperId)
-      .eq('client_id', currentUserId.value)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (jobError && jobError.code !== 'PGRST116') {
-      console.error('helper_jobs query error:', jobError);
-    }
-
-    const jobExists = !!jobData;
-    const jobAcceptable = jobData?.status === 'completed' || jobData?.status === 'in-progress';
-
-    // Check if user already reviewed this helper
-    const { data: reviewData, error: reviewError } = await supabase
-      .from('reviews')
-      .select('id')
-      .eq('helper_id', helperId)
-      .eq('reviewer_id', currentUserId.value)
-      .maybeSingle();
-
-    if (reviewError && reviewError.code !== 'PGRST116') {
-      console.error('reviews query error:', reviewError);
-    }
-
-    const alreadyReviewed = !!reviewData;
-
-    // Logic: allow review when there's an in-progress/completed job and user hasn't already reviewed.
-    selectedHelper.value.canLeaveReview = jobExists && jobAcceptable && !alreadyReviewed;
-    selectedHelper.value.hasReviewed = alreadyReviewed;
-
-  } catch (err) {
-    console.error('checkReviewEligibility error:', err);
-  }
-};
-
-/* --- UI handlers --- */
-const viewHelperProfile = async (helper) => {
-  selectedHelper.value = { ...helper }; // clone to avoid mutating list entry directly
-  showModal.value = true;
-
-  // populate dynamic stats
-  await fetchHelperStatsFor(helper.userId);
-
-  // check review eligibility for this helper
-  await checkReviewEligibility(helper.userId);
-};
-
-const closeModal = () => { showModal.value = false; selectedHelper.value = null; };
-
-// KEPT FROM YOUR VERSION: Navigate to helper's profile page
-const goToHelperProfile = () => {
-  if (selectedHelper.value && selectedHelper.value.userId) {
-    // Store userId before closing modal (which clears selectedHelper)
-    const userId = selectedHelper.value.userId;
-    closeModal();
-    router.push(`/profile/${userId}`);
-  }
-};
-
-const startChat = async () => {
-  try {
-    console.log('=== START CHAT DEBUG ===');
-    
-    // Check Supabase auth
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    console.log('Session data:', sessionData);
-    console.log('Session error:', sessionError);
-    console.log('Auth user:', sessionData?.session?.user);
-    console.log('Auth UID:', sessionData?.session?.user?.id);
-    
-    const curUserId = sessionData?.session?.user?.id || localStorage.getItem('userId');
-    console.log('Using user ID:', curUserId);
-    
-    if (!curUserId) {
-      console.error('No user ID found');
-      alert('Please log in to start a chat');
-      closeModal();
-      router.push('/login');
-      return;
-    }
-
-    const helperId = selectedHelper.value.userId;
-    console.log('Helper ID:', helperId);
-    
-    if (!helperId) {
-      console.error('Helper ID is missing');
-      alert('Unable to start chat: Helper information missing');
-      return;
-    }
-    
-    if (curUserId === helperId) {
-      console.log('User attempting to chat with themselves');
-      alert('You cannot chat with yourself');
-      return;
-    }
-
-    console.log('Checking for existing helper chat...');
-
-    // Check if chat already exists for this helper
-    const { data: existingChat, error: searchError } = await supabase
-      .from('helper_chats')
-      .select('id')
-      .eq('helper_id', helperId)
-      .eq('client_id', curUserId)
-      .maybeSingle();
-
-    console.log('Existing chat search result:', existingChat);
-    console.log('Search error:', searchError);
-
-    if (searchError && searchError.code !== 'PGRST116') {
-      console.error('Error searching for chat:', searchError);
-      throw searchError;
-    }
-
-    let chatId;
-
-    if (existingChat) {
-      chatId = existingChat.id;
-      console.log('✅ Using existing helper chat:', chatId);
-    } else {
-      // Create new helper chat
-      console.log('Creating new helper chat...');
-      console.log('Insert data:', {
-        helper_id: helperId,
-        client_id: curUserId,
-        last_message: 'Chat started',
-        last_message_time: new Date().toISOString()
-      });
-
-      const { data: newChat, error: createError } = await supabase
-        .from('helper_chats')
-        .insert([{
-          helper_id: helperId,
-          client_id: curUserId,
-          last_message: 'Chat started',
-          last_message_time: new Date().toISOString()
-        }])
-        .select()
-        .single();
-
-      console.log('Create result:', newChat);
-      console.log('Create error:', createError);
-
-      if (createError) {
-        console.error('Failed to create chat:', createError);
-        alert('Failed to create chat. Please try again.');
-        return;
-      }
-
-      if (!newChat || !newChat.id) {
-        console.error('Chat created but no ID returned');
-        alert('Failed to create chat. Please try again.');
-        return;
-      }
-
-      chatId = newChat.id;
-      console.log('✅ Created new helper chat:', chatId);
-    }
-
-    console.log('Navigating to helper chat:', chatId);
-    closeModal();
-    router.push(`/helper-chats?chatId=${chatId}`);
-
-  } catch (err) {
-    console.error('Error in startChat:', err);
-    alert('An error occurred. Please try again.');
-  }
-};
-
-/* --- Computed / filtering --- */
 const filteredHelpers = computed(() => {
   let result = helpers.value;
-  // Search filter
   if (searchTerm.value.trim()) {
     const term = searchTerm.value.toLowerCase();
     result = result.filter(h => {
@@ -382,7 +171,6 @@ const filteredHelpers = computed(() => {
       return nameMatch || titleMatch || descMatch;
     });
   }
-  // Skill filter
   if (selectedSkill.value) {
     result = result.filter(h => {
       return h.skills.some(sk => sk.name.toLowerCase() === selectedSkill.value.toLowerCase());
@@ -508,108 +296,9 @@ onMounted(async () => {
           </span>
         </div>
 
-        <!-- View Profile Button -->
+        <!-- View Profile Button - Now goes directly to full profile -->
         <button @click="viewHelperProfile(helper)" class="view-profile-btn">
           View Profile
-        </button>
-      </div>
-    </div>
-
-    <!-- Modal -->
-    <div v-if="showModal && selectedHelper" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-content">
-        <button @click="closeModal" class="close-btn">×</button>
-
-        <!-- Modal Header -->
-        <div class="modal-header">
-          <div class="profile-section">
-            <div class="profile-avatar-large">
-              <img v-if="selectedHelper.avatarUrl" :src="selectedHelper.avatarUrl" :alt="selectedHelper.name" class="avatar-img-large" />
-              <div v-else class="avatar-placeholder-large">{{ selectedHelper.name.charAt(0).toUpperCase() }}</div>
-            </div>
-            <div>
-              <!-- MERGED: Name and View Profile button on same line -->
-              <div class="name-and-button">
-                <h2 class="modal-name">{{ selectedHelper.name }}</h2>
-                <p class="modal-title">{{ selectedHelper.title }}</p>
-                  <div class="modal-stats d-flex flex-column flex-md-row align-items-md-center flex-wrap">
-
-                    <div class="d-flex align-items-center me-md-2"> <span class="stars me-1">{{ renderStars(selectedHelper.rating) }}</span>
-                      <span class="rating-text">{{ selectedHelper.rating }}</span>
-                    </div>
-
-                    <div class="mt-1 mt-md-0 me-md-2"> 
-                      <span class="separator d-none d-md-inline">•</span> <span>{{ selectedHelper.reviewCount }} reviews</span>
-                      <span class="separator d-none d-md-inline">•</span> <span>{{ selectedHelper.completedJobs }} jobs</span>
-                    </div>
-
-                  </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Quick Info -->
-        <div class="modal-quick-info">
-          <div class="info-item">
-            <span class="icon">📍</span>
-            <div>
-              <div class="info-label">Location</div>
-              <div class="info-value">{{ selectedHelper.location }}</div>
-            </div>
-          </div>
-          <div class="info-item">
-            <span class="icon">📅</span>
-            <div>
-              <div class="info-label">Availability</div>
-              <div class="info-value">{{ selectedHelper.availability }}</div>
-            </div>
-          </div>
-          <div class="info-item">
-            <span class="icon">⏱️</span>
-            <div>
-              <div class="info-label">Response Time</div>
-              <div class="info-value">{{ selectedHelper.responseTime }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- About Section -->
-        <div class="modal-section">
-          <h3 class="section-title">About</h3>
-          <p class="section-text">{{ selectedHelper.bio }}</p>
-        </div>
-
-        <!-- Skills Section -->
-        <div class="modal-section">
-          <h3 class="section-title">Skills & Expertise</h3>
-          <div class="skills-list">
-            <span v-for="(skill, idx) in selectedHelper.skills" :key="skill.name + String(idx)" class="skill-tag">
-              <strong>{{ skill.name }}</strong>
-              <small v-if="skill.level"> — {{ skill.level }}</small>
-              <div v-if="skill.jobs != null" class="skill-meta">({{ skill.jobs }} jobs)</div>
-            </span>
-          </div>
-        </div>
-
-        <!-- Experience Section -->
-        <div class="modal-section">
-          <h3 class="section-title">Experience & Qualifications</h3>
-          <ul class="experience-list">
-            <li v-for="(exp, idx) in selectedHelper.experience" :key="idx">{{ exp }}</li>
-          </ul>
-        </div>
-
-        <!-- Reviews Section -->
-        <Reviews :helperId="selectedHelper.userId" />
-
-        <!-- Chat Button -->
-        <button 
-          v-if="!isCurrentUserTheHelper" 
-          class="chat-btn" 
-          @click="startChat"
-        >
-          Start Chat
         </button>
       </div>
     </div>
@@ -927,283 +616,5 @@ onMounted(async () => {
 .view-profile-btn:hover {
   background: #111827;
   transform: translateY(-1px);
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  padding: 1rem;
-  animation: fadeIn 0.2s;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal-content {
-  background: white;
-  border-radius: 1rem;
-  padding: 2rem;
-  max-width: 900px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-  animation: slideUp 0.3s;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.close-btn {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: #f3f4f6;
-  border: none;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  font-size: 1.5rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  color: #6b7280;
-}
-
-.close-btn:hover {
-  background: #e5e7eb;
-  color: #111827;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding-right: 2rem;
-}
-
-.profile-section {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.profile-avatar-large {
-  width: 5rem;
-  height: 5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f9fafb;
-  border-radius: 0.75rem;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.avatar-img-large {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-placeholder-large {
-  font-size: 2.5rem;
-  font-weight: 600;
-  color: #6b7280;
-}
-
-/* MERGED: Name and button container */
-.name-and-button {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.25rem;
-}
-
-.modal-name {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: #111827;
-  margin: 0;
-}
-
-/* MERGED: View Profile button in modal */
-.view-profile-link-btn {
-  padding: 0.5rem 1rem;
-  background: #6C5B7F;
-  color: white;
-  border: none;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.view-profile-link-btn:hover {
-  background: #5A4C6B;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(108, 91, 127, 0.3);
-}
-
-.modal-title {
-  font-size: 1.125rem;
-  color: #6b7280;
-  margin: 0 0 0.5rem 0;
-  font-weight: 500;
-}
-
-.modal-stats {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.95rem;
-  color: #374151;
-}
-
-.separator {
-  color: #d1d5db;
-}
-
-.modal-quick-info {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
-  background: #f9fafb;
-  border-radius: 0.75rem;
-}
-
-@media (max-width: 640px) {
-  .modal-quick-info {
-    grid-template-columns: 1fr;
-  }
-  
-  .name-and-button {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-  
-  .view-profile-link-btn {
-    font-size: 0.8125rem;
-    padding: 0.375rem 0.75rem;
-  }
-}
-
-.info-item {
-  display: flex;
-  gap: 0.75rem;
-  align-items: flex-start;
-}
-
-.info-label {
-  font-size: 0.8125rem;
-  color: #6b7280;
-  font-weight: 500;
-  margin-bottom: 0.25rem;
-}
-
-.info-value {
-  font-size: 0.95rem;
-  color: #111827;
-  font-weight: 600;
-}
-
-.modal-section {
-  margin-bottom: 2rem;
-}
-
-.section-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #111827;
-  margin: 0 0 1rem 0;
-}
-
-.section-text {
-  color: #4b5563;
-  line-height: 1.7;
-  margin: 0;
-}
-
-.skills-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.skill-tag {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  background: #E8E3ED;
-  color: #4A3F5C;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border: 1px solid #C7BDD6;
-}
-
-.skill-meta {
-  font-size: 0.75rem;
-  color: #6b7280;
-  margin-top: 0.25rem;
-}
-
-.experience-list {
-  margin: 0;
-  padding-left: 1.5rem;
-  color: #4b5563;
-  line-height: 1.8;
-}
-
-.experience-list li {
-  margin-bottom: 0.5rem;
-}
-
-.chat-btn {
-  width: 100%;
-  padding: 1rem;
-  background: #6C5B7F;
-  color: white;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 1.125rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-top: 1rem;
-}
-
-.chat-btn:hover {
-  background: #5A4C6B;
-  transform: translateY(-1px);
-  box-shadow: 0 10px 15px -3px rgba(108, 91, 127, 0.3);
 }
 </style>

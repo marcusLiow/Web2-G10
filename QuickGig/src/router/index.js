@@ -135,8 +135,13 @@ const router = createRouter({
     {
       path: '/helper-chat/:id',
       name: 'HelperChat',
-      component: () => import('../pages/ChatConversation.vue'), 
+      component: () => import('../pages/ChatConversation.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/helper/:id',
+      name: 'HelperProfile',
+      component: () => import('../pages/HelperProfile.vue')
     }
   ],
 })

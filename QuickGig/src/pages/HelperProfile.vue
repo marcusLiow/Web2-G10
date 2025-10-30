@@ -117,8 +117,8 @@ const fetchHelperProfile = async () => {
         year: 'numeric',
         month: 'long'
       }),
-      canLeaveReview: false, // Will be updated by checkReviewEligibility
-      hasReviewed: false // Will be updated by checkReviewEligibility
+      canLeaveReview: false,
+      hasReviewed: false
     };
     
     await checkReviewEligibility(helperId);
@@ -130,18 +130,6 @@ const fetchHelperProfile = async () => {
     isLoading.value = false;
   }
 };
-
-onMounted(async () => {
-  // set current user
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    currentUserId.value = sessionData?.session?.user?.id || localStorage.getItem('userId');
-  } catch (err) {
-    currentUserId.value = localStorage.getItem('userId');
-  }
-  await fetchHelperProfile();
-  await checkReviewEligibility(helperId);
-});
 
 /* --- Review eligibility check --- */
 const checkReviewEligibility = async (helperId) => {
@@ -269,7 +257,6 @@ onMounted(async () => {
     currentUserId.value = localStorage.getItem('userId');
   }
   await fetchHelperProfile();
-  await checkReviewEligibility(helperId);
 });
 </script>
 
@@ -364,10 +351,21 @@ onMounted(async () => {
               <div class="skills-grid">
                 <div v-for="skill in helper.skills" 
                      :key="skill.name" 
-                     class="skill-badge">
-                  <span class="skill-name">{{ skill.name }}</span>
-                  <span v-if="skill.level" class="skill-level">{{ skill.level }}</span>
-                  <span v-if="skill.jobs" class="skill-jobs">{{ skill.jobs }} jobs</span>
+                     class="skill-card">
+                  <div class="skill-header">
+                    <span class="skill-icon">✨</span>
+                    <span class="skill-name">{{ skill.name }}</span>
+                  </div>
+                  <div class="skill-details">
+                    <span v-if="skill.level" class="skill-level">
+                      <span class="label-icon">📊</span>
+                      {{ skill.level }}
+                    </span>
+                    <span v-if="skill.jobs" class="skill-jobs">
+                      <span class="label-icon">💼</span>
+                      {{ skill.jobs }} {{ skill.jobs === 1 ? 'job' : 'jobs' }}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -471,6 +469,29 @@ onMounted(async () => {
   transform: translateX(-2px);
 }
 
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+}
+
+.spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid #e5e7eb;
+  border-top-color: #6C5B7F;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Header Section */
 .header-section {
   background: white;
@@ -531,6 +552,35 @@ onMounted(async () => {
   font-size: 1.125rem;
   color: #6b7280;
   margin: 0 0 1rem 0;
+}
+
+.rating-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.stars {
+  color: #f59e0b;
+  font-size: 1.25rem;
+}
+
+.rating-number {
+  font-weight: 700;
+  color: #111827;
+  font-size: 1.125rem;
+}
+
+.review-count {
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.member-since {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0;
 }
 
 /* Quick Stats */
@@ -595,30 +645,139 @@ onMounted(async () => {
   border-bottom: 1px solid #e5e7eb;
 }
 
-/* Skills Grid */
-.skills-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+/* About Section */
+.bio {
+  color: #4b5563;
+  line-height: 1.7;
+  margin: 0;
+  font-size: 1rem;
 }
 
-.skill-badge {
-  background: #f3f4f6;
-  padding: 0.5rem 1rem;
-  border-radius: 2rem;
-  font-size: 0.875rem;
-  color: #374151;
+/* Skills Grid - UPDATED */
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.skill-card {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  transition: all 0.3s ease;
+  cursor: default;
+}
+
+.skill-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: #6C5B7F;
+}
+
+.skill-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.skill-icon {
+  font-size: 1.25rem;
+}
+
+.skill-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  flex: 1;
+}
+
+.skill-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #d1d5db;
+}
+
+.skill-level,
+.skill-jobs {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.label-icon {
+  font-size: 0.875rem;
+}
+
+.skill-level {
+  color: #059669;
+}
+
+.skill-jobs {
+  color: #3b82f6;
+}
+
+/* Experience */
+.experience-list {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: #4b5563;
+  line-height: 1.8;
+}
+
+.experience-list li {
+  margin-bottom: 0.75rem;
 }
 
 /* Reviews */
+.reviews-section {
+  position: sticky;
+  top: 2rem;
+}
+
+.review-note {
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+  text-align: center;
+  color: #6b7280;
+  font-style: italic;
+  margin-bottom: 1.5rem;
+}
+
+.reviews-list {
+  margin-top: 1.5rem;
+}
+
 .review-card {
   border: 1px solid #e5e7eb;
   border-radius: 0.75rem;
   padding: 1.5rem;
   margin-bottom: 1rem;
+  transition: all 0.2s;
+}
+
+.review-card:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.reviewer-info {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
 }
 
 .reviewer-avatar {
@@ -630,6 +789,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .reviewer-avatar img {
@@ -644,10 +804,45 @@ onMounted(async () => {
   font-size: 1.2rem;
 }
 
+.reviewer-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.reviewer-name {
+  font-weight: 600;
+  color: #111827;
+  font-size: 0.95rem;
+}
+
+.review-date {
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.review-rating {
+  text-align: right;
+}
+
+.review-rating .stars {
+  color: #f59e0b;
+  font-size: 1rem;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.review-rating .rating {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 600;
+}
+
 .review-text {
-  margin: 1rem 0 0 0;
+  margin: 0;
   color: #4b5563;
   line-height: 1.6;
+  font-size: 0.95rem;
 }
 
 /* Contact Button */
@@ -660,6 +855,7 @@ onMounted(async () => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  font-size: 1rem;
 }
 
 .contact-btn.primary {
@@ -671,6 +867,11 @@ onMounted(async () => {
 .contact-btn.primary:hover {
   background: #4338ca;
   transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(79, 70, 229, 0.3);
+}
+
+.btn-icon {
+  font-size: 1.25rem;
 }
 
 /* Responsive Design */
@@ -681,6 +882,10 @@ onMounted(async () => {
   
   .quick-stats {
     grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .reviews-section {
+    position: static;
   }
 }
 
@@ -694,6 +899,10 @@ onMounted(async () => {
     width: 100%;
     justify-content: center;
   }
+  
+  .skills-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -703,6 +912,14 @@ onMounted(async () => {
   
   .page-wrapper {
     padding: 1rem;
+  }
+  
+  .header-section {
+    padding: 1.5rem;
+  }
+  
+  .content-card {
+    padding: 1.5rem;
   }
 }
 </style>
