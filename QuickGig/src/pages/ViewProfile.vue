@@ -2,83 +2,49 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
-import Reviews from './Reviews.vue';
 
 const route = useRoute();
 const router = useRouter();
 
-const helper = ref(null);
+const user = ref(null);
 const isLoading = ref(true);
 const currentUserId = ref(null);
+const activeListings = ref([]);
+const userReviews = ref([]);
 
-const isCurrentUserTheHelper = computed(() => {
-  return currentUserId.value === helper.value?.userId;
+const isCurrentUser = computed(() => {
+  return currentUserId.value === user.value?.id;
 });
 
-/* --- Skill normalization utilities --- */
-function parseSkill(item) {
-  if (item == null) return { name: 'Unknown' };
-  if (typeof item === 'object') {
-    return { name: item.name || item.title || String(item), level: item.level ?? null, jobs: item.jobs ?? null };
-  }
-  if (typeof item === 'string') {
-    try {
-      const parsed = JSON.parse(item);
-      if (parsed && typeof parsed === 'object') {
-        return { name: parsed.name || parsed.title || String(parsed), level: parsed.level ?? null, jobs: parsed.jobs ?? null };
-      }
-    } catch (e) {}
-    return { name: item };
-  }
-  return { name: String(item) };
-}
-
-function normalizeSkills(raw) {
-  if (!raw) return [];
-  if (Array.isArray(raw)) return raw.map(parseSkill);
-  return [parseSkill(raw)];
-}
-
-/* --- Helper data fetching --- */
-const fetchHelperProfile = async () => {
+/* --- Fetch user profile data --- */
+const fetchUserProfile = async () => {
   try {
     isLoading.value = true;
-    const helperId = route.params.id;
+    const userId = route.params.id;
 
-    if (!helperId) {
-      throw new Error('No helper ID provided');
+    if (!userId) {
+      throw new Error('No user ID provided');
     }
 
-    // Fetch user data and helper profile simultaneously
-    const [userResponse, profileResponse, statsResponse] = await Promise.all([
-      // Basic user info
-      supabase
-        .from('users')
-        .select('*')
-        .eq('id', helperId)
-        .single(),
-      
-      // Helper profile
-      supabase
-        .from('helper_profiles')
-        .select('*')
-        .eq('user_id', helperId)
-        .eq('is_active', true)
-        .single(),
+    // Fetch user data
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
 
-      // Helper stats
-      supabase.rpc('get_helper_stats_for', { helper_uuid: helperId })
-    ]);
+    if (userError) throw userError;
 
-    if (userResponse.error) throw userResponse.error;
-    if (profileResponse.error && profileResponse.error.code !== 'PGRST116') throw profileResponse.error;
-    if (statsResponse.error) throw statsResponse.error;
+    // Fetch active job listings
+    const { data: jobsData, error: jobsError } = await supabase
+      .from('User-Job-Request')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
-    const userData = userResponse.data;
-    const profileData = profileResponse.data || {};
-    const statsData = Array.isArray(statsResponse.data) ? statsResponse.data[0] : statsResponse.data;
+    if (jobsError) throw jobsError;
 
-    // Fetch reviews
+    // Fetch reviews (where this user was the helper)
     const { data: reviewsData, error: reviewsError } = await supabase
       .from('reviews')
       .select(`
@@ -92,91 +58,54 @@ const fetchHelperProfile = async () => {
           avatar_url
         )
       `)
-      .eq('helper_id', helperId)
+      .eq('helper_id', userId)
       .order('created_at', { ascending: false });
 
-    if (reviewsError) throw reviewsError;
+    if (reviewsError && reviewsError.code !== 'PGRST116') throw reviewsError;
 
-    // Combine all data
-    helper.value = {
-      userId: userData.id,
-      username: userData.username || 'Anonymous',
+    // Calculate stats
+    const completedJobs = jobsData?.filter(job => job.status === 'completed')?.length || 0;
+    const reviews = reviewsData || [];
+    const avgRating = reviews.length > 0 
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length 
+      : 0;
+
+    // Transform job listings
+    activeListings.value = (jobsData || []).map(job => ({
+      id: job.id,
+      title: job.title,
+      description: job.description,
+      payment: job.payment,
+      category: job.category || 'Uncategorized',
+      location: job.location,
+      created_at: job.created_at,
+      status: job.status || 'open',
+      images: job.images || []
+    }));
+
+    userReviews.value = reviews;
+
+    user.value = {
+      id: userData.id,
+      username: userData.username || 'Anonymous User',
       avatarUrl: userData.avatar_url,
-      title: profileData.title || userData.helper_title || 'Helper',
-      bio: profileData.bio || userData.helper_bio || 'Available to help with various tasks',
-      skills: normalizeSkills(profileData.skills || userData.skills || []),
-      location: profileData.location || userData.location || 'Not specified',
-      availability: profileData.availability || 'Contact for availability',
-      responseTime: profileData.response_time || 'Usually responds within 24 hours',
-      experience: profileData.experience || ['Contact for details'],
-      rating: Math.round(Number(statsData?.avg_rating || 0) * 10) / 10,
-      reviewCount: Number(statsData?.review_count || 0),
-      completedJobs: Number(statsData?.completed_jobs || 0),
-      reviews: reviewsData || [],
+      bio: userData.bio || 'This user hasn\'t added a bio yet.',
+      location: userData.location || 'Not specified',
+      rating: Math.round(avgRating * 10) / 10,
+      reviewCount: reviews.length,
+      completedJobs: completedJobs,
+      activeListings: activeListings.value.filter(job => job.status === 'open' || job.status === 'in_progress').length,
       joinedDate: new Date(userData.created_at).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long'
-      }),
-      canLeaveReview: false,
-      hasReviewed: false
+      })
     };
-    
-    await checkReviewEligibility(helperId);
 
   } catch (error) {
-    console.error('Error fetching helper profile:', error);
-    router.push('/helpers');
+    console.error('Error fetching user profile:', error);
+    router.push('/jobs');
   } finally {
     isLoading.value = false;
-  }
-};
-
-/* --- Review eligibility check --- */
-const checkReviewEligibility = async (helperId) => {
-  if (!helper.value) return;
-  helper.value.canLeaveReview = false;
-  helper.value.hasReviewed = false;
-
-  try {
-    // Get current user
-    if (!currentUserId.value) {
-      const { data: sessionData } = await supabase.auth.getSession();
-      currentUserId.value = sessionData?.session?.user?.id || localStorage.getItem('userId');
-    }
-    if (!currentUserId.value) return;
-
-    // Check for completed or in-progress jobs
-    const { data: jobData, error: jobError } = await supabase
-      .from('helper_jobs')
-      .select('id,status')
-      .eq('helper_id', helperId)
-      .eq('client_id', currentUserId.value)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (jobError && jobError.code !== 'PGRST116') throw jobError;
-
-    const jobExists = !!jobData;
-    const jobAcceptable = jobData?.status === 'completed' || jobData?.status === 'in-progress';
-
-    // Check for existing review
-    const { data: reviewData, error: reviewError } = await supabase
-      .from('reviews')
-      .select('id')
-      .eq('helper_id', helperId)
-      .eq('reviewer_id', currentUserId.value)
-      .maybeSingle();
-
-    if (reviewError && reviewError.code !== 'PGRST116') throw reviewError;
-
-    const alreadyReviewed = !!reviewData;
-
-    helper.value.canLeaveReview = jobExists && jobAcceptable && !alreadyReviewed;
-    helper.value.hasReviewed = alreadyReviewed;
-
-  } catch (err) {
-    console.error('checkReviewEligibility error:', err);
   }
 };
 
@@ -196,6 +125,10 @@ const formatDate = (date) => {
   });
 };
 
+const viewJobDetails = (jobId) => {
+  router.push(`/job/${jobId}`);
+};
+
 /* --- Start chat functionality --- */
 const startChat = async () => {
   try {
@@ -205,43 +138,14 @@ const startChat = async () => {
       return;
     }
 
-    if (currentUserId.value === helper.value.userId) {
+    if (currentUserId.value === user.value.id) {
       alert('You cannot chat with yourself');
       return;
     }
 
-    // Check for existing chat
-    const { data: existingChat, error: searchError } = await supabase
-      .from('helper_chats')
-      .select('id')
-      .eq('helper_id', helper.value.userId)
-      .eq('client_id', currentUserId.value)
-      .maybeSingle();
-
-    if (searchError && searchError.code !== 'PGRST116') throw searchError;
-
-    let chatId;
-
-    if (existingChat) {
-      chatId = existingChat.id;
-    } else {
-      // Create new chat
-      const { data: newChat, error: createError } = await supabase
-        .from('helper_chats')
-        .insert([{
-          helper_id: helper.value.userId,
-          client_id: currentUserId.value,
-          last_message: 'Chat started',
-          last_message_time: new Date().toISOString()
-        }])
-        .select()
-        .single();
-
-      if (createError) throw createError;
-      chatId = newChat.id;
-    }
-
-    router.push(`/helper-chat/${chatId}`);
+    // For now, redirect to jobs page since direct user chat isn't implemented
+    alert('To chat with this user, please find one of their active job listings and use the Chat button there.');
+    
   } catch (error) {
     console.error('Start chat error:', error);
     alert('Failed to start chat. Please try again.');
@@ -249,14 +153,14 @@ const startChat = async () => {
 };
 
 onMounted(async () => {
-  // set current user
+  // Get current user
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     currentUserId.value = sessionData?.session?.user?.id || localStorage.getItem('userId');
   } catch (err) {
     currentUserId.value = localStorage.getItem('userId');
   }
-  await fetchHelperProfile();
+  await fetchUserProfile();
 });
 </script>
 
@@ -264,8 +168,8 @@ onMounted(async () => {
   <div class="page-wrapper">
     <div class="container">
       <!-- Back Button -->
-      <button class="back-button" @click="router.push('/helpers')">
-        <span class="back-icon">←</span> Back to Helpers
+      <button class="back-button" @click="router.back()">
+        <span class="back-icon">←</span> Back
       </button>
 
       <!-- Loading State -->
@@ -275,34 +179,33 @@ onMounted(async () => {
       </div>
 
       <!-- Profile Content -->
-      <div v-else-if="helper" class="profile-content">
+      <div v-else-if="user" class="profile-content">
         <!-- Header Section -->
         <div class="header-section">
           <div class="profile-header">
             <div class="profile-avatar">
               <img 
-                v-if="helper.avatarUrl" 
-                :src="helper.avatarUrl" 
-                :alt="helper.username"
+                v-if="user.avatarUrl" 
+                :src="user.avatarUrl" 
+                :alt="user.username"
                 class="avatar-image"
                 @error="$event.target.style.display='none'"
               />
-              <div v-if="!helper.avatarUrl || $event?.target?.style?.display === 'none'" 
-                   class="avatar-placeholder">
-                {{ helper.username.charAt(0).toUpperCase() }}
+              <div v-if="!user.avatarUrl" class="avatar-placeholder">
+                {{ user.username.charAt(0).toUpperCase() }}
               </div>
             </div>
             <div class="profile-info">
-              <h1 class="profile-name">{{ helper.username }}</h1>
-              <p class="profile-title">{{ helper.title }}</p>
+              <h1 class="profile-name">{{ user.username }}</h1>
+              <p class="profile-title">Job Poster</p>
               <div class="rating-container">
-                <span class="stars">{{ renderStars(helper.rating) }}</span>
-                <span class="rating-number">{{ helper.rating }}</span>
-                <span class="review-count">({{ helper.reviewCount }} reviews)</span>
+                <span class="stars">{{ renderStars(user.rating) }}</span>
+                <span class="rating-number">{{ user.rating }}</span>
+                <span class="review-count">({{ user.reviewCount }} reviews)</span>
               </div>
-              <p class="member-since">Member since {{ helper.joinedDate }}</p>
+              <p class="member-since">Member since {{ user.joinedDate }}</p>
             </div>
-            <button v-if="!isCurrentUserTheHelper" 
+            <button v-if="!isCurrentUser" 
                     class="contact-btn primary" 
                     @click="startChat">
               <span class="btn-icon">💬</span>
@@ -313,24 +216,24 @@ onMounted(async () => {
           <!-- Quick Stats -->
           <div class="quick-stats">
             <div class="stat-card">
-              <div class="stat-icon">📊</div>
-              <div class="stat-value">{{ helper.completedJobs }}</div>
-              <div class="stat-label">Jobs Completed</div>
+              <div class="stat-icon">📝</div>
+              <div class="stat-value">{{ user.activeListings }}</div>
+              <div class="stat-label">Active Listings</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">✅</div>
+              <div class="stat-value">{{ user.completedJobs }}</div>
+              <div class="stat-label">Completed Jobs</div>
             </div>
             <div class="stat-card">
               <div class="stat-icon">⭐</div>
-              <div class="stat-value">{{ helper.rating }}/5</div>
+              <div class="stat-value">{{ user.rating }}/5</div>
               <div class="stat-label">Average Rating</div>
             </div>
             <div class="stat-card">
               <div class="stat-icon">📍</div>
-              <div class="stat-value">{{ helper.location }}</div>
+              <div class="stat-value">{{ user.location }}</div>
               <div class="stat-label">Location</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-icon">⏱️</div>
-              <div class="stat-value">{{ helper.responseTime }}</div>
-              <div class="stat-label">Response Time</div>
             </div>
           </div>
         </div>
@@ -342,41 +245,40 @@ onMounted(async () => {
             <!-- About -->
             <div class="content-card">
               <h2 class="card-title">About</h2>
-              <p class="bio">{{ helper.bio }}</p>
+              <p class="bio">{{ user.bio }}</p>
             </div>
 
-            <!-- Skills -->
+            <!-- Active Listings -->
             <div class="content-card">
-              <h2 class="card-title">Skills & Expertise</h2>
-              <div class="skills-grid">
-                <div v-for="skill in helper.skills" 
-                     :key="skill.name" 
-                     class="skill-card">
-                  <div class="skill-header">
-                    <span class="skill-icon">✨</span>
-                    <span class="skill-name">{{ skill.name }}</span>
+              <h2 class="card-title">Active Job Listings ({{ activeListings.filter(j => j.status === 'open' || j.status === 'in_progress').length }})</h2>
+              
+              <div v-if="activeListings.filter(j => j.status === 'open' || j.status === 'in_progress').length === 0" class="empty-state">
+                <div class="empty-icon">📋</div>
+                <p>No active listings at the moment</p>
+              </div>
+
+              <div v-else class="listings-grid">
+                <div v-for="job in activeListings.filter(j => j.status === 'open' || j.status === 'in_progress')" 
+                     :key="job.id" 
+                     class="listing-card"
+                     @click="viewJobDetails(job.id)">
+                  <div v-if="job.images && job.images.length > 0" class="listing-image">
+                    <img :src="job.images[0]" :alt="job.title" />
                   </div>
-                  <div class="skill-details">
-                    <span v-if="skill.level" class="skill-level">
-                      <span class="label-icon">📊</span>
-                      {{ skill.level }}
-                    </span>
-                    <span v-if="skill.jobs" class="skill-jobs">
-                      <span class="label-icon">💼</span>
-                      {{ skill.jobs }} {{ skill.jobs === 1 ? 'job' : 'jobs' }}
-                    </span>
+                  <div class="listing-content">
+                    <div class="listing-header">
+                      <h3 class="listing-title">{{ job.title }}</h3>
+                      <span class="listing-category">{{ job.category }}</span>
+                    </div>
+                    <p class="listing-description">{{ job.description.substring(0, 100) }}{{ job.description.length > 100 ? '...' : '' }}</p>
+                    <div class="listing-footer">
+                      <span class="listing-price">${{ job.payment }}</span>
+                      <span class="listing-location">📍 {{ job.location }}</span>
+                    </div>
+                    <div class="listing-date">Posted {{ formatDate(job.created_at) }}</div>
                   </div>
                 </div>
               </div>
-            </div>
-
-            <!-- Experience -->
-            <div class="content-card">
-              <h2 class="card-title">Experience</h2>
-              <ul class="experience-list">
-                <li v-for="(exp, index) in helper.experience" 
-                    :key="index">{{ exp }}</li>
-              </ul>
             </div>
           </div>
 
@@ -384,22 +286,16 @@ onMounted(async () => {
           <div class="side-column">
             <!-- Reviews -->
             <div class="content-card reviews-section">
-              <h2 class="card-title">Reviews</h2>
-              <Reviews 
-                :helperId="helper.userId"
-                :showForm="helper.canLeaveReview"
-                :isHelperReviewing="isCurrentUserTheHelper"
-                :key="helper.userId"
-              />
+              <h2 class="card-title">Reviews from Job Posters</h2>
               
-              <div v-if="!helper.canLeaveReview && !helper.hasReviewed" 
-                   class="review-note">
-                <small>Complete a job with this helper to leave a review</small>
+              <div v-if="userReviews.length === 0" class="empty-state">
+                <div class="empty-icon">⭐</div>
+                <p>No reviews yet</p>
               </div>
-              
+
               <!-- Reviews List -->
-              <div v-if="helper.reviews.length > 0" class="reviews-list">
-                <div v-for="review in helper.reviews" 
+              <div v-else class="reviews-list">
+                <div v-for="review in userReviews" 
                      :key="review.id" 
                      class="review-card">
                   <div class="review-header">
@@ -410,7 +306,7 @@ onMounted(async () => {
                              :alt="review.reviewer.username"
                              @error="$event.target.style.display='none'"
                         />
-                        <span v-if="!review.reviewer.avatar_url || $event?.target?.style?.display === 'none'">
+                        <span v-if="!review.reviewer.avatar_url">
                           {{ review.reviewer.username.charAt(0).toUpperCase() }}
                         </span>
                       </div>
@@ -482,7 +378,7 @@ onMounted(async () => {
   width: 3rem;
   height: 3rem;
   border: 3px solid #e5e7eb;
-  border-top-color: #6C5B7F;
+  border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
@@ -531,7 +427,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #6C5B7F;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   font-size: 3rem;
   font-weight: 600;
@@ -653,86 +549,113 @@ onMounted(async () => {
   font-size: 1rem;
 }
 
-/* Skills Grid - UPDATED */
-.skills-grid {
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6b7280;
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+/* Listings Grid */
+.listings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 1rem;
 }
 
-.skill-card {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+.listing-card {
   border: 2px solid #e5e7eb;
   border-radius: 0.75rem;
-  padding: 1rem;
-  transition: all 0.3s ease;
-  cursor: default;
+  overflow: hidden;
+  transition: all 0.2s;
+  cursor: pointer;
+  background: white;
 }
 
-.skill-card:hover {
+.listing-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: #6C5B7F;
+  border-color: #3b82f6;
 }
 
-.skill-header {
+.listing-image {
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+.listing-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.listing-content {
+  padding: 1.25rem;
+}
+
+.listing-header {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
   margin-bottom: 0.75rem;
 }
 
-.skill-icon {
-  font-size: 1.25rem;
-}
-
-.skill-name {
-  font-size: 1rem;
+.listing-title {
+  font-size: 1.125rem;
   font-weight: 600;
   color: #111827;
+  margin: 0;
   flex: 1;
 }
 
-.skill-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid #d1d5db;
+.listing-category {
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.skill-level,
-.skill-jobs {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.875rem;
+.listing-description {
   color: #6b7280;
-  font-weight: 500;
-}
-
-.label-icon {
   font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0 0 1rem 0;
 }
 
-.skill-level {
+.listing-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.listing-price {
+  font-size: 1.25rem;
+  font-weight: 700;
   color: #059669;
 }
 
-.skill-jobs {
-  color: #3b82f6;
+.listing-location {
+  font-size: 0.875rem;
+  color: #6b7280;
 }
 
-/* Experience */
-.experience-list {
-  margin: 0;
-  padding-left: 1.5rem;
-  color: #4b5563;
-  line-height: 1.8;
-}
-
-.experience-list li {
-  margin-bottom: 0.75rem;
+.listing-date {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  padding-top: 0.5rem;
+  border-top: 1px solid #f3f4f6;
 }
 
 /* Reviews */
@@ -741,18 +664,8 @@ onMounted(async () => {
   top: 2rem;
 }
 
-.review-note {
-  padding: 1rem;
-  background: #f9fafb;
-  border-radius: 0.5rem;
-  text-align: center;
-  color: #6b7280;
-  font-style: italic;
-  margin-bottom: 1.5rem;
-}
-
 .reviews-list {
-  margin-top: 1.5rem;
+  margin-top: 0;
 }
 
 .review-card {
@@ -785,7 +698,7 @@ onMounted(async () => {
   height: 40px;
   border-radius: 50%;
   overflow: hidden;
-  background: #6C5B7F;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -859,15 +772,15 @@ onMounted(async () => {
 }
 
 .contact-btn.primary {
-  background: #4f46e5;
+  background: #3b82f6;
   color: white;
   border: none;
 }
 
 .contact-btn.primary:hover {
-  background: #4338ca;
+  background: #2563eb;
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
 }
 
 .btn-icon {
@@ -898,10 +811,6 @@ onMounted(async () => {
   .contact-btn {
     width: 100%;
     justify-content: center;
-  }
-  
-  .skills-grid {
-    grid-template-columns: 1fr;
   }
 }
 

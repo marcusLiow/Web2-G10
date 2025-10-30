@@ -508,6 +508,29 @@ const closeDeleteModal = () => {
   showDeleteModal.value = false;
 };
 
+// ✅ NEW: Navigate to poster's profile
+// const viewPosterProfile = () => {
+//   if (!isOwnListing.value && job.value?.userId) {
+//     router.push(`/user/${job.value.userId}`);
+//   }
+// };
+
+const viewPosterProfile = () => {
+  if (isOwnListing.value) {
+    console.log('Cannot view own profile from here');
+    return;
+  }
+  
+  if (!job.value?.userId) {
+    console.error('No userId available for job poster');
+    showToast('Unable to view profile', 'error');
+    return;
+  }
+  
+  console.log('Navigating to user profile:', job.value.userId);
+  router.push(`/user/${job.value.userId}`);
+};
+
 // Carousell-style Chat function
 const startChat = async () => {
   if (!isLoggedIn.value) {
@@ -999,7 +1022,12 @@ const closeOfferModal = () => {
           <!-- Right Column - Action Card (Sticky) -->
           <div class="sidebar">
             <div class="action-card">
-              <div class="poster-info">
+              <!-- ✅ UPDATED: Clickable poster info -->
+              <div 
+                class="poster-info" 
+                @click="viewPosterProfile"
+                :class="{ 'clickable': !isOwnListing }"
+              >
                 <div class="poster-avatar">
                   <img v-if="job.posterAvatar" :src="job.posterAvatar" :alt="job.postedBy" class="poster-avatar-img" />
                   <span v-else>{{ job.postedBy.charAt(0).toUpperCase() }}</span>
@@ -2017,6 +2045,7 @@ const closeOfferModal = () => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+/* ✅ UPDATED: Poster info with clickable styles */
 .poster-info {
   display: flex;
   align-items: center;
@@ -2024,6 +2053,19 @@ const closeOfferModal = () => {
   padding-bottom: 1.5rem;
   border-bottom: 1px solid #e5e7eb;
   margin-bottom: 1.5rem;
+  transition: all 0.2s;
+}
+
+.poster-info.clickable {
+  cursor: pointer;
+}
+
+.poster-info.clickable:hover {
+  background: #f9fafb;
+  padding: 0.5rem;
+  margin: -0.5rem -0.5rem 1.5rem -0.5rem;
+  padding-bottom: 1rem;
+  border-radius: 0.5rem;
 }
 
 .poster-avatar {
