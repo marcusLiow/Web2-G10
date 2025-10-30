@@ -6,6 +6,7 @@
           <span class="logo-text" @click="navigateToHome">SideQuest</span>
         </div>
         <div class="nav-links">
+          <router-link to="/job-map" class="nav-link" :class="{ active: currentRouteName === 'JobMap' }">Job Map</router-link>
           <router-link to="/jobs" class="nav-link" :class="{ active: currentRouteName === 'JobPage' }">Browse Jobs</router-link>
           <router-link to="/helpers" class="nav-link" :class="{ active: currentRouteName === 'HelpersPage' }">Browse Helpers</router-link>
           <router-link v-if="isLoggedIn" to="/dashboard" class="nav-link" :class="{ active: currentRouteName === 'Dashboard' }">Dashboard</router-link>
@@ -80,15 +81,15 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'; // Import ref, watch, computed
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { supabase } from '../supabase/config';
-import { useRouter, useRoute } from 'vue-router'; // Import useRouter, useRoute
+import { useRouter, useRoute } from 'vue-router';
 
 export default {
   name: 'Navbar',
-  setup() { // Use setup() for Composition API
-    const router = useRouter(); // Initialize router
-    const route = useRoute(); // Initialize route
+  setup() {
+    const router = useRouter();
+    const route = useRoute();
 
     // Existing refs
     const isLoggedIn = ref(false);
@@ -98,13 +99,13 @@ export default {
     const isDropdownOpen = ref(false);
     const isHelpersPage = ref(false);
     const unreadChatsCount = ref(0);
-    let unreadCheckInterval = null; // Use let for interval ID
+    let unreadCheckInterval = null;
 
     // --- NEW Notification Refs ---
     const notifications = ref([]);
     const unreadNotificationsCount = ref(0);
     const isNotificationDropdownOpen = ref(false);
-    let notificationChannel = null; // For Realtime subscription
+    let notificationChannel = null;
     // --- END NEW ---
 
     // --- Computed Property for Active Route ---
@@ -125,49 +126,44 @@ export default {
         isLoggedIn.value = true;
         localStorage.setItem('isLoggedIn', 'true');
         await loadUserData();
-        // Fetch counts after session check
         await fetchUnreadChatsCount();
-        await fetchNotifications(); // Fetch notifications
-        subscribeToNotifications(); // Subscribe to notifications
+        await fetchNotifications();
+        subscribeToNotifications();
       } else {
-        // Ensure user is logged out if no session
         logoutCleanup();
       }
     };
 
     const checkLoginStatus = () => {
       const loggedInStatus = localStorage.getItem('isLoggedIn') === 'true';
-      if (loggedInStatus && !isLoggedIn.value) { // Only update if status changed to logged in
+      if (loggedInStatus && !isLoggedIn.value) {
         isLoggedIn.value = true;
         loadUserData();
         fetchUnreadChatsCount();
-        fetchNotifications(); // Fetch notifications on login
-        subscribeToNotifications(); // Subscribe on login
-      } else if (!loggedInStatus && isLoggedIn.value) { // Only update if status changed to logged out
+        fetchNotifications();
+        subscribeToNotifications();
+      } else if (!loggedInStatus && isLoggedIn.value) {
         logoutCleanup();
       }
     };
 
-    const loadUserData = () => { // Simplified, no need for async here unless fetching avatar later
+    const loadUserData = () => {
       username.value = localStorage.getItem('username') || 'User';
       userEmail.value = localStorage.getItem('userEmail') || '';
       avatarUrl.value = localStorage.getItem('avatarUrl') || '';
-      // Avatar fetching logic remains the same if needed
     };
 
-    const fetchUnreadChatsCount = async () => { /* ... Keep your existing chat count logic ... */
+    const fetchUnreadChatsCount = async () => {
       if (!isLoggedIn.value) return;
       try {
         const currentUserId = localStorage.getItem('userId');
         if (!currentUserId) return;
-        // Fetch job chats
         const { count: jobUnreadCount } = await supabase
           .from('messages')
           .select('id', { count: 'exact', head: true })
           .neq('sender_id', currentUserId)
           .eq('read', false)
           .in('chat_id', (await supabase.from('chats').select('id').or(`job_poster_id.eq.${currentUserId},job_seeker_id.eq.${currentUserId}`)).data.map(c => c.id));
-        // Fetch helper chats
         const { count: helperUnreadCount } = await supabase
           .from('helper_messages')
           .select('id', { count: 'exact', head: true })
@@ -182,7 +178,6 @@ export default {
       }
     };
 
-    // --- NEW: Fetch Notifications ---
     const fetchNotifications = async () => {
       if (!isLoggedIn.value) return;
       try {
@@ -194,12 +189,11 @@ export default {
           .select('*', { count: 'exact' })
           .eq('user_id', currentUserId)
           .order('created_at', { ascending: false })
-          .limit(10); // Fetch latest 10 notifications
+          .limit(10);
 
         if (error) throw error;
 
         notifications.value = data || [];
-        // Count only unread notifications
         unreadNotificationsCount.value = notifications.value.filter(n => !n.read).length;
 
       } catch (error) {
@@ -209,10 +203,9 @@ export default {
       }
     };
 
-    // --- NEW: Subscribe to Notifications ---
     const subscribeToNotifications = () => {
        if (notificationChannel) {
-         supabase.removeChannel(notificationChannel); // Remove existing channel first
+         supabase.removeChannel(notificationChannel);
        }
       const currentUserId = localStorage.getItem('userId');
       if (!currentUserId || !isLoggedIn.value) return;
@@ -229,12 +222,10 @@ export default {
           },
           (payload) => {
             console.log('New notification received:', payload.new);
-            // Add to start of array and update count
             notifications.value.unshift(payload.new);
             if (!payload.new.read) {
               unreadNotificationsCount.value++;
             }
-            // Optional: Limit displayed notifications
             if (notifications.value.length > 10) {
                 notifications.value.pop();
             }
@@ -249,7 +240,6 @@ export default {
          });
     };
 
-    // --- NEW: Unsubscribe ---
     const unsubscribeFromNotifications = () => {
       if (notificationChannel) {
         supabase.removeChannel(notificationChannel)
@@ -259,11 +249,9 @@ export default {
       }
     };
 
-    // --- NEW: Toggle Notification Dropdown ---
     const toggleNotificationDropdown = async (event) => {
        event.stopPropagation();
       isNotificationDropdownOpen.value = !isNotificationDropdownOpen.value;
-      // If opening and there are unread notifications, mark them as read
       if (isNotificationDropdownOpen.value && unreadNotificationsCount.value > 0) {
         await markNotificationsAsRead();
       }
@@ -273,7 +261,6 @@ export default {
       isNotificationDropdownOpen.value = false;
     };
 
-    // --- NEW: Mark Notifications as Read ---
     const markNotificationsAsRead = async () => {
       if (unreadNotificationsCount.value === 0) return;
 
@@ -291,7 +278,6 @@ export default {
 
         if (error) throw error;
 
-        // Update local state immediately
         notifications.value = notifications.value.map(n => ({ ...n, read: true }));
         unreadNotificationsCount.value = 0;
 
@@ -300,9 +286,7 @@ export default {
       }
     };
 
-    // --- NEW: Format notification time ---
     const formatTimeAgo = (timestamp) => {
-        // (Keep your existing formatTime logic from ChatsPage or use a library)
         if (!timestamp) return '';
         const now = new Date();
         const past = new Date(timestamp);
@@ -319,45 +303,44 @@ export default {
     };
 
 
-    const startUnreadCheck = () => { /* ... Keep chat check logic ... */
-        stopUnreadCheck(); // Clear existing interval if any
+    const startUnreadCheck = () => {
+        stopUnreadCheck();
         unreadCheckInterval = setInterval(fetchUnreadChatsCount, 30000);
     };
 
-    const stopUnreadCheck = () => { /* ... Keep chat check logic ... */
+    const stopUnreadCheck = () => {
       if (unreadCheckInterval) {
         clearInterval(unreadCheckInterval);
         unreadCheckInterval = null;
       }
     };
 
-    const handleProfileClick = (event) => { /* ... Keep existing logic ... */
+    const handleProfileClick = (event) => {
       event.stopPropagation();
       isDropdownOpen.value = !isDropdownOpen.value;
-      closeNotificationDropdown(); // Close other dropdown
+      closeNotificationDropdown();
     };
 
-    const closeDropdown = () => { /* ... Keep existing logic ... */
+    const closeDropdown = () => {
       isDropdownOpen.value = false;
     };
 
-    const handleDocumentClick = (event) => { /* ... Keep existing logic ... */
+    const handleDocumentClick = (event) => {
       const profileDropdown = document.querySelector('.profile-dropdown');
       if (profileDropdown && !profileDropdown.contains(event.target)) {
         isDropdownOpen.value = false;
       }
-      // NEW: Close notification dropdown on outside click
       const notificationDropdown = document.querySelector('.notification-dropdown');
       if (notificationDropdown && !notificationDropdown.contains(event.target)) {
           isNotificationDropdownOpen.value = false;
       }
     };
 
-    const handleLogout = async () => { /* ... Keep existing logic ... */
+    const handleLogout = async () => {
       if (!confirm('Are you sure you want to log out?')) return;
       try {
         await supabase.auth.signOut();
-        logoutCleanup(); // Call cleanup function
+        logoutCleanup();
         window.dispatchEvent(new Event('user-logged-out'));
         router.push('/');
       } catch (error) {
@@ -366,7 +349,6 @@ export default {
       }
     };
 
-    // --- NEW: Centralized Logout Cleanup ---
     const logoutCleanup = () => {
         localStorage.removeItem('isLoggedIn');
         localStorage.removeItem('userId');
@@ -378,24 +360,22 @@ export default {
         username.value = '';
         avatarUrl.value = '';
         unreadChatsCount.value = 0;
-        notifications.value = []; // Clear notifications
-        unreadNotificationsCount.value = 0; // Clear count
-        stopUnreadCheck(); // Stop chat polling
-        unsubscribeFromNotifications(); // Unsubscribe from notifications
+        notifications.value = [];
+        unreadNotificationsCount.value = 0;
+        stopUnreadCheck();
+        unsubscribeFromNotifications();
         closeDropdown();
         closeNotificationDropdown();
     };
 
-    // Lifecycle Hooks
     onMounted(() => {
       checkCurrentRoute();
-      checkSupabaseSession(); // Checks session and fetches data if logged in
+      checkSupabaseSession();
       window.addEventListener('user-logged-in', checkLoginStatus);
       window.addEventListener('user-logged-out', checkLoginStatus);
-      window.addEventListener('chat-read', fetchUnreadChatsCount); // Keep listening for chat reads
+      window.addEventListener('chat-read', fetchUnreadChatsCount);
       document.addEventListener('click', handleDocumentClick);
 
-      // Start chat polling only if logged in initially
       if (isLoggedIn.value) {
         startUnreadCheck();
       }
@@ -406,29 +386,25 @@ export default {
       window.removeEventListener('user-logged-out', checkLoginStatus);
       window.removeEventListener('chat-read', fetchUnreadChatsCount);
       document.removeEventListener('click', handleDocumentClick);
-      stopUnreadCheck(); // Stop polling
-      unsubscribeFromNotifications(); // Unsubscribe
+      stopUnreadCheck();
+      unsubscribeFromNotifications();
     });
 
-    // Watchers
-    watch(route, (to) => { // Watch route changes
+    watch(route, (to) => {
       isHelpersPage.value = to.path === '/helpers';
-      closeDropdown(); // Close dropdowns on route change
+      closeDropdown();
       closeNotificationDropdown();
     });
 
-    watch(isLoggedIn, (newVal) => { // Watch login status changes
+    watch(isLoggedIn, (newVal) => {
       if (newVal) {
         fetchUnreadChatsCount();
         fetchNotifications();
         startUnreadCheck();
-        subscribeToNotifications(); // Subscribe when logged in
-      } else {
-        // logoutCleanup handles resetting counts and unsubscribing
+        subscribeToNotifications();
       }
     });
 
-    // Return refs and methods to be used in the template
     return {
       isLoggedIn,
       username,
@@ -436,17 +412,17 @@ export default {
       isDropdownOpen,
       isHelpersPage,
       unreadChatsCount,
-      notifications, // NEW
-      unreadNotificationsCount, // NEW
-      isNotificationDropdownOpen, // NEW
-      currentRouteName, // NEW
+      notifications,
+      unreadNotificationsCount,
+      isNotificationDropdownOpen,
+      currentRouteName,
       navigateToHome,
       handleProfileClick,
       closeDropdown,
       handleLogout,
-      toggleNotificationDropdown, // NEW
-      closeNotificationDropdown, // NEW
-      formatTimeAgo, // NEW
+      toggleNotificationDropdown,
+      closeNotificationDropdown,
+      formatTimeAgo,
     };
   }
 };
@@ -458,7 +434,7 @@ export default {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   position: sticky;
   top: 0;
-  z-index: 1000; /* Ensure navbar is on top */
+  z-index: 1000;
   padding: 1rem 0;
   transition: background 0.3s ease;
 }
@@ -507,7 +483,7 @@ export default {
   white-space: nowrap;
   font-size: 1.1em;
   padding-bottom: 0.25rem;
-  border-bottom: 3px solid transparent; /* Placeholder for active border */
+  border-bottom: 3px solid transparent;
 }
 
 .nav-link:hover {
@@ -515,7 +491,7 @@ export default {
 }
 
 .nav-link.router-link-active,
-.nav-link.active { /* Add .active class for manual active state */
+.nav-link.active {
   border-bottom: 3px solid white;
 }
 
@@ -540,12 +516,11 @@ export default {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* General Icon Button Styling */
 .icon-button {
   position: relative;
   background: white;
-  color: #2563EB; /* Match theme */
-  padding: 0.625rem; /* Slightly smaller padding */
+  color: #2563EB;
+  padding: 0.625rem;
   border-radius: 50%;
   border: none;
   cursor: pointer;
@@ -553,33 +528,31 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px; /* Consistent size */
+  width: 40px;
   height: 40px;
-  text-decoration: none; /* For router-link version */
+  text-decoration: none;
 }
 .helpers-page .icon-button {
-  color: #6C5B7F; /* Color for helpers page */
+  color: #6C5B7F;
 }
 .icon-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
-.icon-button.active { /* Style for active route */
+.icon-button.active {
    background: rgba(255, 255, 255, 0.9);
    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* Notification Dropdown Specifics */
 .notification-dropdown {
-  position: relative; /* Needed for absolute positioning of menu */
+  position: relative;
 }
 
-/* Notification Badge (General) */
 .notification-badge {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: #ef4444; /* Red badge */
+  background: #ef4444;
   color: white;
   font-size: 0.65rem;
   font-weight: 700;
@@ -591,7 +564,6 @@ export default {
   align-items: center;
   justify-content: center;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  /* Optional: Pulse animation */
   animation: pulse 2s ease-in-out infinite;
 }
 @keyframes pulse {
@@ -599,42 +571,35 @@ export default {
   50% { transform: scale(1.1); }
 }
 
-/* Chat Badge Specifics (if needed) */
 .chat-badge {
-  /* You can add chat-specific overrides here if desired */
 }
 
-/* Chat Button Wrapper Alignment (if using router-link) */
 .chat-button-wrapper {
-  /* Inherits .icon-button styles */
 }
 .chat-button {
-  /* Styles for the inner div if needed, but likely handled by wrapper */
-  display: flex; /* Ensure SVG centers */
+  display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Dropdown Menu Base (reuse for profile and notifications) */
 .dropdown-menu {
   position: absolute;
-  top: calc(100% + 0.75rem); /* Position below trigger */
+  top: calc(100% + 0.75rem);
   right: 0;
   background: white;
   border-radius: 12px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-  min-width: 250px; /* Adjust as needed */
-  z-index: 1000; /* Ensure it's above other content */
+  min-width: 250px;
+  z-index: 1000;
   border: 1px solid #e5e7eb;
-  overflow: hidden; /* Ensures rounded corners apply */
-  display: none; /* Hidden by default, controlled by JS */
+  overflow: hidden;
+  display: none;
 }
 
-/* Notification Menu Specifics */
 .notification-menu {
-  min-width: 320px; /* Wider for notifications */
-  max-height: 400px; /* Limit height and allow scroll */
-  display: flex; /* Use flex for layout */
+  min-width: 320px;
+  max-height: 400px;
+  display: flex;
   flex-direction: column;
 }
 
@@ -643,12 +608,12 @@ export default {
   font-weight: 600;
   color: #111827;
   border-bottom: 1px solid #e5e7eb;
-  flex-shrink: 0; /* Prevent header shrinking */
+  flex-shrink: 0;
 }
 
 .notification-list {
-  overflow-y: auto; /* Allow scrolling */
-  flex-grow: 1; /* Take remaining space */
+  overflow-y: auto;
+  flex-grow: 1;
 }
 
 .notification-item {
@@ -666,7 +631,7 @@ export default {
 }
 
 .notification-item.unread {
-  background-color: #eff6ff; /* Light blue for unread */
+  background-color: #eff6ff;
 }
 .notification-item.unread:hover {
   background-color: #dbeafe;
@@ -683,7 +648,7 @@ export default {
   line-height: 1.4;
 }
 .notification-item.unread .notification-message {
-  font-weight: 500; /* Slightly bolder unread text */
+  font-weight: 500;
   color: #1f2937;
 }
 
@@ -704,7 +669,7 @@ export default {
   text-align: center;
   border-top: 1px solid #e5e7eb;
   background-color: #f9fafb;
-  flex-shrink: 0; /* Prevent footer shrinking */
+  flex-shrink: 0;
 }
 .notification-footer a {
   color: #2563EB;
@@ -716,12 +681,11 @@ export default {
   text-decoration: underline;
 }
 
-/* Profile Menu Specifics */
 .profile-menu {
-   min-width: 180px; /* Narrower for profile options */
+   min-width: 180px;
 }
 .dropdown-item {
-  display: block; /* Make links block */
+  display: block;
   padding: 0.875rem 1.25rem;
   color: #374151;
   text-decoration: none;
@@ -749,7 +713,6 @@ export default {
   background: #fee2e2;
 }
 
-/* Profile Dropdown Styles */
 .profile-dropdown {
   position: relative;
 }
@@ -815,7 +778,6 @@ export default {
   transform: rotate(180deg);
 }
 
-/* Responsive styles */
 @media (max-width: 768px) {
   .nav-container {
     padding: 0 1rem;
