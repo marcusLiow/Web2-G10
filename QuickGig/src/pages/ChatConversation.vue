@@ -9,7 +9,13 @@
 
       <div class="header-info" @click="navigateToJobDetails" :class="{ 'clickable': !isHelperChat }">
         <div class="user-avatar">
-          <span>{{ otherUser?.username?.charAt(0).toUpperCase() || '?' }}</span>
+          <img 
+            v-if="otherUser?.avatar_url" 
+            :src="otherUser.avatar_url" 
+            :alt="otherUser.username"
+            class="avatar-image"
+          />
+          <span v-else>{{ otherUser?.username?.charAt(0).toUpperCase() || '?' }}</span>
         </div>
         <div class="header-text">
           <h2 class="user-name">{{ otherUser?.username || 'Loading...' }}</h2>
@@ -378,8 +384,9 @@ const chatSubtitle = computed(() => {
 
 // Permissions - ✅ CHANGED: Both users can make offers now
 const canMakeOffer = computed(() => {
-  // Both the job poster and job seeker can make offers
-  return true;
+  // Hide "Make Offer" button once an offer has been accepted
+  // (jobCompletedExists will be true when job is in-progress or completed)
+  return !jobCompletedExists.value;
 });
 
 const canAcceptOffer = computed(() => {
@@ -1304,6 +1311,13 @@ const navigateToJobDetails = () => {
   flex-shrink: 0;
 }
 
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
 .header-text {
   flex: 1;
   min-width: 0;
@@ -2120,20 +2134,14 @@ const navigateToJobDetails = () => {
 }
 
 .modal-header {
-  background: white;
+  background: #f3f4f6;
   color: #111827;
-  border-bottom: 2px solid #e5e7eb;
   border-radius: 1rem 1rem 0 0;
+  /* Added a border line based on the 'olid #e5e7eb;' fragment */
+  border-bottom: 1px solid #e5e7eb; 
 }
 
-.modal-header .modal-title {
-  color: #111827;
-}
-
-.modal-header .close-btn {
-  color: #6b7280;
-}
-
+/* Selector that seemed incomplete/misplaced in the original */
 .modal-header .close-btn:hover {
   background: #f3f4f6;
 }
