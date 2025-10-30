@@ -342,6 +342,7 @@ const isSending = ref(false);
 const isProcessing = ref(false);
 const messagesContainer = ref(null);
 const jobCompletedExists = ref(false);
+const offerAcceptedInThisChat = ref(false); // ✅ New state to track accepted offer in this chat
 const isPaymentCompleted = ref(false);
 let messageChannel = null;
 
@@ -382,11 +383,10 @@ const chatSubtitle = computed(() => {
   return jobInfo.value?.title || 'Loading...';
 });
 
-// Permissions - ✅ CHANGED: Both users can make offers now
+// Permissions
 const canMakeOffer = computed(() => {
-  // Hide "Make Offer" button once an offer has been accepted
-  // (jobCompletedExists will be true when job is in-progress or completed)
-  return !jobCompletedExists.value;
+  // Hide "Make Offer" button if the job is globally in-progress/completed OR if an offer has been accepted in this specific chat.
+  return !jobCompletedExists.value && !offerAcceptedInThisChat.value;
 });
 
 const canAcceptOffer = computed(() => {
@@ -489,6 +489,7 @@ const loadChatData = async () => {
     }
 
     chatInfo.value = chat;
+    offerAcceptedInThisChat.value = chat.offer_accepted === true; // ✅ Initialize based on chat data
     
     console.log('Chat data loaded:', chat); // Debug log to see what job_id is stored
 
@@ -905,6 +906,8 @@ const acceptOffer = async (offerMessage) => {
       messages.value.push(acceptanceMsg);
     }
     
+    offerAcceptedInThisChat.value = true; // ✅ Set state to hide "Make Offer" button
+
     await nextTick();
     scrollToBottom();
     await checkJobCompleted();
