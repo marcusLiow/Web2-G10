@@ -783,6 +783,94 @@ async function loadCompletedJobs(uid) {
     completedJobs.value = [];
   }
 }
+/*send notif when paid*/
+async function markAsCompleted(jobId) {
+  if (!jobId) {
+    alert('Invalid job ID');
+    return;
+  }
+
+  // Confirmation dialog
+  if (!confirm('Are you sure you want to mark this job as completed? This will notify the helper(s) and move the job to history.')) {
+    return;
+  }
+
+  try {
+    const userId = currentUserId.value; // Assuming currentUserId is already defined and loaded
+
+    // --- Step 1: Update the job status to completed ---
+    const { data: updatedJob, error: updateError } = await supabase
+      .from('User-Job-Request')
+      .update({
+        status: 'completed'
+      })
+      .eq('id', jobId)
+      .eq('user_id', userId) // Ensure only the owner can update
+      .select('title') // Select the title for the notification message
+      .single(); // Expecting only one job to be updated
+
+    if (updateError) {
+      console.error('Error marking job as completed:', updateError);
+      alert(`Failed to mark job as completed: ${updateError.message}`);
+      return;
+    }
+
+    if (!updatedJob) {
+      alert('Job not found or you do not have permission to update it.');
+      return;
+    }
+
+    const jobTitle = updatedJob.title || 'your recent job'; // Get job title for message
+
+    // --- Step 2: Find the helper(s) associated with this job ---
+    const { data: chatData, error: chatError } = await supabase
+      .from('chats') // Assuming 'chats' table links jobs and helpers
+      .select('job_seeker_id') // Get the helper's user ID
+      .eq('job_id', jobId)
+      .eq('offer_accepted', true); // Find chats where an offer was accepted
+
+    if (chatError) {
+      console.error('Error finding helpers for notification:', chatError);
+      // Proceed even if helper finding fails, the job is already marked complete.
+    }
+
+    // --- Step 3: Insert notifications for each helper ---
+    if (chatData && chatData.length > 0) {
+      const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))]; // Get unique helper IDs
+
+      const notifications = helperIds.map(helperId => ({
+        user_id: helperId, // The recipient of the notification
+        message: `Job '${jobTitle}' has been marked as completed. Payment should be processed shortly.`,
+        // Optional: Add a link to their earnings page or the job history
+        // link: '/earnings'
+      }));
+
+      const { error: notificationError } = await supabase
+        .from('notifications') // Your notifications table
+        .insert(notifications);
+
+      if (notificationError) {
+        console.error('Error sending notifications:', notificationError);
+        // Don't necessarily block the user, maybe just log this error.
+      } else {
+        console.log(`Notifications sent to ${helperIds.length} helper(s).`);
+      }
+    } else {
+      console.warn(`No accepted helpers found for job ${jobId} to notify.`);
+    }
+
+    // --- Step 4: Show success and refresh local data ---
+    alert('Job marked as completed successfully! Helper(s) notified.');
+
+    // Refresh the listings and completed jobs locally
+    await loadUserListings(userId);
+    await loadCompletedJobs(userId);
+
+  } catch (error) {
+    console.error('Unexpected error marking job as completed:', error);
+    alert('An unexpected error occurred. Please try again.');
+  }
+}
 
 /* Edit modal helpers */
 function openEditModal() {
@@ -1010,53 +1098,7 @@ async function saveProfile() {
 /* lifecycle */
 onMounted(() => { loadAll(); });
 
-/* Small helper stubs for actions used in template (implement as needed) */
-// Mark job as completed
-async function markAsCompleted(jobId) {
-  if (!jobId) {
-    alert('Invalid job ID');
-    return;
-  }
-  
-  if (!confirm('Are you sure you want to mark this job as completed? It will be moved to your Job History.')) {
-    return;
-  }
-  
-  try {
-    const userId = currentUserId.value;
-    
-    // Update the status to completed
-    const { data, error } = await supabase
-      .from('User-Job-Request')
-      .update({ 
-        status: 'completed'
-      })
-      .eq('id', jobId)
-      .eq('user_id', userId)
-      .select();
 
-    if (error) {
-      console.error('Error marking job as completed:', error);
-      alert(`Failed to mark job as completed: ${error.message}`);
-      return;
-    }
-    
-    if (!data || data.length === 0) {
-      alert('Job not found or you do not have permission to update it.');
-      return;
-    }
-    
-    alert('Job marked as completed successfully!');
-    
-    // Refresh the listings and completed jobs
-    await loadUserListings(userId);
-    await loadCompletedJobs(userId);
-    
-  } catch (error) {
-    console.error('Unexpected error marking job as completed:', error);
-    alert('An unexpected error occurred. Please try again.');
-  }
-}
 
 // Edit listing - navigate to edit page
 function editListing(listing) {

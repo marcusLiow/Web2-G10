@@ -35,7 +35,7 @@ const error = ref('');
 onMounted(async () => {
   console.log('🔄 Payment Success Handler - Route Query:', route.query);
   
-  const { jobId, chatId, amount, payment_intent, redirect_status, isHelperJob } = route.query;
+  const { jobId, chatId, amount, payment_intent, redirect_status, isHelperJob, jobTitle } = route.query;
 
   // Validate required parameters
   if (!jobId || !chatId || !amount) {
@@ -55,21 +55,26 @@ onMounted(async () => {
 
   try {
     const isHelper = isHelperJob === 'true';
+    const numericAmount = Number(amount);
+    const decodedJobTitle = decodeURIComponent(jobTitle || 'your job');
+
     console.log('Processing payment for:', isHelper ? 'Helper Job' : 'Regular Job');
 
     if (isHelper) {
       // Handle helper job payment
-      await handleHelperJobPayment(chatId, amount, route.query.jobTitle);
+      await handleHelperJobPayment(chatId, numericAmount, decodedJobTitle);
     } else {
       // Handle regular job payment
-      await handleRegularJobPayment(jobId, chatId, amount);
+      await handleRegularJobPayment(jobId, chatId, numericAmount, decodedJobTitle);
     }
 
     console.log('✅ Payment processing complete');
     
     // Redirect back to chat after success
     setTimeout(() => {
-      router.push(`/chat/${chatId}`);
+      // Adjust redirect based on chat type
+      const redirectPath = isHelper ? `/helper-chat/${chatId}` : `/chat/${chatId}`;
+      router.push(redirectPath);
     }, 2000);
 
   } catch (err) {
@@ -80,79 +85,57 @@ onMounted(async () => {
   }
 });
 
-const handleRegularJobPayment = async (jobId, chatId, amount) => {
+const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
   console.log('Updating regular job:', jobId);
   
-  // ✅ FIXED: Check if this is a multi-helper job before changing status
+  // Get job details to check for multi-helper
   const { data: jobData, error: jobFetchError } = await supabase
     .from('User-Job-Request')
     .select('multiple_positions, positions_available')
     .eq('id', jobId)
     .single();
   
-  if (jobFetchError) {
-    console.error('Error fetching job data:', jobFetchError);
-    throw jobFetchError;
-  }
+  if (jobFetchError) throw jobFetchError;
   
-  let newStatus = 'in-progress';  // Default for single-helper jobs
-  
-  // ✅ For multi-helper jobs, check if all positions are now filled
+  let newStatus = 'in-progress';
   if (jobData.multiple_positions) {
-    console.log('Multi-helper job detected, checking fill status...');
-    
-    // Count how many unique helpers have accepted offers
+    // Count accepted offers to see if job is now full
     const { data: acceptedChats, error: countError } = await supabase
       .from('chats')
       .select('job_seeker_id')
       .eq('job_id', jobId)
       .eq('offer_accepted', true);
     
-    if (countError) {
-      console.error('Error counting accepted offers:', countError);
-      throw countError;
-    }
+    if (countError) throw countError;
     
     const uniqueHelpers = new Set(acceptedChats?.map(c => c.job_seeker_id) || []).size;
     const requiredHelpers = jobData.positions_available || 1;
     
-    console.log(`Helpers filled: ${uniqueHelpers} of ${requiredHelpers}`);
-    
-    // Only change to 'in-progress' if ALL positions are filled
-    if (uniqueHelpers >= requiredHelpers) {
-      newStatus = 'in-progress';
-      console.log('All positions filled - marking as in-progress');
-    } else {
-      newStatus = 'open';  // ✅ Keep as 'open' if not all positions filled
-      console.log('Not all positions filled - keeping as open');
+    if (uniqueHelpers < requiredHelpers) {
+      newStatus = 'open'; // Keep open if not all positions are filled
     }
   }
   
-  // Update job status
+  // 1. Update job status
   const { error: updateError } = await supabase
     .from('User-Job-Request')
-    .update({
-      status: newStatus,  // ✅ Use calculated status
-      paid: true,
-      payment_amount: Number(amount)
-    })
+    .update({ status: newStatus, paid: true, payment_amount: amount })
     .eq('id', jobId);
-
   if (updateError) throw updateError;
 
-  // Send payment confirmation message
+  // 2. Send payment confirmation message *to the chat*
   const currentUserId = localStorage.getItem('userId');
   await supabase
     .from('messages')
     .insert({
       chat_id: chatId,
       sender_id: currentUserId,
-      message: `Payment of $${Number(amount).toFixed(2)} confirmed. Job is now in progress.`,
+      message: `Payment of $${amount.toFixed(2)} confirmed. Job is now in progress.`,
       message_type: 'system',
       read: false
     });
 
-  // Update chat last message
+  // 3. Update chat last message
   await supabase
     .from('chats')
     .update({ 
@@ -160,21 +143,49 @@ const handleRegularJobPayment = async (jobId, chatId, amount) => {
       last_message_time: new Date().toISOString()
     })
     .eq('id', chatId);
+
+  // --- 4. NEW: Send Navbar Notification to Helper(s) ---
+  const { data: chatData, error: chatError } = await supabase
+    .from('chats')
+    .select('job_seeker_id') // Get the helper's ID
+    .eq('job_id', jobId)
+    .eq('offer_accepted', true);
+
+  if (chatError) {
+    console.error('Error finding helpers for notification:', chatError);
+  } else if (chatData && chatData.length > 0) {
+    const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+    const notifications = helperIds.map(helperId => ({
+      user_id: helperId, // The recipient (helper)
+      message: `Payment of $${amount.toFixed(2)} has been secured for the job: '${jobTitle}'.`,
+      link: `/chats?chatId=${chatId}` // Link to the chat
+    }));
+
+    // Insert notifications
+    const { error: notificationError } = await supabase
+      .from('notifications')
+      .insert(notifications);
+    
+    if (notificationError) {
+      console.error('Error sending payment notification:', notificationError);
+    } else {
+      console.log('Payment notifications sent to helpers:', helperIds);
+    }
+  }
 };
 
 const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
   console.log('Creating helper job record for chat:', chatId);
   
-  // Get chat info to extract helper and client IDs
+  // 1. Get chat info
   const { data: chatData, error: chatError } = await supabase
     .from('helper_chats')
     .select('helper_id, client_id')
     .eq('id', chatId)
     .single();
-
   if (chatError) throw chatError;
 
-  // Create helper_jobs record
+  // 2. Create helper_jobs record
   const { error: jobError } = await supabase
     .from('helper_jobs')
     .insert([{
@@ -182,27 +193,26 @@ const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
       helper_id: chatData.helper_id,
       client_id: chatData.client_id,
       job_title: jobTitle || 'Helper Service',
-      agreed_amount: Number(amount),
+      agreed_amount: amount,
       status: 'in-progress',
       payment_status: 'paid',
       started_at: new Date().toISOString()
     }]);
-
   if (jobError) throw jobError;
 
-  // Send payment confirmation message
+  // 3. Send payment confirmation message *to the chat*
   const currentUserId = localStorage.getItem('userId');
   await supabase
     .from('helper_messages')
     .insert([{
       helper_chat_id: chatId,
       sender_id: currentUserId,
-      message: `Payment of $${Number(amount).toFixed(2)} confirmed. Job is now in progress.`,
+      message: `Payment of $${amount.toFixed(2)} confirmed. Job is now in progress.`,
       message_type: 'system',
       read: false
     }]);
 
-  // Update helper chat last message
+  // 4. Update helper chat last message
   await supabase
     .from('helper_chats')
     .update({ 
@@ -210,12 +220,29 @@ const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
       last_message_time: new Date().toISOString()
     })
     .eq('id', chatId);
+
+  // --- 5. NEW: Send Navbar Notification to Helper ---
+  const { error: notificationError } = await supabase
+    .from('notifications')
+    .insert({
+      user_id: chatData.helper_id, // The recipient (helper)
+      message: `Payment of $${amount.toFixed(2)} has been secured for: '${jobTitle}'.`,
+      link: `/helper-chat/${chatId}` // Link to the helper chat
+    });
+  
+  if (notificationError) {
+    console.error('Error sending helper payment notification:', notificationError);
+  } else {
+    console.log('Payment notification sent to helper:', chatData.helper_id);
+  }
 };
 
 const goToChat = () => {
   const chatId = route.query.chatId;
+  const isHelperJob = route.query.isHelperJob === 'true';
   if (chatId) {
-    router.push(`/chat/${chatId}`);
+    const path = isHelperJob ? `/helper-chat/${chatId}` : `/chat/${chatId}`;
+    router.push(path);
   } else {
     router.push('/chats');
   }
@@ -230,8 +257,7 @@ const goToChat = () => {
   min-height: 100vh;
   background-color: #f8f9fa;
   padding: 1rem;
-}
-
+};
 .content-card {
   background: white;
   border-radius: 12px;
@@ -240,8 +266,7 @@ const goToChat = () => {
   max-width: 500px;
   width: 100%;
   text-align: center;
-}
-
+};
 .loading-state,
 .error-state,
 .success-state {
@@ -249,14 +274,12 @@ const goToChat = () => {
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-}
-
+};
 h2 {
   font-size: 1.75rem;
   margin: 0;
   font-weight: 600;
-}
-
+};
 .spinner {
   width: 3rem;
   height: 3rem;
@@ -264,33 +287,28 @@ h2 {
   border-top-color: #2563eb;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-}
-
+};
 .spinner.small {
   width: 2rem;
   height: 2rem;
   border-width: 2px;
   margin-top: 0.5rem;
-}
-
+};
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
+};
 .error-message {
   color: #dc2626;
   background-color: #fee2e2;
   padding: 1rem;
   border-radius: 8px;
   margin: 0.5rem 0;
-}
-
+};
 .success-message {
   color: #059669;
   font-size: 1.125rem;
   margin: 0.5rem 0;
-}
-
+};
 .action-button {
   margin-top: 1rem;
   padding: 0.75rem 1.5rem;
@@ -302,12 +320,10 @@ h2 {
   font-weight: 600;
   font-size: 1rem;
   transition: background-color 0.2s;
-}
-
+};
 .action-button:hover {
   background: #1d4ed8;
-}
-
+};
 p {
   margin: 0.25rem 0;
   color: #6b7280;
