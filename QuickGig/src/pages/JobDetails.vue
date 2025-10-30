@@ -240,17 +240,19 @@ onMounted(async () => {
     
     console.log('Successfully fetched job from database:', jobData);
     
-    // ✅ FIXED: Fetch username separately
+    // ✅ FIXED: Fetch username and avatar separately
     let postedBy = 'Unknown';
+    let posterAvatar = '';
     if (jobData.user_id) {
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('username')
+        .select('username, avatar_url')
         .eq('id', jobData.user_id)
         .single();
       
       if (!userError && userData) {
         postedBy = userData.username;
+        posterAvatar = userData.avatar_url || '';
       }
     }
     
@@ -265,6 +267,7 @@ onMounted(async () => {
       postal_code: jobData.postal_code,
       date: new Date(jobData.created_at).toLocaleDateString('en-GB'),
       postedBy: postedBy,
+      posterAvatar: posterAvatar,
       userId: jobData.user_id,
       skills: ['General'],
       images: jobData.images || [],
@@ -998,7 +1001,8 @@ const closeOfferModal = () => {
             <div class="action-card">
               <div class="poster-info">
                 <div class="poster-avatar">
-                  {{ job.postedBy.charAt(0).toUpperCase() }}
+                  <img v-if="job.posterAvatar" :src="job.posterAvatar" :alt="job.postedBy" class="poster-avatar-img" />
+                  <span v-else>{{ job.postedBy.charAt(0).toUpperCase() }}</span>
                 </div>
                 <div>
                   <p class="poster-name">{{ job.postedBy }}</p>
@@ -2033,6 +2037,14 @@ const closeOfferModal = () => {
   justify-content: center;
   font-size: 1.25rem;
   font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.poster-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .poster-name {
@@ -2244,7 +2256,7 @@ const closeOfferModal = () => {
 .offer-input, .offer-textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 2px solid #e5e7eb;
+  border:  2px solid #e5e7eb;
   border-radius: 0.5rem;
   font-size: 1rem;
   transition: all 0.2s;

@@ -37,19 +37,15 @@ onMounted(async () => {
   
   const { jobId, chatId, amount, payment_intent, redirect_status, isHelperJob, jobTitle } = route.query;
 
-  // Validate required parameters
   if (!jobId || !chatId || !amount) {
     error.value = 'Missing payment information. Please contact support.';
     isLoading.value = false;
-    console.error('Missing params:', { jobId, chatId, amount });
     return;
   }
 
-  // Check if Stripe returned success
   if (redirect_status !== 'succeeded') {
     error.value = 'Payment was not completed successfully.';
     isLoading.value = false;
-    console.error('Payment not succeeded. Status:', redirect_status);
     return;
   }
 
@@ -70,7 +66,6 @@ onMounted(async () => {
 
     console.log('✅ Payment processing complete');
     
-    // Redirect back to chat after success
     setTimeout(() => {
       // Adjust redirect based on chat type
       const redirectPath = isHelper ? `/helper-chat/${chatId}` : `/chat/${chatId}`;
@@ -100,30 +95,49 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
   let newStatus = 'in-progress';
   if (jobData.multiple_positions) {
     // Count accepted offers to see if job is now full
-    const { data: acceptedChats, error: countError } = await supabase
+    const { count, error: countError } = await supabase
       .from('chats')
-      .select('job_seeker_id')
+      .select('id', { count: 'exact' }) // More robust way to count
       .eq('job_id', jobId)
       .eq('offer_accepted', true);
     
-    if (countError) throw countError;
+    if (countError) {
+      console.error('CRITICAL: Could not count accepted offers. Defaulting to 0.', countError);
+    }
     
-    const uniqueHelpers = new Set(acceptedChats?.map(c => c.job_seeker_id) || []).size;
+    const uniqueHelpers = count || 0; // Safely default to 0 if count is null
     const requiredHelpers = jobData.positions_available || 1;
+    
+    console.log(`Helpers filled: ${uniqueHelpers} of ${requiredHelpers}`);
     
     if (uniqueHelpers < requiredHelpers) {
       newStatus = 'open'; // Keep open if not all positions are filled
+      console.log('Not all positions filled - keeping as open');
+    } else {
+      console.log('All positions filled - marking as in-progress');
     }
   }
   
-  // 1. Update job status
+  // 1. Update chat payment status
+  const { error: chatPaymentError } = await supabase
+    .from('chats')
+    .update({ 
+      payment_status: 'paid',
+      payment_amount: Number(amount)
+    })
+    .eq('id', chatId);
+  if (chatPaymentError) throw chatPaymentError;
+  console.log('✅ Chat payment status updated to paid');
+
+  // 2. Update job status
   const { error: updateError } = await supabase
     .from('User-Job-Request')
-    .update({ status: newStatus, paid: true, payment_amount: amount })
+    .update({ status: newStatus })
     .eq('id', jobId);
   if (updateError) throw updateError;
+  console.log('✅ Job status updated to:', newStatus);
 
-  // 2. Send payment confirmation message *to the chat*
+  // 3. Send payment confirmation message *to the chat*
   const currentUserId = localStorage.getItem('userId');
   await supabase
     .from('messages')
@@ -135,16 +149,16 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
       read: false
     });
 
-  // 3. Update chat last message
+  // 4. Update chat last message
   await supabase
     .from('chats')
     .update({ 
-      last_message: 'Payment confirmed. Job in progress.',
+      last_message: 'Payment confirmed.',
       last_message_time: new Date().toISOString()
     })
     .eq('id', chatId);
 
-  // --- 4. NEW: Send Navbar Notification to Helper(s) ---
+  // 5. Send Navbar Notification to Helper(s)
   const { data: chatData, error: chatError } = await supabase
     .from('chats')
     .select('job_seeker_id') // Get the helper's ID
@@ -250,6 +264,7 @@ const goToChat = () => {
 </script>
 
 <style scoped>
+/* Styles remain the same */
 .handler-page {
   display: flex;
   justify-content: center;
