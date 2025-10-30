@@ -491,6 +491,11 @@ const loadChatData = async () => {
     chatInfo.value = chat;
     offerAcceptedInThisChat.value = chat.offer_accepted === true; // ✅ Initialize based on chat data
     
+    // --- MODIFICATION START ---
+    // Set payment status based on the individual chat record
+    isPaymentCompleted.value = chat.payment_status === 'paid';
+    // --- MODIFICATION END ---
+    
     console.log('Chat data loaded:', chat); // Debug log to see what job_id is stored
 
     const otherId = isHelperChat.value
@@ -532,35 +537,30 @@ const loadChatData = async () => {
 // check job status/completion (for showing review button / payment)
 const checkJobCompleted = async () => {
   try {
-    const chatId = route.params.id;
-    const completedTable = isHelperChat.value ? 'helper_jobs' : 'User-Job-Request';
-
+    // --- MODIFICATION START ---
+    // This function now only checks the JOB status for UI logic like 'canMakeOffer'
+    // Payment status is now handled in loadChatData from the chat record itself.
     if (isHelperChat.value) {
       const { data, error } = await supabase
-        .from(completedTable)
-        .select('id, status, payment_status')
-        .eq('helper_chat_id', chatId)
+        .from('helper_jobs')
+        .select('id, status')
+        .eq('helper_chat_id', route.params.id)
         .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error checking job completion:', error);
-      }
-
-      jobCompletedExists.value = !!data && (data.status === 'completed' || data.status === 'in-progress' || !!data.id);
-      isPaymentCompleted.value = data?.payment_status === 'paid';
+      if (error && error.code !== 'PGRST116') console.error('Error checking helper job status:', error);
+      jobCompletedExists.value = !!data && (data.status === 'completed' || data.status === 'in-progress');
     } else {
+      if (!chatInfo.value?.job_id) return;
       const { data, error } = await supabase
-        .from(completedTable)
-        .select('status, paid')
-        .eq('id', chatInfo.value?.job_id)
+        .from('User-Job-Request')
+        .select('status')
+        .eq('id', chatInfo.value.job_id)
         .single();
 
-      if (error) {
-        console.error('Error checking job status:', error);
-      }
+      if (error) console.error('Error checking job status:', error);
       jobCompletedExists.value = data?.status === 'in-progress' || data?.status === 'completed';
-      isPaymentCompleted.value = data?.paid === true;
     }
+    // --- MODIFICATION END ---
   } catch (error) {
     console.error('Error in checkJobCompleted:', error);
   }
@@ -804,15 +804,19 @@ const acceptOffer = async (offerMessage) => {
       .eq('id', offerMessage.id);
     if (updateError) throw updateError;
 
-    // ✅ 2. Mark this chat as having an accepted offer
+    // --- MODIFICATION START ---
+    // ✅ 2. Mark chat as accepted and store the final payment amount
     const { error: chatUpdateError } = await supabase
       .from('chats')
       .update({ 
         offer_accepted: true,
-        accepted_at: new Date().toISOString()
+        accepted_at: new Date().toISOString(),
+        payment_amount: offerMessage.offer_amount // Store the accepted amount
       })
       .eq('id', chatId);
     if (chatUpdateError) throw chatUpdateError;
+    // --- MODIFICATION END ---
+
 
     // ✅ 3. Get job details to check if it requires multiple helpers
     const { data: jobData, error: jobFetchError } = await supabase
@@ -907,6 +911,7 @@ const acceptOffer = async (offerMessage) => {
     }
     
     offerAcceptedInThisChat.value = true; // ✅ Set state to hide "Make Offer" button
+    chatInfo.value.payment_amount = offerMessage.offer_amount; // Update local chat info
 
     await nextTick();
     scrollToBottom();
@@ -1080,10 +1085,16 @@ const subscribeToMessages = () => {
           window.dispatchEvent(new Event('chat-read'));
         }
         
-        // Check if it's a system message about payment
+        // --- MODIFICATION START ---
+        // Reload chat data if a system message about payment comes in,
+        // or if an offer is accepted, to get the latest payment_status.
         if (payload.new.message_type === 'system' && payload.new.message.includes('Payment')) {
-          await checkJobCompleted();
+          await loadChatData();
         }
+        if (payload.new.message_type === 'offer_accepted') {
+          await loadChatData();
+        }
+        // --- MODIFICATION END ---
       }
     )
     .on(
