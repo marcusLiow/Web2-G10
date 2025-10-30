@@ -6,7 +6,14 @@
           &lt; Back
         </button>
         <h1 class="title">📜 Welcome to SideQuest</h1>
-        <p class="subtitle">Create your account to start posting quests</p>
+        <div class="subtitle-container">
+          <p class="subtitle">Create your account to start posting quests</p>
+          <img 
+            src="../assets/mentor.gif"
+            alt="Mentor" 
+            class="subtitle-gif"
+          />
+        </div>
       </div>
 
       <div class="signup-card">
@@ -291,6 +298,22 @@ export default {
   font-size: 1.05rem;
   color: #666;
   line-height: 1.5;
+}
+
+.subtitle-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.subtitle-gif {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  flex-shrink: 0;
+  image-rendering: pixelated;
 }
 
 .signup-card {

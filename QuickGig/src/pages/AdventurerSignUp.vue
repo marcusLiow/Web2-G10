@@ -5,7 +5,14 @@
         <button class="back-button" @click="goBack">
           &lt; Back
         </button>
-        <h1 class="title">Create Adventurer Account</h1>
+        <div class="title-container">
+          <h1 class="title">Create Adventurer Account</h1>
+          <img 
+            src="../assets/knight.gif" 
+            alt="Knight" 
+            class="title-gif"
+          />
+        </div>
         <p class="subtitle">Showcase your skills and start finding quests</p>
       </div>
 
@@ -510,6 +517,22 @@ export default {
   text-align: center;
   margin-bottom: 2rem;
   position: relative;
+}
+
+.title-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.title-gif {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  flex-shrink: 0;
+  image-rendering: pixelated;
 }
 
 .back-button {
