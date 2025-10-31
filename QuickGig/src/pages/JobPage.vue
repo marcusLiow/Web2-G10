@@ -431,7 +431,6 @@ if (typeof window !== 'undefined') {
   min-height: 100vh;
   background: linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%);
   padding: 2rem 1rem;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .container {
@@ -446,15 +445,16 @@ if (typeof window !== 'undefined') {
 }
 
 .main-title {
-  font-size: 3.5rem;
-  font-weight: 700;
+  font-size: 4.5rem;
+  font-weight: 400;
   color: #2563eb;
   margin: 0 0 0.5rem 0;
   letter-spacing: -0.02em;
 }
 
 .subtitle {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
+  font-weight: 300;
   color: #6b7280;
   margin: 0;
 }
@@ -487,8 +487,8 @@ if (typeof window !== 'undefined') {
 }
 
 .search-label {
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 1.1rem;
+  font-weight: 400;
   color: #374151;
   margin-bottom: 0.5rem;
 }
@@ -532,8 +532,8 @@ if (typeof window !== 'undefined') {
   background: #dbeafe;
   color: #1e40af;
   border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 1rem;
+  font-weight: 400;
   border: 1px solid #93c5fd;
 }
 
@@ -559,8 +559,8 @@ if (typeof window !== 'undefined') {
   background: transparent;
   color: #dc2626;
   border: none;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 400;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -578,6 +578,7 @@ if (typeof window !== 'undefined') {
   justify-content: center;
   padding: 4rem 2rem;
   color: #6b7280;
+  font-size: 1.25rem;
 }
 
 .spinner {
@@ -599,7 +600,7 @@ if (typeof window !== 'undefined') {
   text-align: center;
   padding: 4rem 2rem;
   color: #6b7280;
-  font-size: 1.125rem;
+  font-size: 1.5rem;
 }
 
 /* Jobs Grid */
@@ -641,8 +642,8 @@ if (typeof window !== 'undefined') {
 }
 
 .job-title {
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-size: 1.5rem;
+  font-weight: 400;
   color: #111827;
   margin: 0;
   flex: 1;
@@ -654,8 +655,8 @@ if (typeof window !== 'undefined') {
   color: #6b7280;
   padding: 0.375rem 0.75rem;
   border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 1rem;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -663,7 +664,8 @@ if (typeof window !== 'undefined') {
   color: #6b7280;
   line-height: 1.6;
   margin: 0 0 1rem 0;
-  font-size: 0.95rem;
+  font-size: 1.1rem;
+  font-weight: 300;
   flex-grow: 1;
   display: -webkit-box;
   -webkit-line-clamp: 3;  
@@ -686,8 +688,8 @@ if (typeof window !== 'undefined') {
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 1rem;
+  font-weight: 400;
   border: 1px solid;
 }
 
@@ -731,12 +733,12 @@ if (typeof window !== 'undefined') {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   color: #374151;
 }
 
 .meta-label {
-  font-weight: 600;
+  font-weight: 400;
   color: #6b7280;
 }
 
@@ -745,13 +747,13 @@ if (typeof window !== 'undefined') {
 }
 
 .meta-text {
-  font-weight: 500;
+  font-weight: 300;
 }
 
 .price-highlight {
   color: #059669;
-  font-weight: 700;
-  font-size: 1.1rem;
+  font-weight: 400;
+  font-size: 1.3rem;
 }
 
 .view-details-btn {
@@ -761,8 +763,8 @@ if (typeof window !== 'undefined') {
   color: white;
   border: none;
   border-radius: 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.125rem;
+  font-weight: 400;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -785,8 +787,8 @@ if (typeof window !== 'undefined') {
   color: white;
   text-decoration: none;
   border-radius: 9999px;
-  font-size: 1.125rem;
-  font-weight: 600;
+  font-size: 1.25rem;
+  font-weight: 400;
   box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.5);
   cursor: pointer;
   transition: all 0.3s;

@@ -1563,8 +1563,8 @@ const navigateToJobDetails = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1.5rem;
+  font-weight: 400;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -1583,8 +1583,8 @@ const navigateToJobDetails = () => {
 
 .user-name {
   margin: 0;
-  font-size: 1.125rem;
-  font-weight: 600;
+  font-size: 1.95rem;
+  font-weight: 400;
   color: #111827;
   white-space: nowrap;
   overflow: hidden;
@@ -1593,7 +1593,8 @@ const navigateToJobDetails = () => {
 
 .job-title {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 1.15rem;
+  font-weight: 300;
   color: #6b7280;
   white-space: nowrap;
   overflow: hidden;
@@ -1685,11 +1686,13 @@ const navigateToJobDetails = () => {
   margin: 0 0 0.25rem 0;
   word-wrap: break-word;
   line-height: 1.5;
-  padding-right: 3rem;
+  padding-right: 2rem;
+  font-size: 1.5rem;
+  font-weight: 250;
 }
 
 .message-time {
-  font-size: 0.7rem;
+  font-size: 0.85rem;
   opacity: 0.6;
   white-space: nowrap;
   margin-top: 0.25rem;
@@ -1767,11 +1770,11 @@ const navigateToJobDetails = () => {
 }
 
 .offer-type {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 1.25rem;
+  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.1rem;
   color: #6b7280;
 }
 
@@ -1780,10 +1783,10 @@ const navigateToJobDetails = () => {
 }
 
 .offer-amount {
-  font-size: 1.75rem;
-  font-weight: 700;
+  font-size: 2.25rem;
+  font-weight: 400;
   color: #1e40af;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.75rem;
 }
 
 .own-message .offer-amount {
@@ -1791,8 +1794,8 @@ const navigateToJobDetails = () => {
 }
 
 .offer-status {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 400;
   text-transform: uppercase;
   color: #6b7280;
 }
@@ -1814,8 +1817,8 @@ const navigateToJobDetails = () => {
   padding: 0.625rem 1rem;
   border: none;
   border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 400;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -1880,7 +1883,8 @@ const navigateToJobDetails = () => {
 
 .completion-text {
   margin: 0 0 0.25rem 0;
-  font-weight: 600;
+  font-weight: 400;
+  font-size: 1.1rem;
   color: #5b21b6;
   padding-right: 3rem;
 }
@@ -1906,13 +1910,14 @@ const navigateToJobDetails = () => {
 }
 
 .cancelled-icon {
-  font-size: 2rem;
+  font-size: 2.5rem;
   margin-bottom: 0.5rem;
 }
 
 .cancelled-text {
   margin: 0 0 0.5rem 0;
-  font-weight: 600;
+  font-weight: 400;
+  font-size: 1.1rem;
   color: #991b1b;
   line-height: 1.5;
   white-space: pre-line;
@@ -1939,8 +1944,8 @@ const navigateToJobDetails = () => {
   color: #dc2626;
   border: 2px solid #fecaca;
   border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 400;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -1973,8 +1978,8 @@ const navigateToJobDetails = () => {
   color: white;
   border: none;
   border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 400;
   cursor: pointer;
   transition: all 0.2s;
 }
