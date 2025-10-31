@@ -59,6 +59,8 @@
                }">
             <div class="offer-content">
               <div class="offer-type">{{ message.message_type === 'counter_offer' ? 'Counter Offer' : 'Offer' }}</div>
+              <!-- Show job title for helper chats -->
+              <div v-if="isHelperChat && message.job_title" class="offer-job-title">{{ message.job_title }}</div>
               <div class="offer-amount">${{ message.offer_amount }}</div>
               <div v-if="message.offer_status === 'accepted'" class="offer-status">✓ Accepted</div>
               <div v-else-if="message.offer_status === 'countered'" class="offer-status">Countered</div>
@@ -145,7 +147,7 @@
           @click="openMakeOfferModal"
           :disabled="isSending"
         >
-          Make Offer
+          {{ isHelperChat ? 'Offer Job' : 'Make Offer' }}
         </button>
         </div>
 
@@ -172,8 +174,8 @@
         </div>
 
         <div class="modal-body">
-          <!-- Current Asking Price Display -->
-          <div class="current-price-section">
+          <!-- Current Asking Price Display - Only for non-helper chats -->
+          <div v-if="!isHelperChat" class="current-price-section">
             <div class="price-label-row">
               <span class="price-label-text">Current Asking Price</span>
             </div>
@@ -778,6 +780,11 @@ const submitOffer = async () => {
       read: false
     };
 
+    // Add job_title for helper chats
+    if (isHelperChat.value && offerJobTitle.value) {
+      offerData.job_title = offerJobTitle.value;
+    }
+
     const { data: offerMsg, error: offerError } = await supabase
       .from(messagesTable.value)
       .insert([offerData])
@@ -785,11 +792,6 @@ const submitOffer = async () => {
       .single();
 
     if (offerError) throw offerError;
-
-    // optional: store job title locally for UI use
-    if (isHelperChat.value) {
-      offerMsg.jobTitle = offerJobTitle.value;
-    }
 
     let lastMessage = offerText;
 
@@ -937,7 +939,7 @@ const acceptOffer = async (offerMessage) => {
     const { data: acceptanceMsg, error: msgError } = await supabase
       .from(messagesTable.value)
       .insert([{
-        chat_id: chatId,
+        [chatIdColumn.value]: chatId,
         sender_id: currentUserId.value,
         message: acceptanceText,
         message_type: 'offer_accepted',
@@ -1782,6 +1784,18 @@ const navigateToJobDetails = () => {
   color: rgba(255, 255, 255, 0.8);
 }
 
+.offer-job-title {
+  font-size: 1.3rem;
+  font-weight: 400;
+  color: #1e40af;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.own-message .offer-job-title {
+  color: white;
+}
+
 .offer-amount {
   font-size: 2.25rem;
   font-weight: 400;
@@ -1997,10 +2011,10 @@ const navigateToJobDetails = () => {
 
 .message-input {
   flex: 1;
-  padding: 0.875rem 1rem;
+  padding: 0.875rem 0.85rem;
   border: 2px solid #e5e7eb;
   border-radius: 1.5rem;
-  font-size: 1rem;
+  font-size: 1.2rem;
   transition: all 0.2s;
   background-color: #f9fafb;
 }
@@ -2018,13 +2032,13 @@ const navigateToJobDetails = () => {
 
 .offer-btn {
   padding: 0.75rem 1.25rem;
-  border-radius: 1.5rem;
+  border-radius: 1.25rem;
   background: #10b981;
   color: white;
   border: none;
   cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 1.3rem;
+  font-weight: 300;
   transition: all 0.2s;
   white-space: nowrap;
 }
@@ -2282,7 +2296,7 @@ const navigateToJobDetails = () => {
 .submit-btn:hover:not(:disabled) {
   background: #1d4ed8;
   transform: translateY(-1px);
-  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+  box-shadow:  0 4px 6px rgba(37, 99, 235, 0.2);
 }
 
 .submit-btn:disabled {
