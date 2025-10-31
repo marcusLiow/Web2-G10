@@ -9,7 +9,6 @@
           <router-link to="/job-map" class="nav-link" :class="{ active: currentRouteName === 'JobMap' }">Job Map</router-link>
           <router-link to="/jobs" class="nav-link" :class="{ active: currentRouteName === 'JobPage' }">Browse Jobs</router-link>
           <router-link to="/helpers" class="nav-link" :class="{ active: currentRouteName === 'HelpersPage' }">Browse Helpers</router-link>
-          <router-link v-if="isLoggedIn" to="/dashboard" class="nav-link" :class="{ active: currentRouteName === 'Dashboard' }">Dashboard</router-link>
 
           <div v-if="isLoggedIn" class="notification-dropdown">
             <button class="icon-button notification-trigger" @click.prevent="toggleNotificationDropdown" title="Notifications">
@@ -70,6 +69,7 @@
             <div class="dropdown-menu profile-menu" :style="{ display: isDropdownOpen ? 'block' : 'none' }">
               <router-link to="/profile" class="dropdown-item" @click="closeDropdown">Profile</router-link>
               <router-link to="/wallet" class="dropdown-item" @click="closeDropdown">Wallet</router-link>
+              <router-link to="/dashboard" class="dropdown-item" @click="closeDropdown">Dashboard</router-link>
               <div class="dropdown-divider"></div>
               <button @click="handleLogout" class="dropdown-item logout-item">Log Out</button>
             </div>
