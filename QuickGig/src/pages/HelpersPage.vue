@@ -9,6 +9,7 @@ const router = useRouter();
 const helpers = ref([]);
 const searchTerm = ref('');
 const selectedSkill = ref('');
+const sortBy = ref('rating'); // 'tier', 'rating', 'jobs'
 const selectedHelper = ref(null);
 const showModal = ref(false);
 const isLoading = ref(true);
@@ -25,6 +26,23 @@ const skillsList = [
   'Pet Care','Moving','Web Development','Graphic Design','Writing','Tutoring',
   'Photography','Cooking','Other'
 ];
+
+// Tier order for sorting (highest to lowest)
+const tierOrder = {
+  'Diamond': 4,
+  'Sapphire': 3,
+  'Ruby': 2,
+  'Emerald': 1,
+  '': 0,
+  null: 0
+};
+
+// Get tier image path
+function getTierImage(tier) {
+  if (!tier) return null;
+  const tierLower = tier.toLowerCase();
+  return `/src/assets/${tierLower}.png`;
+}
 
 /* --- Skill normalization utilities --- */
 function parseSkill(item) {
@@ -137,12 +155,14 @@ const fetchHelpers = async () => {
           responseTime: profile.response_time || 'Usually responds within 24 hours',
           rating: Math.round(Number(stats.avg_rating) * 10) / 10 || 0,
           reviewCount: Number(stats.review_count) || 0,
-          completedJobs: Number(stats.completed_jobs) || 0,
+          completedJobs: profile.jobs_completed || 0,
           bio: profile.bio || user.helper_bio || user.bio || '',
           experience: profile.experience || ['Contact for details'],
           latestReview: latestReviewMap[user.id] || null,
           canLeaveReview: false,
-          hasReviewed: false
+          hasReviewed: false,
+          tier: profile.helper_tier || 'Emerald',
+          tierXP: profile.helper_xp || 0
         };
       });
 
@@ -176,6 +196,21 @@ const filteredHelpers = computed(() => {
       return h.skills.some(sk => sk.name.toLowerCase() === selectedSkill.value.toLowerCase());
     });
   }
+  
+  // Apply sorting
+  if (sortBy.value === 'tier') {
+    result = [...result].sort((a, b) => {
+      const tierA = tierOrder[a.tier] || 0;
+      const tierB = tierOrder[b.tier] || 0;
+      if (tierB !== tierA) return tierB - tierA; // Higher tier first
+      return b.tierXP - a.tierXP; // If same tier, sort by XP
+    });
+  } else if (sortBy.value === 'rating') {
+    result = [...result].sort((a, b) => b.rating - a.rating);
+  } else if (sortBy.value === 'jobs') {
+    result = [...result].sort((a, b) => b.completedJobs - a.completedJobs);
+  }
+  
   return result;
 });
 
@@ -224,6 +259,15 @@ onMounted(async () => {
           <option v-for="skill in skillsList" :key="skill" :value="skill">{{ skill }}</option>
         </select>
       </div>
+
+      <div class="sort-filter">
+        <label for="sort-select" class="filter-label">Sort by:</label>
+        <select v-model="sortBy" id="sort-select" class="select-input">
+          <option value="rating">Rating (Highest First)</option>
+          <option value="tier">Tier (Highest First)</option>
+          <option value="jobs">Jobs Completed</option>
+        </select>
+      </div>
     </div>
 
     <!-- Loading State -->
@@ -250,6 +294,11 @@ onMounted(async () => {
         :key="helper.id" 
         class="helper-card"
       >
+        <!-- Tier Badge (Top Right Corner) -->
+        <div v-if="helper.tier" class="tier-badge-corner">
+          <img :src="getTierImage(helper.tier)" :alt="helper.tier" class="tier-badge-img" :title="helper.tier" />
+        </div>
+
         <!-- Card Header -->
         <div class="card-header">
           <div class="helper-avatar">
@@ -380,6 +429,12 @@ onMounted(async () => {
   gap: 0.5rem;
 }
 
+.sort-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .filter-label {
   font-size: 0.875rem;
   font-weight: 500;
@@ -463,11 +518,35 @@ onMounted(async () => {
   transition: all 0.3s;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: visible;
 }
 
 .helper-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Tier Badge in Top Right Corner */
+.tier-badge-corner {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 48px;
+  height: 48px;
+  z-index: 10;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+  transition: transform 0.2s;
+}
+
+.helper-card:hover .tier-badge-corner {
+  transform: scale(1.1);
+}
+
+.tier-badge-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .card-header {
