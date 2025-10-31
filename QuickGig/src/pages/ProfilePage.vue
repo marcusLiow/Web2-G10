@@ -177,19 +177,19 @@
 
           <div v-if="activeTab === 'jobs'" class="tab-content">
             <div class="content-body">
-              <h2>My Job History (as Helper)</h2>
+              <h2>My Job History</h2>
               <div v-if="completedJobs.length" class="jobs-list">
                 
                 <div v-for="job in completedJobs" :key="job.id || job.job_title" class="job-card">
                   <div>
-                    <h3>{{ job.job_title }}</h3>
+                    <h3>{{ job.job_title || job.title }}</h3>
                     <p class="completed-by">
-                      <strong>Job Poster:</strong> {{ job.posterName }}
+                      <strong>{{ job.role }}:</strong> {{ job.otherPartyName }}
                     </p>
                     <p class="job-date">Completed: {{ formatDateShort(job.created_at) }}</p>
                   </div>
                   <div class="job-right">
-                    <p class="job-amount">Earned: ${{ (job.agreed_amount || 0).toFixed(2) }}</p>
+                    <p class="job-amount">{{ job.role === 'Job Poster' ? 'Paid' : 'Earned' }}: ${{ (job.agreed_amount || job.payment || 0).toFixed(2) }}</p>
                     <span class="status-badge status-completed">COMPLETED</span>
                   </div>
                 </div>
@@ -197,17 +197,17 @@
               <div v-else class="empty-state">
                 <div class="empty-icon-text">No Jobs</div>
                 <p class="empty-title">No completed jobs yet</p>
-                <p class="empty-text">Jobs you complete as a helper will appear here.</p>
+                <p class="empty-text">Completed jobs (both as poster and helper) will appear here.</p>
               </div>
             </div>
           </div>
 
           <div v-if="activeTab === 'listings'" class="tab-content">
             <div class="content-body">
-              <h2>My Job Listings (All)</h2>
+              <h2>My Job Listings (Active & In Progress)</h2>
 
-              <div v-if="userListings && userListings.length" class="listings-list">
-                <div v-for="listing in userListings" :key="listing.id" class="listing-card">
+              <div v-if="activeAndInProgressListings && activeAndInProgressListings.length" class="listings-list">
+                <div v-for="listing in activeAndInProgressListings" :key="listing.id" class="listing-card">
                   <div class="listing-main">
                     <div class="listing-header-row">
                       <h3>{{ listing.title }}</h3>
@@ -215,9 +215,6 @@
                     </div>
                     <p class="listing-description">{{ listing.description }}</p>
                     
-                    <div v-if="listing.status === 'completed' && listing.completedBy && listing.completedBy.length > 0" class="completed-by-wrapper">
-                      <strong>Completed By:</strong> {{ listing.completedBy.join(', ') }}
-                    </div>
                     <div class="listing-details">
                       <div class="listing-detail-item">
                         <span class="detail-label">Posted:</span>
@@ -230,12 +227,18 @@
                     <p class="listing-payment">${{ listing.payment }}</p>
                     
                     <div class="listing-actions">
-                      <button v-if="listing.status === 'in-progress'" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">Mark as Completed</button>
+                      <button v-if="listing.status === 'open' || listing.status === 'in-progress'" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">Mark as Completed</button>
                       <button v-if="listing.status === 'open'" @click="editListing(listing)" class="btn-action btn-action-edit" type="button">Edit</button>
                       <button v-if="listing.status === 'open'" @click="deleteListing(listing.id)" class="btn-action btn-action-delete" type="button">Delete</button>
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div v-else class="empty-state">
+                <div class="empty-icon-text">No Listings</div>
+                <p class="empty-title">No active job listings</p>
+                <p class="empty-text">Your active and in-progress job listings will appear here.</p>
               </div>
 
               </div>
@@ -534,6 +537,11 @@ const userIdFromSession = ref(null);
 const activeListings = computed(() => userListings.value.filter(l => l.status === 'open'));
 const activeListingsCount = computed(() => activeListings.value.length);
 
+// New computed property to show only active and in-progress listings
+const activeAndInProgressListings = computed(() => {
+  return userListings.value.filter(l => l.status === 'open' || l.status === 'in-progress');
+});
+
 function isDaySelected(day) {
   return editForm.availability_days.includes(day);
 }
@@ -559,41 +567,97 @@ async function loadCompletedJobs(uid) {
       return;
     }
 
+    const allJobs = [];
+
     // 1. Fetch completed jobs where the current user was the helper
-    const { data: jobsData, error: jobsError } = await supabase
+    const { data: helperJobsData, error: helperJobsError } = await supabase
       .from('helper_jobs')
-      .select('job_title, agreed_amount, client_id, created_at, status') // Get client_id to find poster's name
+      .select('job_title, agreed_amount, client_id, created_at, status')
       .eq('helper_id', uid)
       .eq('status', 'completed')
       .order('created_at', { ascending: false });
 
-    if (jobsError) throw jobsError;
-    if (!jobsData || jobsData.length === 0) {
-      completedJobs.value = [];
-      return;
+    if (helperJobsError) throw helperJobsError;
+
+    if (helperJobsData && helperJobsData.length > 0) {
+      // Get the poster (client) names
+      const clientIds = [...new Set(helperJobsData.map(job => job.client_id))];
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('users')
+        .select('id, username')
+        .in('id', clientIds);
+
+      if (clientsError) throw clientsError;
+
+      const clientMap = new Map(clientsData.map(user => [user.id, user.username]));
+
+      // Add jobs where user was helper
+      helperJobsData.forEach(job => {
+        allJobs.push({
+          id: `helper-${job.job_title}-${job.created_at}`,
+          job_title: job.job_title,
+          agreed_amount: job.agreed_amount,
+          created_at: job.created_at,
+          role: 'Helper',
+          otherPartyName: clientMap.get(job.client_id) || 'Unknown Poster'
+        });
+      });
     }
 
-    // 2. Get the poster (client) names
-    const clientIds = [...new Set(jobsData.map(job => job.client_id))];
-    const { data: usersData, error: usersError } = await supabase
-      .from('users')
-      .select('id, username')
-      .in('id', clientIds);
+    // 2. Fetch completed jobs where the current user was the poster
+    const { data: posterJobsData, error: posterJobsError } = await supabase
+      .from('User-Job-Request')
+      .select('id, title, payment, created_at, status')
+      .eq('user_id', uid)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false });
 
-    if (usersError) throw usersError;
+    if (posterJobsError) throw posterJobsError;
 
-    const userMap = new Map(usersData.map(user => [user.id, user.username]));
+    if (posterJobsData && posterJobsData.length > 0) {
+      // For each completed poster job, find who completed it
+      for (const job of posterJobsData) {
+        let helperNames = [];
+        
+        const { data: chatData, error: chatError } = await supabase
+          .from('chats')
+          .select('job_seeker_id')
+          .eq('job_id', job.id)
+          .eq('offer_accepted', true);
 
-    // 3. Combine the data
-    const enrichedJobs = jobsData.map(job => ({
-      ...job,
-      posterName: userMap.get(job.client_id) || 'Unknown Poster'
-    }));
+        if (!chatError && chatData && chatData.length > 0) {
+          const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+          
+          const { data: helpersData, error: helpersError } = await supabase
+            .from('users')
+            .select('username')
+            .in('id', helperIds);
 
-    completedJobs.value = enrichedJobs;
+          if (!helpersError && helpersData) {
+            helperNames = helpersData.map(u => u.username || 'Unknown');
+          }
+        }
+
+        allJobs.push({
+          id: `poster-${job.id}`,
+          job_title: job.title,
+          title: job.title,
+          payment: job.payment,
+          agreed_amount: job.payment,
+          created_at: job.created_at,
+          role: 'Job Poster',
+          otherPartyName: helperNames.join(', ') || 'Unknown Helper'
+        });
+      }
+    }
+
+    // Sort all jobs by date (most recent first)
+    allJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    completedJobs.value = allJobs;
 
   } catch (e) {
-    console.error('loadCompletedJobs (as helper) error', e);
+    console.error('loadCompletedJobs error', e);
     completedJobs.value = [];
   }
 }
