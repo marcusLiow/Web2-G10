@@ -59,6 +59,27 @@
           </div>
         </section>
 
+        <!-- Helper Tier System -->
+        <section v-if="user.is_helper && tierInfo.isHelper" class="tier-section">
+          <div class="tier-container">
+            <div class="tier-badge">
+              <img :src="tierInfo.image" :alt="tierInfo.name" class="tier-image" />
+            </div>
+            <div class="tier-details">
+              <div class="tier-header">
+                <h3 class="tier-name">{{ tierInfo.name }}</h3>
+                <span class="tier-xp">{{ tierInfo.currentXP }} / {{ tierInfo.nextTierXP }} XP</span>
+              </div>
+              <div class="tier-progress-container">
+                <div class="tier-progress-bar">
+                  <div class="tier-progress-fill" :style="{ width: tierInfo.progress + '%' }"></div>
+                </div>
+                <p class="tier-next">{{ tierInfo.xpToNext }} XP to {{ tierInfo.nextTier }}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section class="stats-grid">
           <div class="stat-card stat-card-jobs">
             <div class="stat-content">
@@ -573,6 +594,25 @@ const userListings = ref([]);
 const completedJobs = ref([]);
 const userIdFromSession = ref(null);
 
+// Tier system data
+const tierInfo = reactive({
+  isHelper: false,
+  currentXP: 0,
+  name: 'Emerald',
+  image: '/src/assets/emerald.png',
+  progress: 0,
+  nextTier: 'Ruby',
+  nextTierXP: 600,
+  xpToNext: 600
+});
+
+const tiers = [
+  { name: 'Emerald', min: 0, max: 600, image: '/src/assets/emerald.png' },
+  { name: 'Ruby', min: 600, max: 1200, image: '/src/assets/ruby.png' },
+  { name: 'Sapphire', min: 1200, max: 1800, image: '/src/assets/sapphire.png' },
+  { name: 'Diamond', min: 1800, max: Infinity, image: '/src/assets/diamond.png' }
+];
+
 const activeListings = computed(() => userListings.value.filter(l => l.status === 'open'));
 const activeListingsCount = computed(() => activeListings.value.length);
 
@@ -876,6 +916,55 @@ function retryLoad() {
   loadAll();
 }
 
+/* Calculate tier info based on monthly earnings */
+async function calculateTierInfo(uid) {
+  try {
+    // First check if user is a helper and get their tier data
+    const { data: helperProfile, error: helperError } = await supabase
+      .from('helper_profiles')
+      .select('user_id, helper_xp, helper_tier')
+      .eq('user_id', uid)
+      .maybeSingle();
+
+    if (helperError) {
+      console.warn('Error checking helper profile:', helperError);
+      tierInfo.isHelper = false;
+      return;
+    }
+
+    if (!helperProfile) {
+      tierInfo.isHelper = false;
+      return;
+    }
+
+    tierInfo.isHelper = true;
+
+    // Use XP and tier from database (updated by trigger)
+    tierInfo.currentXP = helperProfile.helper_xp || 0;
+    const dbTier = helperProfile.helper_tier || 'Emerald';
+
+    // Determine current tier
+    const currentTier = tiers.find(t => t.name === dbTier) || tiers[0];
+    const currentTierIndex = tiers.indexOf(currentTier);
+    const nextTier = currentTierIndex < tiers.length - 1 ? tiers[currentTierIndex + 1] : null;
+
+    tierInfo.name = currentTier.name;
+    tierInfo.image = currentTier.image;
+    tierInfo.nextTierXP = nextTier ? nextTier.min : currentTier.max;
+    tierInfo.nextTier = nextTier ? nextTier.name : 'Max Tier';
+    
+    // Calculate progress within current tier
+    const xpInCurrentTier = tierInfo.currentXP - currentTier.min;
+    const xpNeededForTier = currentTier.max - currentTier.min;
+    tierInfo.progress = Math.min(100, (xpInCurrentTier / xpNeededForTier) * 100);
+    tierInfo.xpToNext = nextTier ? (nextTier.min - tierInfo.currentXP) : 0;
+
+  } catch (e) {
+    console.error('calculateTierInfo error', e);
+    tierInfo.isHelper = false;
+  }
+}
+
 /* Helpers for skills display */
 function parseSkillForDisplay(item) {
   if (!item) return { name: '', level: 'Beginner', jobs: 0 };
@@ -1005,6 +1094,9 @@ async function loadAll() {
     
     // Sync stats.rating with user.rating for consistency
     user.stats.rating = user.rating;
+    
+    // Calculate tier info for helpers
+    await calculateTierInfo(uid);
   } catch (err) {
     console.error('loadAll error', err);
     errorMessage.value = String(err.message || err);
@@ -1539,6 +1631,89 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 
 .btn-edit { padding:.5rem 1rem; border:1px solid #d1d5db; border-radius:.375rem; background:white; cursor:pointer; font-weight:500; }
 
+/* Tier Section */
+.tier-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.tier-container {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.tier-badge {
+  flex-shrink: 0;
+}
+
+.tier-image {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+}
+
+.tier-details {
+  flex: 1;
+  color: white;
+}
+
+.tier-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.tier-name {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.tier-xp {
+  font-size: 1.125rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.375rem 0.875rem;
+  border-radius: 9999px;
+  backdrop-filter: blur(10px);
+}
+
+.tier-progress-container {
+  width: 100%;
+}
+
+.tier-progress-bar {
+  width: 100%;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tier-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+  border-radius: 12px;
+  transition: width 0.5s ease;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+}
+
+.tier-next {
+  font-size: 0.875rem;
+  margin: 0;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
 .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1rem; margin-bottom:1.5rem; }
 .stat-card { background:#fff; padding:1rem; border-radius:.5rem; box-shadow:0 1px 3px rgba(0,0,0,.08); border-left:4px solid transparent; }
 .stat-card-jobs { border-left-color:#3b82f6; }
@@ -1845,6 +2020,26 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
   .skill-card { flex-direction:column; align-items:flex-start; gap:.5rem; }
   .listing-footer { flex-direction:column; align-items:stretch; gap:1rem; }
   .listing-actions { flex-direction:column; }
+  
+  .tier-container {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .tier-image {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .tier-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  
+  .tier-name {
+    font-size: 1.5rem;
+  }
   
   .avatar-upload-section {
     flex-direction: column;
