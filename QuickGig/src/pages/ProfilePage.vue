@@ -178,6 +178,12 @@
           <div v-if="activeTab === 'jobs'" class="tab-content">
             <div class="content-body">
               <h2>My Job History</h2>
+              
+              <!-- DEBUG BUTTON - Remove after testing -->
+              <!-- <button @click="debugHelperJobs" class="btn-debug" type="button" style="background: #f59e0b; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; margin-bottom: 1rem; border: none; cursor: pointer;">
+                🔍 Debug: Check helper_jobs table
+              </button> -->
+              
               <div v-if="completedJobs.length" class="jobs-list">
                 
                 <div v-for="job in completedJobs" :key="job.id || job.job_title" class="job-card">
@@ -604,31 +610,43 @@ function removeExperience(i) { editForm.experience.splice(i, 1); }
 async function loadCompletedJobs(uid) {
   try {
     if (!uid) {
+      console.log('❌ loadCompletedJobs: No user ID provided');
       completedJobs.value = [];
       return;
     }
 
+    console.log('🔍 loadCompletedJobs: Starting for user:', uid);
     const allJobs = [];
 
     // 1. Fetch completed jobs where the current user was the helper
+    console.log('📋 Querying helper_jobs table...');
     const { data: helperJobsData, error: helperJobsError } = await supabase
       .from('helper_jobs')
-      .select('job_title, agreed_amount, client_id, created_at, status')
+      .select('id, job_title, agreed_amount, client_id, created_at, status')
       .eq('helper_id', uid)
       .eq('status', 'completed')
       .order('created_at', { ascending: false });
+
+    console.log('📊 helper_jobs query result:', { 
+      data: helperJobsData, 
+      error: helperJobsError,
+      count: helperJobsData?.length || 0 
+    });
 
     if (helperJobsError) throw helperJobsError;
 
     if (helperJobsData && helperJobsData.length > 0) {
       // Get the poster (client) names
       const clientIds = [...new Set(helperJobsData.map(job => job.client_id))];
+      console.log('👥 Fetching client names for IDs:', clientIds);
+      
       const { data: clientsData, error: clientsError } = await supabase
         .from('users')
         .select('id, username')
         .in('id', clientIds);
 
       if (clientsError) throw clientsError;
+      console.log('✅ Client names fetched:', clientsData);
 
       const clientMap = new Map(clientsData.map(user => [user.id, user.username]));
 
@@ -643,15 +661,25 @@ async function loadCompletedJobs(uid) {
           otherPartyName: clientMap.get(job.client_id) || 'Unknown Poster'
         });
       });
+      console.log('✅ Added', helperJobsData.length, 'helper jobs to list');
+    } else {
+      console.log('⚠️ No completed jobs found where user was helper');
     }
 
     // 2. Fetch completed jobs where the current user was the poster
+    console.log('📋 Querying User-Job-Request table...');
     const { data: posterJobsData, error: posterJobsError } = await supabase
       .from('User-Job-Request')
       .select('id, title, payment, created_at, status')
       .eq('user_id', uid)
       .eq('status', 'completed')
       .order('created_at', { ascending: false });
+
+    console.log('📊 User-Job-Request query result:', { 
+      data: posterJobsData, 
+      error: posterJobsError,
+      count: posterJobsData?.length || 0 
+    });
 
     if (posterJobsError) throw posterJobsError;
 
@@ -690,15 +718,21 @@ async function loadCompletedJobs(uid) {
           otherPartyName: helperNames.join(', ') || 'Unknown Helper'
         });
       }
+      console.log('✅ Added', posterJobsData.length, 'poster jobs to list');
+    } else {
+      console.log('⚠️ No completed jobs found where user was poster');
     }
 
     // Sort all jobs by date (most recent first)
     allJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
+    console.log('✅ Total completed jobs:', allJobs.length);
+    console.log('📦 Final jobs list:', allJobs);
+    
     completedJobs.value = allJobs;
 
   } catch (e) {
-    console.error('loadCompletedJobs error', e);
+    console.error('❌ loadCompletedJobs error', e);
     completedJobs.value = [];
   }
 }
@@ -1003,7 +1037,40 @@ async function markAsCompleted(jobId) {
     if (updateError) throw updateError;
     const jobTitle = updatedJob.title || 'your recent job';
 
-    // --- Step 2: Find helper IDs AND Names ---
+    // --- Step 2: Update helper_jobs status to 'completed' ---
+    // This is crucial so the job appears in the helper's job history!
+    // Since helper_jobs doesn't have job_id, we need to find records by helper_id and client_id
+    // and match by job title and amount
+    const { data: helperJobsToUpdate, error: findHelperJobsError } = await supabase
+      .from('helper_jobs')
+      .select('id, job_title')
+      .eq('client_id', userId)
+      .eq('status', 'in-progress');
+    
+    if (findHelperJobsError) {
+      console.error('Error finding helper_jobs to update:', findHelperJobsError);
+    } else if (helperJobsToUpdate && helperJobsToUpdate.length > 0) {
+      // Update matching helper_jobs (filter by job title match)
+      const matchingJobs = helperJobsToUpdate.filter(hj => hj.job_title === jobTitle);
+      
+      for (const helperJob of matchingJobs) {
+        const { error: updateErr } = await supabase
+          .from('helper_jobs')
+          .update({ 
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', helperJob.id);
+        
+        if (updateErr) {
+          console.error('Error updating helper_job:', updateErr);
+        } else {
+          console.log('✅ Helper job marked as completed:', helperJob.id);
+        }
+      }
+    }
+
+    // --- Step 3: Find helper IDs AND Names ---
     let helperNames = [];
     let helperIds = [];
     const { data: chatData, error: chatError } = await supabase
@@ -1027,7 +1094,7 @@ async function markAsCompleted(jobId) {
       helperNames = usersData ? usersData.map(u => u.username || 'Unknown') : [];
     }
 
-    // --- Step 3: Insert notifications for each helper ---
+    // --- Step 4: Insert notifications for each helper ---
     if (helperIds.length > 0) {
       const notifications = helperIds.map(helperId => ({
         user_id: helperId, // The recipient
@@ -1044,7 +1111,7 @@ async function markAsCompleted(jobId) {
       }
     }
 
-    // --- Step 4: UPDATE LOCAL STATE (THE FIX) ---
+    // --- Step 5: UPDATE LOCAL STATE (THE FIX) ---
     // Find the job in our local userListings array
     const jobIndex = userListings.value.findIndex(job => job.id === jobId);
     
@@ -1294,6 +1361,133 @@ async function saveProfile() {
 /* lifecycle */
 onMounted(() => { loadAll(); });
 
+/* DEBUG FUNCTION - Remove after testing */
+async function debugHelperJobs() {
+  try {
+    const uid = currentUserId.value;
+    if (!uid) {
+      alert('No user ID found!');
+      return;
+    }
+    
+    console.log('🔍 DEBUG: Checking ALL helper_jobs records for user:', uid);
+    
+    // Check ALL helper_jobs records (any status)
+    const { data: allHelperJobs, error: allError } = await supabase
+      .from('helper_jobs')
+      .select('*')
+      .eq('helper_id', uid);
+    
+    console.log('📊 ALL helper_jobs records (any status):', {
+      count: allHelperJobs?.length || 0,
+      data: allHelperJobs,
+      error: allError
+    });
+    
+    // Check only completed ones
+    const { data: completedHelperJobs, error: completedError } = await supabase
+      .from('helper_jobs')
+      .select('*')
+      .eq('helper_id', uid)
+      .eq('status', 'completed');
+    
+    console.log('✅ COMPLETED helper_jobs records:', {
+      count: completedHelperJobs?.length || 0,
+      data: completedHelperJobs,
+      error: completedError
+    });
+    
+    // Check chats where this user is job_seeker (WITH DETAILS)
+    const { data: chatsData, error: chatsError } = await supabase
+      .from('chats')
+      .select('id, job_id, job_poster_id, payment_status, payment_amount, offer_accepted, created_at')
+      .eq('job_seeker_id', uid)
+      .eq('offer_accepted', true);
+    
+    console.log('💬 Chats where you are the helper:', {
+      count: chatsData?.length || 0,
+      data: chatsData,
+      error: chatsError
+    });
+    
+    // If we have chats but no helper_jobs, show option to fix
+    if (chatsData && chatsData.length > 0 && (!allHelperJobs || allHelperJobs.length === 0)) {
+      console.log('⚠️ ISSUE FOUND: You have accepted jobs but no helper_jobs records!');
+      console.log('💡 This can happen if payment was processed before the update.');
+      
+      // Check if any of these chats have been paid
+      const paidChats = chatsData.filter(c => c.payment_status === 'paid');
+      console.log('💰 Paid chats:', paidChats.length);
+      
+      if (paidChats.length > 0) {
+        if (confirm(`Found ${paidChats.length} paid job(s) missing from job history.\n\nWould you like to create the missing records now?`)) {
+          await fixMissingHelperJobs(uid, paidChats);
+        }
+      }
+    }
+    
+    alert('Debug info logged to console! Press F12 to see results.');
+    
+  } catch (e) {
+    console.error('❌ Debug error:', e);
+    alert('Error: ' + e.message);
+  }
+}
+
+/* Fix missing helper_jobs records */
+async function fixMissingHelperJobs(uid, paidChats) {
+  try {
+    console.log('🔧 Starting to fix missing helper_jobs records...');
+    
+    for (const chat of paidChats) {
+      // Get job details
+      const { data: jobData, error: jobError } = await supabase
+        .from('User-Job-Request')
+        .select('title, status')
+        .eq('id', chat.job_id)
+        .single();
+      
+      if (jobError) {
+        console.error('Error fetching job:', jobError);
+        continue;
+      }
+      
+      console.log(`Creating helper_jobs record for: ${jobData.title}`);
+      
+      // Create helper_jobs record with correct columns
+      const insertData = {
+        helper_id: uid,
+        client_id: chat.job_poster_id,
+        job_title: jobData.title,
+        agreed_amount: chat.payment_amount,
+        status: jobData.status === 'completed' ? 'completed' : 'in-progress',
+        payment_status: 'paid',
+        completed_at: jobData.status === 'completed' ? new Date().toISOString() : null
+      };
+      // Note: helper_chat_id is null for regular jobs (only used for helper services)
+      
+      console.log('Insert data:', insertData);
+      
+      const { error: insertError } = await supabase
+        .from('helper_jobs')
+        .insert(insertData);
+      
+      if (insertError) {
+        console.error('Error creating helper_jobs record:', insertError);
+        alert(`Error creating record: ${insertError.message}\n\nPlease check console for details.`);
+      } else {
+        console.log('✅ Created helper_jobs record for:', jobData.title);
+      }
+    }
+    
+    alert('Fixed missing job records! Refreshing...');
+    await loadAll();
+    
+  } catch (e) {
+    console.error('❌ Fix error:', e);
+    alert('Error fixing records: ' + e.message);
+  }
+}
 
 
 // Edit listing - navigate to edit page

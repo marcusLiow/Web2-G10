@@ -86,7 +86,7 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
   // Get job details to check for multi-helper
   const { data: jobData, error: jobFetchError } = await supabase
     .from('User-Job-Request')
-    .select('multiple_positions, positions_available')
+    .select('multiple_positions, positions_available, user_id')
     .eq('id', jobId)
     .single();
   
@@ -118,7 +118,35 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
     }
   }
   
-  // 1. Update chat payment status
+  // 1. Get the current chat data to find the helper
+  const { data: currentChatData, error: currentChatError } = await supabase
+    .from('chats')
+    .select('job_seeker_id, job_poster_id')
+    .eq('id', chatId)
+    .single();
+  
+  if (currentChatError) throw currentChatError;
+  
+  // 2. Create helper_jobs record for this paid job (so it shows in helper's job history)
+  const { error: helperJobError } = await supabase
+    .from('helper_jobs')
+    .insert({
+      helper_id: currentChatData.job_seeker_id,
+      client_id: currentChatData.job_poster_id,
+      job_title: jobTitle || 'Job',
+      agreed_amount: Number(amount),
+      status: 'in-progress',
+      payment_status: 'paid'
+    });
+  
+  if (helperJobError) {
+    console.error('Error creating helper_jobs record:', helperJobError);
+    // Don't throw - continue with payment processing
+  } else {
+    console.log('✅ Helper job record created for job history');
+  }
+  
+  // 3. Update chat payment status
   const { error: chatPaymentError } = await supabase
     .from('chats')
     .update({ 
@@ -129,7 +157,7 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
   if (chatPaymentError) throw chatPaymentError;
   console.log('✅ Chat payment status updated to paid');
 
-  // 2. Update job status
+  // 4. Update job status
   const { error: updateError } = await supabase
     .from('User-Job-Request')
     .update({ status: newStatus })
@@ -137,7 +165,7 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
   if (updateError) throw updateError;
   console.log('✅ Job status updated to:', newStatus);
 
-  // 3. Send payment confirmation message *to the chat*
+  // 5. Send payment confirmation message *to the chat*
   const currentUserId = localStorage.getItem('userId');
   await supabase
     .from('messages')
@@ -149,7 +177,7 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
       read: false
     });
 
-  // 4. Update chat last message
+  // 6. Update chat last message
   await supabase
     .from('chats')
     .update({ 
@@ -158,7 +186,7 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
     })
     .eq('id', chatId);
 
-  // 5. Send Navbar Notification to Helper(s)
+  // 7. Send Navbar Notification to Helper(s)
   const { data: chatData, error: chatError } = await supabase
     .from('chats')
     .select('job_seeker_id') // Get the helper's ID
@@ -209,8 +237,7 @@ const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
       job_title: jobTitle || 'Helper Service',
       agreed_amount: amount,
       status: 'in-progress',
-      payment_status: 'paid',
-      started_at: new Date().toISOString()
+      payment_status: 'paid'
     }]);
   if (jobError) throw jobError;
 
@@ -272,7 +299,7 @@ const goToChat = () => {
   min-height: 100vh;
   background-color: #f8f9fa;
   padding: 1rem;
-};
+}
 .content-card {
   background: white;
   border-radius: 12px;
@@ -281,7 +308,7 @@ const goToChat = () => {
   max-width: 500px;
   width: 100%;
   text-align: center;
-};
+}
 .loading-state,
 .error-state,
 .success-state {
@@ -289,12 +316,12 @@ const goToChat = () => {
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-};
+}
 h2 {
   font-size: 1.75rem;
   margin: 0;
   font-weight: 600;
-};
+}
 .spinner {
   width: 3rem;
   height: 3rem;
@@ -302,28 +329,28 @@ h2 {
   border-top-color: #2563eb;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-};
+}
 .spinner.small {
   width: 2rem;
   height: 2rem;
   border-width: 2px;
   margin-top: 0.5rem;
-};
+}
 @keyframes spin {
   to { transform: rotate(360deg); }
-};
+}
 .error-message {
   color: #dc2626;
   background-color: #fee2e2;
   padding: 1rem;
   border-radius: 8px;
   margin: 0.5rem 0;
-};
+}
 .success-message {
   color: #059669;
   font-size: 1.125rem;
   margin: 0.5rem 0;
-};
+}
 .action-button {
   margin-top: 1rem;
   padding: 0.75rem 1.5rem;
@@ -335,10 +362,10 @@ h2 {
   font-weight: 600;
   font-size: 1rem;
   transition: background-color 0.2s;
-};
+}
 .action-button:hover {
   background: #1d4ed8;
-};
+}
 p {
   margin: 0.25rem 0;
   color: #6b7280;
