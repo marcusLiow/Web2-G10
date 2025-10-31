@@ -4,13 +4,12 @@ import request from '../pages/request.vue'
 import LoginPage from '../pages/LoginPage.vue'
 import SignupPage from '../pages/SignupPage.vue'
 import ProfilePage from '../pages/ProfilePage.vue'
-import Earnings from "../pages/Earnings.vue";
+import Dashboard from "../pages/Dashboard.vue";
 import JobPage from "../pages/JobPage.vue"
 import Onboarding from '@/pages/Onboarding.vue'
 import AdventurerSignUp from '@/pages/AdventurerSignUp.vue'
 import maptest from '@/pages/maptest.vue'
 import HelpersPage from '../pages/HelpersPage.vue'
-import Spending from '../pages/Spending.vue'
 import editjob from '@/pages/editjob.vue'
 import JobMap from '@/pages/JobMap.vue'
 
@@ -44,16 +43,6 @@ const router = createRouter({
       path: '/profile',
       name: 'profile',
       component: () => import('../pages/ProfilePage.vue')
-    },
-    {
-      path: '/earnings',
-      name: 'earnings',
-      component: () => import('../pages/Earnings.vue')
-    },
-    {
-      path: '/spending',
-      name: 'spending',
-      component: () => import('../pages/Spending.vue')
     },
     {
       path: '/jobs',
@@ -151,7 +140,7 @@ const router = createRouter({
     {
       path: '/dashboard',
       name: 'Dashboard',
-      component: () => import('../pages/Earnings.vue')
+      component: () => import('../pages/Dashboard.vue')
     },
   ],
 })
