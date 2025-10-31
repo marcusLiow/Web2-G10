@@ -2,11 +2,13 @@
   <div id="app">
     <Navbar />
     <RouterView />
+    <ToastNotification />
   </div>
 </template>
 
 <script setup>
 import Navbar from './components/Navbar.vue'
+import ToastNotification from './components/ToastNotification.vue'
 </script>
 
 <style>

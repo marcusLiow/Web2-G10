@@ -475,8 +475,10 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { supabase } from '../supabase/config';
 import { useRouter } from 'vue-router';
+import { useToast } from '../composables/useToast';
 
 const router = useRouter();
+const toast = useToast();
 
 const isLoading = ref(true);
 const errorMessage = ref('');
@@ -1150,7 +1152,7 @@ async function loadUserListings(uid) {
 /*send notif when paid*/
 async function markAsCompleted(jobId) {
   if (!jobId) {
-    alert('Invalid job ID');
+    toast.error('Invalid job ID');
     return;
   }
 
@@ -1221,7 +1223,7 @@ async function markAsCompleted(jobId) {
       userListings.value[jobIndex].completedBy = helperNames;
     }
 
-    alert('Job marked as completed successfully! Helper(s) notified.');
+    toast.success('Job marked as completed successfully! Helper(s) notified.', 'Job Completed');
 
     // Re-fetch data to ensure consistency
     await loadUserListings(userId);
@@ -1229,7 +1231,7 @@ async function markAsCompleted(jobId) {
 
   } catch (error) {
     console.error('Unexpected error marking job as completed:', error);
-    alert('An unexpected error occurred. Please try again.');
+    toast.error('An unexpected error occurred. Please try again.', 'Error');
   }
 }
 
@@ -1374,12 +1376,12 @@ async function saveProfile() {
     const session = await supabase.auth.getSession();
     const uid = session?.data?.session?.user?.id;
     if (!uid) {
-      alert('You must be signed in to save your profile');
+      toast.error('You must be signed in to save your profile', 'Authentication Required');
       return;
     }
 
     if (!editForm.username || !editForm.username.trim()) {
-      alert('Username is required');
+      toast.warning('Username is required');
       return;
     }
 
@@ -1449,10 +1451,10 @@ async function saveProfile() {
 
     await loadAll();
     closeEditModal();
-    alert('Profile updated successfully!');
+    toast.success('Profile updated successfully!');
   } catch (err) {
     console.error('saveProfile error', err);
-    alert('Failed to save profile: ' + (err.message || err));
+    toast.error(err.message || 'Failed to save profile', 'Save Failed');
   }
 }
 
@@ -1463,7 +1465,7 @@ onMounted(() => { loadAll(); });
 // Edit listing - navigate to edit page
 function editListing(listing) {
   if (!listing || !listing.id) {
-    alert('Invalid listing');
+    toast.error('Invalid listing');
     return;
   }
   
@@ -1474,7 +1476,7 @@ function editListing(listing) {
 // Delete listing
 async function deleteListing(jobId) {
   if (!jobId) {
-    alert('Invalid job ID');
+    toast.error('Invalid job ID');
     return;
   }
   
@@ -1494,18 +1496,18 @@ async function deleteListing(jobId) {
 
     if (error) {
       console.error('Error deleting job:', error);
-      alert(`Failed to delete job: ${error.message}`);
+      toast.error(error.message, 'Failed to Delete Job');
       return;
     }
     
-    alert('Job deleted successfully!');
+    toast.success('Job deleted successfully!');
     
     // Refresh the listings
     await loadUserListings(userId);
     
   } catch (error) {
     console.error('Unexpected error deleting job:', error);
-    alert('An unexpected error occurred. Please try again.');
+    toast.error('An unexpected error occurred. Please try again.', 'Error');
   }
 }
 function getStatusClass(status) { if (!status) return ''; const s = String(status).toLowerCase(); if (s === 'open') return 'status-open'; if (s === 'in_progress' || s === 'in-progress') return 'status-in-progress'; if (s === 'completed') return 'status-completed'; if (s === 'cancelled') return 'status-cancelled'; return ''; }
