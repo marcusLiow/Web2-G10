@@ -35,7 +35,8 @@
           >
             <!-- User Avatar -->
             <div class="chat-avatar">
-              {{ chat.otherUserName.charAt(0).toUpperCase() }}
+              <img v-if="chat.avatarUrl" :src="chat.avatarUrl" :alt="chat.otherUserName" class="avatar-img" />
+              <span v-else class="avatar-letter">{{ chat.otherUserName.charAt(0).toUpperCase() }}</span>
               <span v-if="chat.unreadCount > 0" class="avatar-badge"></span>
             </div>
 
@@ -156,14 +157,15 @@ const fetchJobChats = async () => {
         ? chat.job_seeker_id 
         : chat.job_poster_id;
       
-      // Fetch other user's info
+      // Fetch other user's info (including avatar)
       const { data: userData } = await supabase
         .from('users')
-        .select('username')
+        .select('username, avatar_url')
         .eq('id', otherUserId)
         .single();
       
       console.log(`User data for ${otherUserId}:`, userData);
+      
       // Fetch job info
       const { data: jobData } = await supabase
         .from('User-Job-Request')
@@ -183,6 +185,7 @@ const fetchJobChats = async () => {
         id: chat.id,
         type: 'job',
         otherUserName: userData?.username || 'Unknown User',
+        avatarUrl: userData?.avatar_url || null,
         jobTitle: jobData?.title || 'Deleted Job',
         lastMessage: chat.last_message || 'No messages yet',
         lastMessageTime: formatTime(chat.last_message_time),
@@ -237,10 +240,10 @@ const fetchHelperChats = async () => {
       
       const isHelper = chat.helper_id === currentUserId;
       
-      // Fetch other user's info
+      // Fetch other user's info (including avatar)
       const { data: userData } = await supabase
         .from('users')
-        .select('username')
+        .select('username, avatar_url')
         .eq('id', otherUserId)
         .single();
       
@@ -256,6 +259,7 @@ const fetchHelperChats = async () => {
         id: chat.id,
         type: 'helper',
         otherUserName: userData?.username || 'Unknown User',
+        avatarUrl: userData?.avatar_url || null,
         jobTitle: isHelper ? 'Client Request' : 'Helper Service',
         lastMessage: chat.last_message || 'No messages yet',
         lastMessageTime: formatTime(chat.last_message_time),
@@ -461,6 +465,18 @@ const openChat = (chat) => {
   font-weight: 600;
   flex-shrink: 0;
   position: relative;
+  overflow: hidden;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-letter {
+  font-size: 1.5rem;
+  font-weight: 600;
 }
 
 .avatar-badge {
@@ -593,6 +609,9 @@ const openChat = (chat) => {
   .chat-avatar {
     width: 48px;
     height: 48px;
+  }
+
+  .avatar-letter {
     font-size: 1.25rem;
   }
 
@@ -621,6 +640,9 @@ const openChat = (chat) => {
   .chat-avatar {
     width: 44px;
     height: 44px;
+  }
+
+  .avatar-letter {
     font-size: 1.1rem;
   }
 
