@@ -1248,7 +1248,15 @@ async function markAsCompleted(jobId) {
     return;
   }
 
-  if (!confirm('Are you sure you want to mark this job as completed? This will notify the helper(s) and move the job to history.')) {
+  const confirmed = await toast.confirm({
+    message: 'Are you sure you want to mark this job as completed? This will notify the helper(s) and move the job to history.',
+    title: 'Mark Job as Completed',
+    confirmText: 'Yes, Mark Completed',
+    cancelText: 'Cancel',
+    type: 'warning'
+  });
+
+  if (!confirmed) {
     return;
   }
 
@@ -1572,7 +1580,15 @@ async function deleteListing(jobId) {
     return;
   }
   
-  if (!confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
+  const confirmed = await toast.confirm({
+    message: 'Are you sure you want to delete this job? This action cannot be undone.',
+    title: 'Delete Job',
+    confirmText: 'Yes, Delete',
+    cancelText: 'Cancel',
+    type: 'danger'
+  });
+  
+  if (!confirmed) {
     return;
   }
   

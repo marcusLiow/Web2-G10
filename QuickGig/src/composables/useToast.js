@@ -45,12 +45,31 @@ export function useToast() {
     }
   };
 
+  /**
+   * Show a confirmation dialog
+   * @param {Object} options - Confirmation options
+   * @param {string} options.message - The confirmation message (required)
+   * @param {string} options.title - Dialog title (default: 'Confirm Action')
+   * @param {string} options.confirmText - Text for confirm button (default: 'Confirm')
+   * @param {string} options.cancelText - Text for cancel button (default: 'Cancel')
+   * @param {string} options.type - Dialog type: 'info', 'warning', 'danger' (default: 'warning')
+   * @returns {Promise<boolean>} - Promise that resolves to true if confirmed, false if canceled
+   */
+  const confirm = (options) => {
+    if (!toastInstance.value) {
+      console.warn('Toast instance not initialized. Make sure ToastNotification component is mounted.');
+      return Promise.resolve(false);
+    }
+    return toastInstance.value.confirm(options);
+  };
+
   return {
     showToast,
     success,
     error,
     warning,
     info,
-    clearAll
+    clearAll,
+    confirm
   };
 }
