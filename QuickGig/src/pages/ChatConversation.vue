@@ -1135,17 +1135,17 @@ const cancelOffer = async (acceptanceMessage) => {
 
     const isJobPosterSuccess = !isHelperChat.value && currentUserId.value === chatInfo.value?.job_poster_id;
     const successMessage = isJobPosterSuccess
-      ? 'Offer acceptance cancelled successfully.\nThe position is now available again.'
-      : 'You have successfully withdrawn from this job.\nThe position is now available again.';
+      ? 'Offer acceptance cancelled successfully. The position is now available again.'
+      : 'You have successfully withdrawn from this job. The position is now available again.';
     
-    alert(successMessage);
+    toast.success(successMessage, 'Offer Cancelled', 5000);
 
   } catch (error) {
     console.error('Error cancelling offer:', error);
     console.error('Error details:', JSON.stringify(error, null, 2));
     
     const errorMessage = error.message || 'Failed to cancel offer. Please try again.';
-    alert(`Failed to cancel: ${errorMessage}`);
+    toast.error(`Failed to cancel: ${errorMessage}`, 'Error', 5000);
   } finally {
     isProcessing.value = false;
   }
