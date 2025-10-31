@@ -431,7 +431,7 @@ export default {
 <style scoped>
 @font-face {
   font-family: 'Jersey10';
-  src: url('../assets/fonts/Jersey10-Regular.ttf') format('truetype');
+  src: url('../assets/fonts/Jersey15-Regular.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
 }
@@ -487,7 +487,7 @@ export default {
 .nav-link {
   text-decoration: none;
   color: rgba(0, 0, 0, 0.85);
-  font-weight: bold;
+  font-weight: 500;
   transition: all 0.3s;
   white-space: nowrap;
   font-size: 1.8em;

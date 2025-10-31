@@ -13,7 +13,7 @@
           :class="{ selected: selectedRole === 'adventurer' }"
           @click="selectRole('adventurer')"
         >
-          <div class="card-icon">⚔️</div>
+          <div class="card-icon"><img src="../assets/knight.gif" alt="Knight" class="gif"/></div>
           <h2 class="card-title">Adventurer</h2>
           <p class="card-description">
             You are here to offer your skills and expertise to earn money
@@ -26,7 +26,11 @@
           :class="{ selected: selectedRole === 'questor' }"
           @click="selectRole('questor')"
         >
-          <div class="card-icon">📜</div>
+          <div class="card-icon"><img 
+            src="../assets/mentor.gif"
+            alt="Mentor" 
+            class="gif"
+          /></div>
           <h2 class="card-title">Questor</h2>
           <p class="card-description">
             You are here to post tasks and find skilled adventurers to help you
@@ -100,7 +104,7 @@ export default {
 <style scoped>
 @font-face {
   font-family: 'Jersey10';
-  src: url('../assets/fonts/Jersey10-Regular.ttf') format('truetype');
+  src: url('../assets/fonts/Jersey15-Regular.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
 }
@@ -112,14 +116,14 @@ export default {
 }
 
 .role-selection-page {
-  min-height: calc(100vh - 80px);
-  max-height: calc(100vh - 80px);
+  min-height: calc(100vh - 100px);
+  max-height: calc(100vh - 100px);
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(239, 245, 247, 0.9);
-  padding: 2rem 1rem;
-  overflow-y: auto;
+  padding: 1rem 1rem;
+  overflow-y: hidden;
   overflow-x: hidden;
   position: relative;
 }
@@ -178,6 +182,14 @@ export default {
   font-family: 'Jersey10', sans-serif;
 }
 
+.gif {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+
 .subtitle {
   font-size: 1.95rem;
   color: #666;
@@ -188,13 +200,13 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
-  margin-bottom: 8.25rem;
+  margin-bottom: 1.5rem;
 }
 
 .role-card {
   background: white;
   border-radius: 20px;
-  padding: 2rem 1.75rem;
+  padding: 1.5rem 1.75rem;
   cursor: pointer;
   transition: all 0.3s ease;
   border: 4px solid #e5e7eb;
@@ -236,13 +248,13 @@ export default {
 
 .card-icon {
   font-size: 3.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   text-align: center;
 }
 
 .card-title {
   font-size: 3rem;
-  font-weight: 700;
+  font-weight: 550;
   color: #1a202c;
   margin-bottom: 0.85rem;
   text-align: center;
@@ -313,5 +325,7 @@ export default {
   .card-title {
     font-size: 1.5rem;
   }
+
+
 }
 </style>

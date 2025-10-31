@@ -54,13 +54,15 @@
                class="message-bubble offer-bubble"
                :class="{
                  'offer-accepted': message.offer_status === 'accepted',
-                 'offer-countered': message.offer_status === 'countered'
+                 'offer-countered': message.offer_status === 'countered',
+                 'offer-cancelled': message.offer_status === 'cancelled'
                }">
             <div class="offer-content">
               <div class="offer-type">{{ message.message_type === 'counter_offer' ? 'Counter Offer' : 'Offer' }}</div>
               <div class="offer-amount">${{ message.offer_amount }}</div>
-              <div v-if="message.offer_status === 'accepted'" class="offer-status">Accepted</div>
+              <div v-if="message.offer_status === 'accepted'" class="offer-status">✓ Accepted</div>
               <div v-else-if="message.offer_status === 'countered'" class="offer-status">Countered</div>
+              <div v-else-if="message.offer_status === 'cancelled'" class="offer-status">❌ Cancelled</div>
             </div>
 
             <div v-if="message.offer_status === 'pending' && message.sender_id !== currentUserId"
@@ -79,8 +81,15 @@
           <div v-else-if="message.message_type === 'offer_accepted'" class="message-bubble accepted-bubble">
             <p class="acceptance-text">{{ message.message }}</p>
 
-            <!-- Show "Proceed to Payment" button for payer if not yet paid -->
-            <div v-if="shouldShowPaymentButton && message.offer_amount && !isPaymentCompleted"
+            <!-- Show "Cancel Acceptance" button for both parties if offer still accepted and not yet paid -->
+            <div v-if="canCancelOffer && !isPaymentCompleted && offerAcceptedInThisChat" class="cancel-action">
+              <button @click="confirmCancelOffer(message)" class="cancel-offer-btn" :disabled="isProcessing">
+                {{ isPayer ? '🚫 Cancel Acceptance' : '🚫 Withdraw from Job' }}
+              </button>
+            </div>
+
+            <!-- Show "Proceed to Payment" button ONLY if offer is still accepted, not cancelled, and not paid -->
+            <div v-if="shouldShowPaymentButton && message.offer_amount && !isPaymentCompleted && offerAcceptedInThisChat"
                  class="payment-action">
               <button @click="proceedToPayment(message)" class="payment-btn">
                 Proceed to Payment
@@ -94,13 +103,19 @@
               <p class="confirmed-text">Payment Confirmed</p>
             </div>
 
-            <!-- Show "Leave a Review" or "Edit Review" button -->
+            <!-- Show "Leave a Review" button - always available to report problematic users -->
             <div class="review-action">
               <button @click="openReviewModal" class="review-btn">
                 {{ hasReviewedOtherUser ? '✏️ Edit Your Review' : '⭐ Leave a Review' }}
               </button>
             </div>
 
+            <span class="message-time">{{ formatTime(message.created_at) }}</span>
+          </div>
+
+          <div v-else-if="message.message_type === 'offer_cancelled'" class="message-bubble cancelled-bubble">
+            <div class="cancelled-icon">🚫</div>
+            <p class="cancelled-text">{{ message.message }}</p>
             <span class="message-time">{{ formatTime(message.created_at) }}</span>
           </div>
 
@@ -171,12 +186,12 @@
           <!-- Job Info -->
           <div class="job-info-box">
             <div class="job-info-header">
-              <p class="info-label">{{ isHelperChat ? 'Helper Service' : 'Job Title' }}</p>
+              <p class="info-label">{{ isHelperChat ? 'Adventurer Service' : 'Job Title' }}</p>
             </div>
             <p class="info-value">{{ isHelperChat ? otherUser?.username : jobInfo?.title }}</p>
           </div>
 
-          <!-- Helper Chat Job Title Input -->
+          <!-- Adventurer Chat Job Title Input -->
           <div v-if="isHelperChat" class="form-group">
             <label class="form-label">Job Title *</label>
             <input
@@ -384,7 +399,7 @@ const isPayer = computed(() => {
 // Subtitle under username
 const chatSubtitle = computed(() => {
   if (isHelperChat.value) {
-    return isHelper.value ? 'Client' : 'Helper';
+    return isHelper.value ? 'Client' : 'Adventurer';
   }
   return jobInfo.value?.title || 'Loading...';
 });
@@ -401,6 +416,28 @@ const canAcceptOffer = computed(() => {
 });
 
 const shouldShowPaymentButton = computed(() => isPayer.value);
+
+const canCancelOffer = computed(() => {
+  // Either party can cancel (job poster OR helper/job seeker)
+  const isParticipant = currentUserId.value && chatInfo.value && (
+    (!isHelperChat.value && (
+      currentUserId.value === chatInfo.value.job_poster_id || 
+      currentUserId.value === chatInfo.value.job_seeker_id
+    )) ||
+    (isHelperChat.value && (
+      currentUserId.value === chatInfo.value.client_id || 
+      currentUserId.value === chatInfo.value.helper_id
+    ))
+  );
+  
+  // Must have an accepted offer
+  const hasAcceptedOffer = offerAcceptedInThisChat.value === true;
+  
+  // Cannot cancel after payment
+  const notPaid = !isPaymentCompleted.value;
+  
+  return isParticipant && hasAcceptedOffer && notPaid;
+});
 
 const canSubmitOffer = computed(() => {
   if (!offerAmount.value || offerAmount.value <= 0) return false;
@@ -942,6 +979,178 @@ const acceptOffer = async (offerMessage) => {
   }
 };
 
+// Cancel Offer Functions
+const confirmCancelOffer = (acceptanceMessage) => {
+  const isJobPoster = !isHelperChat.value && currentUserId.value === chatInfo.value?.job_poster_id;
+  const confirmMessage = isJobPoster 
+    ? 'Are you sure you want to cancel this accepted offer?\nThe adventurer will be notified and this position will become available again.'
+    : 'Are you sure you want to withdraw from this job?\nThe job poster will be notified and this position will become available again.';
+  
+  if (!confirm(confirmMessage)) {
+    return;
+  }
+  cancelOffer(acceptanceMessage);
+};
+
+const cancelOffer = async (acceptanceMessage) => {
+  if (isProcessing.value) return;
+  
+  try {
+    isProcessing.value = true;
+    const chatId = route.params.id;
+    
+    console.log('=== CANCELLING ACCEPTED OFFER ===');
+    console.log('Acceptance message:', acceptanceMessage);
+
+    // 1. Find the original offer message that was accepted
+    const originalOfferMessage = messages.value.find(m =>
+      (m.message_type === 'offer' || m.message_type === 'counter_offer') &&
+      m.offer_status === 'accepted' &&
+      m.offer_amount === acceptanceMessage.offer_amount
+    );
+
+    if (originalOfferMessage) {
+      // 2. Update offer message status to 'cancelled'
+      const { error: updateError } = await supabase
+        .from(messagesTable.value)
+        .update({ offer_status: 'cancelled' })
+        .eq('id', originalOfferMessage.id);
+      
+      if (updateError) throw updateError;
+      console.log('Offer message marked as cancelled');
+    }
+
+    // 3. Reset chat status - FIXED: Use proper table name without .value for non-computed
+    const tableName = isHelperChat.value ? 'helper_chats' : 'chats';
+    const { error: chatUpdateError } = await supabase
+      .from(tableName)
+      .update({ 
+        offer_accepted: false,
+        accepted_at: null,
+        payment_amount: null
+        // Note: cancelled_at column doesn't exist in database, tracked via message instead
+      })
+      .eq('id', chatId);
+    
+    if (chatUpdateError) {
+      console.error('Chat update error:', chatUpdateError);
+      throw chatUpdateError;
+    }
+    console.log('Chat status reset');
+
+    // 4. Get job details to update positions (only for non-helper chats)
+    if (!isHelperChat.value && chatInfo.value?.job_id) {
+      const { data: jobData, error: jobFetchError } = await supabase
+        .from('User-Job-Request')
+        .select('multiple_positions, positions_available, positions_filled, status')
+        .eq('id', chatInfo.value.job_id)
+        .single();
+      
+      if (jobFetchError) throw jobFetchError;
+
+      // 5. Update job status and positions
+      const requiresMultipleHelpers = jobData?.multiple_positions || false;
+      const positionsFilled = jobData?.positions_filled || 0;
+
+      if (requiresMultipleHelpers && positionsFilled > 0) {
+        // Decrement positions_filled
+        const newPositionsFilled = Math.max(0, positionsFilled - 1);
+        
+        console.log(`Updating positions: ${positionsFilled} -> ${newPositionsFilled}`);
+        
+        const { error: jobUpdateError } = await supabase
+          .from('User-Job-Request')
+          .update({ 
+            status: 'open',
+            positions_filled: newPositionsFilled
+          })
+          .eq('id', chatInfo.value.job_id);
+        
+        if (jobUpdateError) throw jobUpdateError;
+      } else {
+        // Single helper job - just revert status
+        const { error: jobUpdateError } = await supabase
+          .from('User-Job-Request')
+          .update({ status: 'open' })
+          .eq('id', chatInfo.value.job_id);
+        
+        if (jobUpdateError) throw jobUpdateError;
+      }
+      
+      console.log('Job status reverted to open');
+    }
+
+    // 6. Send cancellation message
+    const isJobPoster = !isHelperChat.value && currentUserId.value === chatInfo.value?.job_poster_id;
+    const cancellationText = isJobPoster
+      ? `Offer acceptance has been cancelled by job poster.\nThis position is now available again.`
+      : `Adventurer has withdrawn from this job.\nThis position is now available again.`;
+    
+    const { data: cancelMsg, error: msgError } = await supabase
+      .from(messagesTable.value)
+      .insert([{
+        [chatIdColumn.value]: chatId,
+        sender_id: currentUserId.value,
+        message: cancellationText,
+        message_type: 'offer_cancelled',
+        read: false
+      }])
+      .select()
+      .single();
+    
+    if (msgError) {
+      console.error('Message insert error:', msgError);
+      throw msgError;
+    }
+
+    // 7. Update chat's last message - FIXED: Use proper table name
+    await supabase
+      .from(tableName)
+      .update({
+        last_message: cancellationText,
+        last_message_time: new Date().toISOString()
+      })
+      .eq('id', chatId);
+
+    // 8. Update local state
+    if (originalOfferMessage) {
+      const msgIndex = messages.value.findIndex(m => m.id === originalOfferMessage.id);
+      if (msgIndex !== -1) {
+        messages.value[msgIndex].offer_status = 'cancelled';
+      }
+    }
+    
+    if (cancelMsg) {
+      messages.value.push(cancelMsg);
+    }
+    
+    offerAcceptedInThisChat.value = false;
+    if (chatInfo.value) {
+      chatInfo.value.payment_amount = null;
+    }
+
+    await nextTick();
+    scrollToBottom();
+    await checkJobCompleted();
+
+    const isJobPosterSuccess = !isHelperChat.value && currentUserId.value === chatInfo.value?.job_poster_id;
+    const successMessage = isJobPosterSuccess
+      ? 'Offer acceptance cancelled successfully.\nThe position is now available again.'
+      : 'You have successfully withdrawn from this job.\nThe position is now available again.';
+    
+    alert(successMessage);
+
+  } catch (error) {
+    console.error('Error cancelling offer:', error);
+    console.error('Error details:', JSON.stringify(error, null, 2));
+    
+    const errorMessage = error.message || 'Failed to cancel offer. Please try again.';
+    alert(`Failed to cancel: ${errorMessage}`);
+  } finally {
+    isProcessing.value = false;
+  }
+};
+
 // Proceed to Payment Function
 const proceedToPayment = (acceptanceMessage) => {
   let jobTitle = '';
@@ -951,8 +1160,8 @@ const proceedToPayment = (acceptanceMessage) => {
       m.offer_amount === acceptanceMessage.offer_amount
     );
     jobTitle = offerMessages.length > 0 && offerMessages[offerMessages.length - 1].message
-      ? offerMessages[offerMessages.length - 1].message.split(' for ')[1] || 'Helper Service'
-      : 'Helper Service';
+      ? offerMessages[offerMessages.length - 1].message.split(' for ')[1] || 'Adventurer Service'
+      : 'Adventurer Service';
   } else {
     jobTitle = jobInfo.value?.title || 'Job Service';
   }
@@ -1187,7 +1396,7 @@ const { data, error } = await supabase
       .update({
         rating: reviewRating.value,
         comment: reviewComment.value.trim(),
-        job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title,
+        job_title: isHelperChat.value ? 'Adventurer Service' : jobInfo.value?.title,
         updated_at: new Date().toISOString()
       })
       .eq('helper_id', personToReview)
@@ -1203,7 +1412,7 @@ const { data, error } = await supabase
           reviewer_id: currentUserId.value,
           rating: reviewRating.value,
           comment: reviewComment.value.trim(),
-          job_title: isHelperChat.value ? 'Helper Service' : jobInfo.value?.title
+          job_title: isHelperChat.value ? 'Adventurer Service' : jobInfo.value?.title
         }])
         .select();
       
@@ -1524,6 +1733,35 @@ const navigateToJobDetails = () => {
   color: white;
 }
 
+.offer-bubble.offer-cancelled {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  opacity: 0.7;
+  position: relative;
+}
+
+.own-message .offer-bubble.offer-cancelled {
+  background: #dc2626;
+  border-color: #b91c1c;
+  color: white;
+  opacity: 0.7;
+}
+
+.offer-bubble.offer-cancelled::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: #dc2626;
+  transform: translateY(-50%);
+}
+
+.own-message .offer-bubble.offer-cancelled::after {
+  background: white;
+}
+
 .offer-content {
   margin-bottom: 0.5rem;
 }
@@ -1649,6 +1887,73 @@ const navigateToJobDetails = () => {
 
 .own-message .completion-text {
   color: white;
+}
+
+.cancelled-bubble {
+  background: #fef2f2;
+  border: 2px solid #fca5a5;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.own-message .cancelled-bubble {
+  background: #dc2626;
+  border-color: #b91c1c;
+  color: white;
+}
+
+.cancelled-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.cancelled-text {
+  margin: 0 0 0.5rem 0;
+  font-weight: 600;
+  color: #991b1b;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.own-message .cancelled-text {
+  color: white;
+}
+
+.cancel-action {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #10b981;
+}
+
+.own-message .cancel-action {
+  border-top-color: rgba(255, 255, 255, 0.3);
+}
+
+.cancel-offer-btn {
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  background: white;
+  color: #dc2626;
+  border: 2px solid #fecaca;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-offer-btn:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  transform: translateY(-1px);
+}
+
+.cancel-offer-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .payment-action {

@@ -246,7 +246,7 @@ export default {
 <style scoped>
 @font-face {
   font-family: 'Jersey10';
-  src: url('../assets/fonts/Jersey10-Regular.ttf') format('truetype');
+  src: url('../assets/fonts/Jersey15-Regular.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
 }
@@ -296,7 +296,7 @@ export default {
 
 .title {
   font-size: 2.55rem;
-  font-weight: 800;
+  font-weight: 500;
   color: #1a1a1a;
   margin-bottom: 0.5rem;
 }
@@ -333,7 +333,7 @@ export default {
 
 .section-title {
   font-size: 2rem;
-  font-weight: 700;
+  font-weight: 550;
   color: #1a202c;
   margin-bottom: 1.5rem;
   padding-bottom: 0.5rem;
