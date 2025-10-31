@@ -5,14 +5,13 @@
         <button class="back-button" @click="goBack">
           &lt; Back
         </button>
-        <h1 class="title">📜 Welcome to SideQuest</h1>
-        <div class="subtitle-container">
-          <p class="subtitle">Create your account to start posting quests</p>
-          <img 
+        <h1 class="title">Create Questor Account <img 
             src="../assets/mentor.gif"
             alt="Mentor" 
-            class="subtitle-gif"
-          />
+            class="title-gif"
+          /></h1>
+        <div class="subtitle-container">
+          <p class="subtitle">Create your account to start posting quests</p>
         </div>
       </div>
 
@@ -245,6 +244,13 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+  font-family: 'Jersey10';
+  src: url('../assets/fonts/Jersey10-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -255,6 +261,7 @@ export default {
   min-height: 100vh;
   background: white;
   padding: 2rem 1rem;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .signup-container {
@@ -275,7 +282,7 @@ export default {
   top: 0;
   background: none;
   border: none;
-  font-size: 1.1rem;
+  font-size: 1.8rem;
   font-weight: 600;
   color: #666;
   cursor: pointer;
@@ -288,14 +295,14 @@ export default {
 }
 
 .title {
-  font-size: 2.25rem;
+  font-size: 2.55rem;
   font-weight: 800;
   color: #1a1a1a;
   margin-bottom: 0.5rem;
 }
 
 .subtitle {
-  font-size: 1.05rem;
+  font-size: 1.35rem;
   color: #666;
   line-height: 1.5;
 }
@@ -308,7 +315,7 @@ export default {
   flex-wrap: wrap;
 }
 
-.subtitle-gif {
+.title-gif {
   width: 60px;
   height: 60px;
   object-fit: contain;
@@ -325,7 +332,7 @@ export default {
 }
 
 .section-title {
-  font-size: 1.4rem;
+  font-size: 2rem;
   font-weight: 700;
   color: #1a202c;
   margin-bottom: 1.5rem;
@@ -347,7 +354,7 @@ export default {
 
 .section-label {
   display: block;
-  font-size: 1rem;
+  font-size: 1.65rem;
   font-weight: 600;
   color: #1a202c;
   margin-bottom: 0.5rem;
@@ -360,7 +367,7 @@ export default {
 .text-input {
   width: 100%;
   padding: 0.875rem 1rem;
-  font-size: 1rem;
+  font-size: 1.65rem;
   border: 2px solid #e2e8f0;
   border-radius: 10px;
   transition: all 0.3s ease;
@@ -384,7 +391,7 @@ export default {
 
 .field-error {
   color: #e53e3e;
-  font-size: 0.85rem;
+  font-size: 1.5rem;
   margin-top: 0.5rem;
   font-weight: 500;
 }
@@ -397,6 +404,7 @@ export default {
   text-align: center;
   margin-bottom: 1.5rem;
   font-weight: 500;
+  font-size: 1.65rem;
 }
 
 .success-banner {
@@ -407,12 +415,13 @@ export default {
   text-align: center;
   margin-bottom: 1.5rem;
   font-weight: 500;
+  font-size: 1.65rem;
 }
 
 .submit-button {
   width: 100%;
-  padding: 1rem;
-  font-size: 1.1rem;
+  padding: 0.65rem;
+  font-size: 2rem;
   font-weight: 700;
   color: white;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -440,7 +449,7 @@ export default {
   text-align: center;
   margin: 1.5rem 0;
   color: #9ca3af;
-  font-size: 0.875rem;
+  font-size: 1.525rem;
   font-weight: 500;
 }
 
@@ -458,7 +467,7 @@ export default {
 .google-button {
   width: 100%;
   padding: 0.875rem 1rem;
-  font-size: 1rem;
+  font-size: 1.65rem;
   font-weight: 600;
   color: #374151;
   background: white;
@@ -493,7 +502,7 @@ export default {
 .login-prompt {
   text-align: center;
   color: #666;
-  font-size: 0.95rem;
+  font-size: 1.25rem;
   margin-top: 1.5rem;
 }
 

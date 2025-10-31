@@ -92,6 +92,13 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+  font-family: 'Jersey10';
+  src: url('../assets/fonts/Jersey10-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -104,14 +111,52 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
-  padding: 1rem 1rem;
-  overflow: hidden;
+  background: rgba(239, 245, 247, 0.9);
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.role-selection-page::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60vh;
+  background-image: url('../assets/signup_bg.gif');
+  background-size: cover;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.role-selection-page::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60vh;
+  background: linear-gradient(to bottom, 
+    #EFF5F7 0%,
+    rgba(239, 245, 247, 0.95) 5%,
+    rgba(220, 235, 240, 0.85) 15%,
+    rgba(200, 225, 235, 0.6) 30%,
+    rgba(173, 216, 230, 0.3) 50%,
+    rgba(173, 216, 230, 0) 70%
+  );
+  z-index: 0;
+  pointer-events: none;
 }
 
 .role-container {
   width: 100%;
   max-width: 900px;
+  position: relative;
+  z-index: 1;
 }
 
 .header {
@@ -120,15 +165,17 @@ export default {
 }
 
 .title {
-  font-size: 2.75rem;
+  font-size: 4.75rem;
   font-weight: 800;
   color: #1a1a1a;
   margin-bottom: 0.5rem;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .subtitle {
-  font-size: 1.15rem;
+  font-size: 1.95rem;
   color: #666;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .role-cards {
@@ -157,7 +204,7 @@ export default {
   left: 0;
   right: 0;
   height: 6px;
-  background: linear-gradient(90deg, #2563EB 0%, #1d4ed8 100%);
+  background: linear-gradient(90deg, #4fb6e1, 0%, #4fb6e1 100%);
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -172,8 +219,8 @@ export default {
 }
 
 .role-card.selected {
-  border-color: #2563EB;
-  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.3);
+  border-color: #4fb6e1;
+  box-shadow: 0 12px 30px #4fb6e1;
 }
 
 .role-card.selected::before {
@@ -188,24 +235,26 @@ export default {
 }
 
 .card-title {
-  font-size: 1.65rem;
+  font-size: 3rem;
   font-weight: 700;
   color: #1a202c;
   margin-bottom: 0.85rem;
   text-align: center;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .card-description {
-  font-size: 1.05rem;
+  font-size: 1.2rem;
   color: #4a5568;
   text-align: center;
   line-height: 1.55;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .back-button {
   width: 100%;
   padding: 0.95rem;
-  font-size: 1.05rem;
+  font-size: 1.65rem;
   font-weight: 600;
   color: #666;
   background: white;
@@ -214,6 +263,7 @@ export default {
   cursor: pointer;
   transition: all 0.3s ease;
   margin-bottom: 0.75rem;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .back-button:hover {
@@ -225,10 +275,11 @@ export default {
 
 .switch-note {
   text-align: center;
-  color: #666;
-  font-size: 1rem;
+  color: #000000;
+  font-size: 1.5rem;
   font-weight: 600;
   margin-top: 0.5rem;
+  font-family: 'Jersey10', sans-serif;
 }
 
 @media (max-width: 768px) {

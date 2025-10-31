@@ -6,12 +6,12 @@
           &lt; Back
         </button>
         <div class="title-container">
-          <h1 class="title">Create Adventurer Account</h1>
-          <img 
+          <h1 class="title">Create Adventurer Account <img 
             src="../assets/knight.gif" 
             alt="Knight" 
             class="title-gif"
-          />
+          /></h1>
+          
         </div>
         <p class="subtitle">Showcase your skills and start finding quests</p>
       </div>
@@ -495,6 +495,13 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+  font-family: 'Jersey10';
+  src: url('../assets/fonts/Jersey10-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -505,6 +512,7 @@ export default {
   min-height: 100vh;
   background: white;
   padding: 2rem 1rem;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .signup-container {
@@ -541,7 +549,7 @@ export default {
   top: 0;
   background: none;
   border: none;
-  font-size: 1.1rem;
+  font-size: 1.8rem;
   font-weight: 600;
   color: #666;
   cursor: pointer;
@@ -554,14 +562,14 @@ export default {
 }
 
 .title {
-  font-size: 2.25rem;
+  font-size: 2.55rem;
   font-weight: 800;
   color: #1a1a1a;
   margin-bottom: 0.5rem;
 }
 
 .subtitle {
-  font-size: 1.05rem;
+  font-size: 1.35rem;
   color: #666;
   line-height: 1.5;
 }
@@ -579,7 +587,7 @@ export default {
 }
 
 .section-title {
-  font-size: 1.4rem;
+  font-size: 2rem;
   font-weight: 700;
   color: #1a202c;
   margin-bottom: 1.5rem;
@@ -593,7 +601,7 @@ export default {
 
 .section-label {
   display: block;
-  font-size: 1rem;
+  font-size: 1.65rem;
   font-weight: 600;
   color: #1a202c;
   margin-bottom: 0.5rem;
@@ -604,12 +612,12 @@ export default {
   font-weight: 600;
   color: #4a5568;
   margin-bottom: 0.5rem;
-  font-size: 0.875rem;
+  font-size: 1.525rem;
 }
 
 .section-hint {
   color: #718096;
-  font-size: 0.9rem;
+  font-size: 1.45rem;
   margin-bottom: 1rem;
 }
 
@@ -620,7 +628,7 @@ export default {
 .text-input, .bio-textarea {
   width: 100%;
   padding: 0.875rem 1rem;
-  font-size: 1rem;
+  font-size: 1.45rem;
   border: 2px solid #e2e8f0;
   border-radius: 10px;
   transition: all 0.3s ease;
@@ -640,7 +648,7 @@ export default {
 
 .character-count {
   text-align: right;
-  font-size: 0.875rem;
+  font-size: 1.525rem;
   color: #718096;
   margin-top: 0.5rem;
 }
@@ -651,7 +659,7 @@ export default {
 
 .field-error {
   color: #e53e3e;
-  font-size: 0.85rem;
+  font-size: 1.5rem;
   margin-top: 0.5rem;
   font-weight: 500;
   display: flex;
@@ -683,7 +691,7 @@ export default {
 .skill-input {
   width: 100%;
   padding: 0.875rem 1rem;
-  font-size: 1rem;
+  font-size: 1.65rem;
   border: 2px solid #e2e8f0;
   border-radius: 10px;
   transition: all 0.3s ease;
@@ -738,7 +746,7 @@ export default {
 }
 
 .exp-label {
-  font-size: 0.875rem;
+  font-size: 1.525rem;
   font-weight: 600;
 }
 
@@ -752,7 +760,7 @@ export default {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 1rem;
+  font-size: 1.65rem;
 }
 
 .add-button:hover:not(:disabled) {
@@ -796,11 +804,11 @@ export default {
 .skill-name {
   font-weight: 600;
   color: #2d3748;
-  font-size: 1rem;
+  font-size: 1.65rem;
 }
 
 .skill-level {
-  font-size: 0.875rem;
+  font-size: 1.525rem;
   color: #667eea;
   font-weight: 500;
 }
@@ -831,6 +839,7 @@ export default {
   color: #718096;
   padding: 1.5rem;
   font-style: italic;
+  font-size: 1.55rem;
 }
 
 .checkbox-group {
@@ -863,6 +872,7 @@ export default {
 .checkbox-option span {
   font-weight: 500;
   color: #2d3748;
+  font-size: 1.65rem;
 }
 
 .success-banner {
@@ -879,6 +889,7 @@ export default {
   justify-content: center;
   gap: 0.5rem;
   animation: slideDown 0.3s ease-out;
+  font-size: 1.65rem;
 }
 
 .error-banner {
@@ -895,6 +906,7 @@ export default {
   justify-content: center;
   gap: 0.5rem;
   animation: slideDown 0.3s ease-out;
+  font-size: 1.65rem;
 }
 
 .banner-icon {
@@ -919,12 +931,12 @@ export default {
 
 .submit-button {
   width: 100%;
-  padding: 1rem;
+  padding: 0.65rem;
+  font-size: 2rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   border-radius: 12px;
-  font-size: 1.1rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -944,7 +956,7 @@ export default {
 .login-prompt {
   text-align: center;
   color: #666;
-  font-size: 0.95rem;
+  font-size: 1.25rem;
   margin-top: 1.5rem;
 }
 

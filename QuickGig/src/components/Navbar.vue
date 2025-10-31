@@ -429,14 +429,22 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+  font-family: 'Jersey10';
+  src: url('../assets/fonts/Jersey10-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 .top-navbar {
-  background: #2563EB;
+  background: #4fb6e1;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   position: sticky;
   top: 0;
   z-index: 1000;
   padding: 1rem 0;
   transition: background 0.3s ease;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .top-navbar.helpers-page {
@@ -461,11 +469,11 @@ export default {
   gap: 0.5rem;
   font-size: 1.5rem;
   font-weight: bold;
-  color: #FFF;
+  color: #000;
 }
 
 .logo-text {
-  font-size: 1.5rem;
+  font-size: 2.5rem;
   cursor: pointer;
 }
 
@@ -477,36 +485,37 @@ export default {
 
 .nav-link {
   text-decoration: none;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(0, 0, 0, 0.85);
   font-weight: bold;
   transition: all 0.3s;
   white-space: nowrap;
-  font-size: 1.1em;
+  font-size: 1.8em;
   padding: 0.5rem 0.75rem;
   border-radius: 8px;
 }
 
 .nav-link:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.15);
+  color: #000;
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .nav-link.router-link-active,
 .nav-link.active {
-  color: white;
-  background: rgba(255, 255, 255, 0.2);
+  color: #000;
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .nav-button {
   background: white;
-  color: #2563EB;
-  padding: 0.75rem 1.75rem;
+  color: #000000;
+  padding: 0.55rem 1.55rem;
   border-radius: 25px;
   text-decoration: none;
   font-weight: 600;
   transition: all 0.3s;
   white-space: nowrap;
   display: inline-block;
+  font-size: 1.25rem;
 }
 
 .helpers-page .nav-button {
@@ -521,7 +530,7 @@ export default {
 .icon-button {
   position: relative;
   background: white;
-  color: #2563EB;
+  color: #4fb6e1;
   padding: 0.625rem;
   border-radius: 50%;
   border: none;
@@ -674,7 +683,7 @@ export default {
   flex-shrink: 0;
 }
 .notification-footer a {
-  color: #2563EB;
+  color: #4fb6e1;
   text-decoration: none;
   font-weight: 500;
   font-size: 0.875rem;
@@ -724,18 +733,18 @@ export default {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.05);
   border-radius: 25px;
   cursor: pointer;
   transition: all 0.3s ease;
   border: none;
-  color: white;
+  color: #000;
   font-family: inherit;
   font-size: inherit;
 }
 
 .profile-trigger:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .profile-avatar {
@@ -758,7 +767,7 @@ export default {
 .avatar-placeholder {
   font-size: 1rem;
   font-weight: 700;
-  color: #2563EB;
+  color: #4fb6e1;
 }
 
 .helpers-page .avatar-placeholder {
@@ -766,13 +775,13 @@ export default {
 }
 
 .profile-username {
-  color: white;
+  color: #000;
   font-weight: 600;
   font-size: 0.95rem;
 }
 
 .dropdown-arrow {
-  color: white;
+  color: #000;
   transition: transform 0.3s ease;
 }
 
