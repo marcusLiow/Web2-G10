@@ -233,7 +233,7 @@
                       <div class="listing-actions">
                         <button v-if="listing.status === 'open' || listing.status === 'in-progress'" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">Mark as Completed</button>
                         <button v-if="listing.status === 'open'" @click="editListing(listing)" class="btn-action btn-action-edit" type="button">Edit</button>
-                        <button v-if="listing.status === 'open'" @click="deleteListing(listing.id)" class="btn-action btn-action-delete" type="button">Delete</button>
+                        <button v-if="listing.status === 'open'" @click="deleteListing(listing.id)" class="btn-action btn-action-delete" type="button">Cancel Listing</button>
                       </div>
                     </div>
                   </div>
@@ -611,7 +611,15 @@ async function loadCompletedJobs(uid) {
     }
 
     console.log('🔍 loadCompletedJobs: Starting for user:', uid);
-    const allJobs = [];
+    const jobsMap = new Map(); // Use Map with composite key
+
+    // Helper function to create unique key
+    const createUniqueKey = (job) => {
+      // Normalize the date to just the date part (ignore time differences)
+      const dateStr = job.created_at ? new Date(job.created_at).toISOString().split('T')[0] : '';
+      // Create key from: title + amount + date + role
+      return `${job.job_title || job.title}-${job.agreed_amount || job.payment || 0}-${dateStr}-${job.role}`;
+    };
 
     // 1. Fetch completed jobs from helper_jobs table (helper services)
     console.log('📋 Querying helper_jobs table...');
@@ -622,18 +630,12 @@ async function loadCompletedJobs(uid) {
       .eq('status', 'completed')
       .order('created_at', { ascending: false });
 
-    console.log('📊 helper_jobs query result:', { 
-      data: helperJobsData, 
-      error: helperJobsError,
-      count: helperJobsData?.length || 0 
-    });
+    console.log('📊 helper_jobs query result:', { count: helperJobsData?.length || 0 });
 
     if (helperJobsError) throw helperJobsError;
 
     if (helperJobsData && helperJobsData.length > 0) {
-      // Get the poster (client) names
       const clientIds = [...new Set(helperJobsData.map(job => job.client_id))];
-      console.log('👥 Fetching client names for IDs:', clientIds);
       
       const { data: clientsData, error: clientsError } = await supabase
         .from('users')
@@ -641,27 +643,30 @@ async function loadCompletedJobs(uid) {
         .in('id', clientIds);
 
       if (clientsError) throw clientsError;
-      console.log('✅ Client names fetched:', clientsData);
 
       const clientMap = new Map(clientsData.map(user => [user.id, user.username]));
 
-      // Add jobs where user was helper
       helperJobsData.forEach(job => {
-        allJobs.push({
+        const jobObj = {
           id: `helper-${job.id}`,
           job_title: job.job_title,
           agreed_amount: job.agreed_amount,
           created_at: job.created_at,
           role: 'Helper',
           otherPartyName: clientMap.get(job.client_id) || 'Unknown Poster'
-        });
+        };
+        
+        const uniqueKey = createUniqueKey(jobObj);
+        if (!jobsMap.has(uniqueKey)) {
+          jobsMap.set(uniqueKey, jobObj);
+          console.log('✅ Added helper job:', job.job_title);
+        } else {
+          console.log('⚠️ Duplicate skipped (helper_jobs):', job.job_title);
+        }
       });
-      console.log('✅ Added', helperJobsData.length, 'helper jobs to list');
-    } else {
-      console.log('⚠️ No completed jobs found in helper_jobs');
     }
 
-    // 2. NEW: Fetch completed jobs where user was helper from regular chats
+    // 2. Fetch completed jobs where user was helper from regular chats
     console.log('📋 Querying regular chats for completed jobs...');
     const { data: chatsData, error: chatsError } = await supabase
       .from('chats')
@@ -670,20 +675,18 @@ async function loadCompletedJobs(uid) {
       .eq('offer_accepted', true)
       .eq('payment_status', 'paid');
 
-    console.log('💬 Chats result:', { data: chatsData, error: chatsError, count: chatsData?.length || 0 });
+    console.log('💬 Chats result:', { count: chatsData?.length || 0 });
 
     if (!chatsError && chatsData && chatsData.length > 0) {
       const jobIds = [...new Set(chatsData.map(chat => chat.job_id))];
       
-      // Get job details
       const { data: jobsData, error: jobsError } = await supabase
         .from('User-Job-Request')
-        .select('id, title, status, user_id')
+        .select('id, title, status, user_id, created_at')
         .in('id', jobIds)
         .eq('status', 'completed');
 
       if (!jobsError && jobsData && jobsData.length > 0) {
-        // Get poster names
         const posterIds = [...new Set(jobsData.map(j => j.user_id))];
         const { data: postersData } = await supabase
           .from('users')
@@ -692,86 +695,157 @@ async function loadCompletedJobs(uid) {
 
         const posterMap = new Map(postersData?.map(u => [u.id, u.username]) || []);
 
-        // Add these jobs
         jobsData.forEach(job => {
           const chat = chatsData.find(c => c.job_id === job.id);
-          allJobs.push({
+          const jobObj = {
             id: `regular-${job.id}`,
             job_title: job.title,
             agreed_amount: chat?.payment_amount || 0,
             created_at: chat?.created_at || job.created_at,
             role: 'Helper',
             otherPartyName: posterMap.get(job.user_id) || 'Unknown Poster'
-          });
+          };
+          
+          const uniqueKey = createUniqueKey(jobObj);
+          if (!jobsMap.has(uniqueKey)) {
+            jobsMap.set(uniqueKey, jobObj);
+            console.log('✅ Added regular job:', job.title);
+          } else {
+            console.log('⚠️ Duplicate skipped (chats):', job.title);
+          }
         });
-        console.log('✅ Added', jobsData.length, 'regular completed jobs');
       }
     }
+
+    // // 3. Fetch completed jobs where the current user was the poster
+    // console.log('📋 Querying User-Job-Request table...');
+    // const { data: posterJobsData, error: posterJobsError } = await supabase
+    //   .from('User-Job-Request')
+    //   .select('id, title, payment, created_at, status')
+    //   .eq('user_id', uid)
+    //   .eq('status', 'completed')
+    //   .order('created_at', { ascending: false });
+
+    // console.log('📊 User-Job-Request query result:', { count: posterJobsData?.length || 0 });
+
+    // if (posterJobsError) throw posterJobsError;
+
+    // if (posterJobsData && posterJobsData.length > 0) {
+    //   for (const job of posterJobsData) {
+    //     let helperNames = [];
+        
+    //     const { data: chatData, error: chatError } = await supabase
+    //       .from('chats')
+    //       .select('job_seeker_id')
+    //       .eq('job_id', job.id)
+    //       .eq('offer_accepted', true);
+
+    //     if (!chatError && chatData && chatData.length > 0) {
+    //       const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+          
+    //       const { data: helpersData, error: helpersError } = await supabase
+    //         .from('users')
+    //         .select('username')
+    //         .in('id', helperIds);
+
+    //       if (!helpersError && helpersData) {
+    //         helperNames = helpersData.map(u => u.username || 'Unknown');
+    //       }
+    //     }
+
+    //     const jobObj = {
+    //       id: `poster-${job.id}`,
+    //       job_title: job.title,
+    //       title: job.title,
+    //       payment: job.payment,
+    //       agreed_amount: job.payment,
+    //       created_at: job.created_at,
+    //       role: 'Job Poster',
+    //       otherPartyName: helperNames.join(', ') || 'Unknown Helper'
+    //     };
+        
+    //     const uniqueKey = createUniqueKey(jobObj);
+    //     if (!jobsMap.has(uniqueKey)) {
+    //       jobsMap.set(uniqueKey, jobObj);
+    //       console.log('✅ Added poster job:', job.title);
+    //     } else {
+    //       console.log('⚠️ Duplicate skipped (poster):', job.title);
+    //     }
+    //   }
+    // }
 
     // 3. Fetch completed jobs where the current user was the poster
-    console.log('📋 Querying User-Job-Request table...');
-    const { data: posterJobsData, error: posterJobsError } = await supabase
-      .from('User-Job-Request')
-      .select('id, title, payment, created_at, status')
-      .eq('user_id', uid)
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false });
+console.log('📋 Querying User-Job-Request table...');
+const { data: posterJobsData, error: posterJobsError } = await supabase
+  .from('User-Job-Request')
+  .select('id, title, payment, created_at, status')
+  .eq('user_id', uid)
+  .eq('status', 'completed')
+  .order('created_at', { ascending: false });
 
-    console.log('📊 User-Job-Request query result:', { 
-      data: posterJobsData, 
-      error: posterJobsError,
-      count: posterJobsData?.length || 0 
-    });
+console.log('📊 User-Job-Request query result:', { count: posterJobsData?.length || 0 });
 
-    if (posterJobsError) throw posterJobsError;
+if (posterJobsError) throw posterJobsError;
 
-    if (posterJobsData && posterJobsData.length > 0) {
-      // For each completed poster job, find who completed it
-      for (const job of posterJobsData) {
-        let helperNames = [];
-        
-        const { data: chatData, error: chatError } = await supabase
-          .from('chats')
-          .select('job_seeker_id')
-          .eq('job_id', job.id)
-          .eq('offer_accepted', true);
+if (posterJobsData && posterJobsData.length > 0) {
+  for (const job of posterJobsData) {
+    let helperNames = [];
+    let actualPaidAmount = job.payment; // Default to original listing price
+    
+    const { data: chatData, error: chatError } = await supabase
+      .from('chats')
+      .select('job_seeker_id, payment_amount')  // <-- ADDED payment_amount
+      .eq('job_id', job.id)
+      .eq('offer_accepted', true);
 
-        if (!chatError && chatData && chatData.length > 0) {
-          const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
-          
-          const { data: helpersData, error: helpersError } = await supabase
-            .from('users')
-            .select('username')
-            .in('id', helperIds);
+    if (!chatError && chatData && chatData.length > 0) {
+      const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+      
+      const { data: helpersData, error: helpersError } = await supabase
+        .from('users')
+        .select('username')
+        .in('id', helperIds);
 
-          if (!helpersError && helpersData) {
-            helperNames = helpersData.map(u => u.username || 'Unknown');
-          }
-        }
-
-        allJobs.push({
-          id: `poster-${job.id}`,
-          job_title: job.title,
-          title: job.title,
-          payment: job.payment,
-          agreed_amount: job.payment,
-          created_at: job.created_at,
-          role: 'Job Poster',
-          otherPartyName: helperNames.join(', ') || 'Unknown Helper'
-        });
+      if (!helpersError && helpersData) {
+        helperNames = helpersData.map(u => u.username || 'Unknown');
       }
-      console.log('✅ Added', posterJobsData.length, 'poster jobs to list');
-    } else {
-      console.log('⚠️ No completed jobs found where user was poster');
+      
+      // Get the actual paid amount from the first accepted chat
+      // If there are multiple helpers, this gets the first one's payment
+      if (chatData[0]?.payment_amount) {
+        actualPaidAmount = chatData[0].payment_amount;
+      }
     }
 
-    // Sort all jobs by date (most recent first)
-    allJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-    console.log('✅ Total completed jobs:', allJobs.length);
-    console.log('📦 Final jobs list:', allJobs);
+    const jobObj = {
+      id: `poster-${job.id}`,
+      job_title: job.title,
+      title: job.title,
+      payment: actualPaidAmount,  // <-- FIXED: Use actual paid amount
+      agreed_amount: actualPaidAmount,  // <-- FIXED: Use actual paid amount
+      created_at: job.created_at,
+      role: 'Job Poster',
+      otherPartyName: helperNames.join(', ') || 'Unknown Helper'
+    };
     
-    completedJobs.value = allJobs;
+    const uniqueKey = createUniqueKey(jobObj);
+    if (!jobsMap.has(uniqueKey)) {
+      jobsMap.set(uniqueKey, jobObj);
+      console.log('✅ Added poster job:', job.title, '- Paid:', actualPaidAmount);
+    } else {
+      console.log('⚠️ Duplicate skipped (poster):', job.title);
+    }
+  }
+}
+
+    // Convert Map values to array and sort
+    const deduplicatedJobs = Array.from(jobsMap.values());
+    deduplicatedJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    console.log('✅ Total UNIQUE completed jobs:', deduplicatedJobs.length);
+    console.log('📦 Final jobs list:', deduplicatedJobs);
+    
+    completedJobs.value = deduplicatedJobs;
 
   } catch (e) {
     console.error('❌ loadCompletedJobs error', e);
