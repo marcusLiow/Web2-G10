@@ -313,9 +313,14 @@
 
 <script>
 import { supabase } from '../supabase/config'
+import { useToast } from '../composables/useToast'
 
 export default {
   name: 'RequestPage',
+  setup() {
+    const toast = useToast();
+    return { toast };
+  },
   data() {
     return {
       formData: {
@@ -770,7 +775,7 @@ export default {
         if (error) throw error;
         
         console.log('Request created:', data);
-        alert('Job posted successfully!');
+        this.toast.success('Job posted successfully!', 'Success', 8000);
         
         this.$router.push('/jobs');
         

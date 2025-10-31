@@ -65,9 +65,14 @@
 
 <script>
 import { supabase } from '../supabase/config'
+import { useToast } from '../composables/useToast'
 
 export default {
   name: "LoginPage",
+  setup() {
+    const toast = useToast();
+    return { toast };
+  },
   data() {
     return {
       email: '',
@@ -160,7 +165,7 @@ export default {
         if (error) throw error;
       } catch (error) {
         console.error('Error logging in with Google:', error.message);
-        alert('Failed to sign in with Google. Please try again.');
+        this.toast.error('Failed to sign in with Google. Please try again.', 'Google Sign-In Error', 8000);
       }
     }
   }

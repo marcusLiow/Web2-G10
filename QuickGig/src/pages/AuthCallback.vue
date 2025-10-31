@@ -7,9 +7,14 @@
 
 <script>
 import { supabase } from '../supabase/config'
+import { useToast } from '../composables/useToast'
 
 export default {
   name: 'AuthCallback',
+  setup() {
+    const toast = useToast();
+    return { toast };
+  },
   async mounted() {
     try {
       // Get session after OAuth redirect
@@ -68,7 +73,7 @@ export default {
       }
     } catch (error) {
       console.error('Error in auth callback:', error);
-      alert('Error logging in. Please try again.');
+      this.toast.error('Error logging in. Please try again.', 'Authentication Error', 8000);
       this.$router.push('/login');
     }
   }

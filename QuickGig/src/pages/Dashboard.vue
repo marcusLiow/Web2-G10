@@ -223,10 +223,12 @@
 // --- IMPORTS ---
 import { ref, onMounted, watch } from 'vue';
 import { supabase } from '../supabase/config';
+import { useToast } from '../composables/useToast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 // --- CORE STATE ---
+const toast = useToast();
 const currentView = ref('earnings');
 const selectedPeriod = ref(6);
 
@@ -467,7 +469,7 @@ const generateEarningsPDF = async () => {
     doc.save(`Earnings_Report_${endDate.toISOString().split('T')[0]}.pdf`);
   } catch (err) {
     console.error('Error generating PDF:', err);
-    alert('Failed to generate PDF report. Please check the console for errors.');
+    toast.error('Failed to generate PDF report. Please check the console for errors.', 'PDF Error', 8000);
   } finally {
     isGeneratingPDF.value = false;
   }

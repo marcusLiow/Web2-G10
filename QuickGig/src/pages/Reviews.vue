@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { supabase } from '../supabase/config';
+import { useToast } from '../composables/useToast';
+
+const toast = useToast();
 
 const props = defineProps({
   helperId: {
@@ -176,19 +179,19 @@ const submitReview = async () => {
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) {
       console.error('Error getting session:', sessionError);
-      alert('You must be logged in to leave a review');
+      toast.warning('You must be logged in to leave a review', 'Login Required', 8000);
       return;
     }
     const user = sessionData?.session?.user;
     if (!user || !user.id) {
-      alert('You must be logged in to leave a review');
+      toast.warning('You must be logged in to leave a review', 'Login Required', 8000);
       return;
     }
 
     // final server-side check: attempt a quick permission check (optional)
     const allowed = await checkCanReview();
     if (!allowed) {
-      alert('You can only leave a review after you have completed a job with this helper.');
+      toast.warning('You can only leave a review after you have completed a job with this helper.', 'Review Not Allowed', 8000);
       return;
     }
 
@@ -209,9 +212,9 @@ const submitReview = async () => {
     if (upsertError) {
       console.error('Error upserting review:', upsertError);
       if (upsertError.message && upsertError.message.toLowerCase().includes('permission')) {
-        alert('Permission denied. You can only review after completing a job with this helper.');
+        toast.error('Permission denied. You can only review after completing a job with this helper.', 'Permission Denied', 8000);
       } else {
-        alert('Failed to submit review. Please try again.');
+        toast.error('Failed to submit review. Please try again.', 'Submit Failed', 8000);
       }
       return;
     }
@@ -220,10 +223,10 @@ const submitReview = async () => {
     reviewForm.value = { rating: 5, comment: '', jobTitle: '', job_id: null };
     showReviewForm.value = false;
     await fetchReviews();
-    alert('Review submitted successfully!');
+    toast.success('Review submitted successfully!', 'Success', 8000);
   } catch (error) {
     console.error('Error submitting review:', error);
-    alert('Failed to submit review. Please try again.');
+    toast.error('Failed to submit review. Please try again.', 'Submit Failed', 8000);
   }
 };
 

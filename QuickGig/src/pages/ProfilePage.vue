@@ -1152,7 +1152,7 @@ async function loadUserListings(uid) {
 /*send notif when paid*/
 async function markAsCompleted(jobId) {
   if (!jobId) {
-    toast.error('Invalid job ID');
+    toast.error('Invalid job ID', 'Error', 8000);
     return;
   }
 
@@ -1223,7 +1223,7 @@ async function markAsCompleted(jobId) {
       userListings.value[jobIndex].completedBy = helperNames;
     }
 
-    toast.success('Job marked as completed successfully! Helper(s) notified.', 'Job Completed');
+    toast.success('Job marked as completed successfully! Helper(s) notified.', 'Job Completed', 8000);
 
     // Re-fetch data to ensure consistency
     await loadUserListings(userId);
@@ -1231,7 +1231,7 @@ async function markAsCompleted(jobId) {
 
   } catch (error) {
     console.error('Unexpected error marking job as completed:', error);
-    toast.error('An unexpected error occurred. Please try again.', 'Error');
+    toast.error('An unexpected error occurred. Please try again.', 'Error', 8000);
   }
 }
 
@@ -1381,7 +1381,7 @@ async function saveProfile() {
     }
 
     if (!editForm.username || !editForm.username.trim()) {
-      toast.warning('Username is required');
+      toast.warning('Username is required', 'Validation Error', 8000);
       return;
     }
 
@@ -1451,10 +1451,10 @@ async function saveProfile() {
 
     await loadAll();
     closeEditModal();
-    toast.success('Profile updated successfully!');
+    toast.success('Profile updated successfully!', 'Success', 8000);
   } catch (err) {
     console.error('saveProfile error', err);
-    toast.error(err.message || 'Failed to save profile', 'Save Failed');
+    toast.error(err.message || 'Failed to save profile', 'Save Failed', 8000);
   }
 }
 
@@ -1465,7 +1465,7 @@ onMounted(() => { loadAll(); });
 // Edit listing - navigate to edit page
 function editListing(listing) {
   if (!listing || !listing.id) {
-    toast.error('Invalid listing');
+    toast.error('Invalid listing', 'Error', 8000);
     return;
   }
   
@@ -1476,7 +1476,7 @@ function editListing(listing) {
 // Delete listing
 async function deleteListing(jobId) {
   if (!jobId) {
-    toast.error('Invalid job ID');
+    toast.error('Invalid job ID', 'Error', 8000);
     return;
   }
   
@@ -1496,18 +1496,18 @@ async function deleteListing(jobId) {
 
     if (error) {
       console.error('Error deleting job:', error);
-      toast.error(error.message, 'Failed to Delete Job');
+      toast.error(error.message, 'Failed to Delete Job', 8000);
       return;
     }
     
-    toast.success('Job deleted successfully!');
+    toast.success('Job deleted successfully!', 'Success', 8000);
     
     // Refresh the listings
     await loadUserListings(userId);
     
   } catch (error) {
     console.error('Unexpected error deleting job:', error);
-    toast.error('An unexpected error occurred. Please try again.', 'Error');
+    toast.error('An unexpected error occurred. Please try again.', 'Error', 8000);
   }
 }
 function getStatusClass(status) { if (!status) return ''; const s = String(status).toLowerCase(); if (s === 'open') return 'status-open'; if (s === 'in_progress' || s === 'in-progress') return 'status-in-progress'; if (s === 'completed') return 'status-completed'; if (s === 'cancelled') return 'status-cancelled'; return ''; }

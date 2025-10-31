@@ -49,8 +49,14 @@
 </template>
 
 <script>
+import { useToast } from '../composables/useToast'
+
 export default {
   name: 'RoleSelectionPage',
+  setup() {
+    const toast = useToast();
+    return { toast };
+  },
   data() {
     return {
       selectedRole: null,
@@ -80,7 +86,7 @@ export default {
         }
       } catch (error) {
         console.error('Error:', error);
-        alert('Something went wrong. Please try again.');
+        this.toast.error('Something went wrong. Please try again.', 'Error', 8000);
         this.isLoading = false;
       }
     },
