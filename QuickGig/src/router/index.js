@@ -142,6 +142,11 @@ const router = createRouter({
       name: 'Dashboard',
       component: () => import('../pages/Dashboard.vue')
     },
+    {
+      path: '/toast-demo',
+      name: 'ToastDemo',
+      component: () => import('../components/ToastDemo.vue')
+    },
   ],
 })
 
