@@ -8,7 +8,7 @@
         <div class="nav-links">
           <router-link to="/job-map" class="nav-link" :class="{ active: currentRouteName === 'JobMap' }">Job Map</router-link>
           <router-link to="/jobs" class="nav-link" :class="{ active: currentRouteName === 'JobPage' }">Browse Jobs</router-link>
-          <router-link to="/helpers" class="nav-link" :class="{ active: currentRouteName === 'HelpersPage' }">Browse Helpers</router-link>
+          <router-link to="/helpers" class="nav-link" :class="{ active: currentRouteName === 'HelpersPage' }">Browse Adventurers</router-link>
 
           <div v-if="isLoggedIn" class="notification-dropdown">
             <button class="icon-button notification-trigger" @click.prevent="toggleNotificationDropdown" title="Notifications">
@@ -439,6 +439,7 @@ export default {
 .top-navbar {
   background: #4fb6e1;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-bottom: 2px solid #d1d5db;
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -707,7 +708,7 @@ export default {
   background: none;
   width: 100%;
   text-align: left;
-  font-size: 0.95rem;
+  font-size: 1.20rem;
 }
 .dropdown-item:hover {
   background: #f3f4f6;
@@ -733,7 +734,7 @@ export default {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: rgba(0, 0, 0, 0.05);
+  background: white;
   border-radius: 25px;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -744,7 +745,9 @@ export default {
 }
 
 .profile-trigger:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .profile-avatar {
@@ -767,7 +770,7 @@ export default {
 .avatar-placeholder {
   font-size: 1rem;
   font-weight: 700;
-  color: #4fb6e1;
+  color: #f3f4f6
 }
 
 .helpers-page .avatar-placeholder {
@@ -777,7 +780,7 @@ export default {
 .profile-username {
   color: #000;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 1.15rem;
 }
 
 .dropdown-arrow {

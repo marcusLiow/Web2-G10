@@ -1275,7 +1275,7 @@ const navigateToJobDetails = () => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   flex-shrink: 0; /* Prevents the header from shrinking */
   position: fixed; /* Fix the header to the top of the .chat-page container */
-  top: 80px; /* Position it right below the main navbar */
+  top: 90px; /* Position it right below the main navbar */
   left: 0;
   width: 100%;
   z-index: 20; /* Ensure it's above the messages container */

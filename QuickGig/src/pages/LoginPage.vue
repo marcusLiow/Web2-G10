@@ -168,19 +168,29 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+  font-family: 'Jersey10';
+  src: url('../assets/fonts/Jersey10-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .login-page {
-  min-height: calc(100vh - 80px);
+  min-height: calc(100vh - 100px);
+  height: calc(100vh - 100px);
   display: flex;
   align-items: center;
   justify-content: center;
   background: #F8F9FA;
-  padding: 2rem 1rem;
+  padding: 1.5rem 1rem;
+  overflow-y: auto;
 }
 
 .login-container {
@@ -196,34 +206,36 @@ export default {
 }
 
 .card-header {
-  padding: 2rem 2.5rem;
+  padding: 0.8rem 2rem;
   text-align: center;
-  background: #2563EB;
-  color: white;
+  background: #4fb6e1;
+  color: #263144;
 }
 
 .card-header h1 {
-  font-size: 2rem;
+  font-size: 3.2rem;
   font-weight: 700;
   margin: 0;
-  color: white;
+  color: #263144;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .login-form {
-  padding: 2.5rem;
+  padding: 1.8rem 2.5rem;
 }
 
 .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   text-align: left;
 }
 
 .form-group label {
   display: block;
-  font-size: 0.9rem;
+  font-size: 1.8rem;
   font-weight: 600;
   color: #374151;
   margin-bottom: 0.5rem;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .form-group input {
@@ -233,12 +245,12 @@ export default {
   border: 2px solid #e5e7eb;
   border-radius: 12px;
   transition: all 0.3s ease;
-  font-family: inherit;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #2563EB;
+  border-color: #4fb6e1;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
@@ -251,23 +263,25 @@ export default {
   color: #dc2626;
   padding: 0.75rem;
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: 1.1rem;
   text-align: center;
   margin-bottom: 1rem;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .login-button {
   width: 100%;
-  padding: 1rem;
-  font-size: 1.1rem;
+  padding: 0.7rem;
+  font-size: 1.9rem;
   font-weight: 600;
-  color: white;
-  background: linear-gradient(135deg, #2563EB 0%, #1d4ed8 100%);
+  color: #263144;
+  background:#4fb6e1;
   border: none;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
   margin-top: 0.5rem;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .login-button:hover {
@@ -292,8 +306,9 @@ export default {
   text-align: center;
   margin: 1.5rem 0;
   color: #9ca3af;
-  font-size: 0.875rem;
+  font-size: 1.1rem;
   font-weight: 500;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .divider::before,
@@ -310,7 +325,7 @@ export default {
 .google-button {
   width: 100%;
   padding: 0.875rem 1rem;
-  font-size: 1rem;
+  font-size: 1.2rem;
   font-weight: 600;
   color: #374151;
   background: white;
@@ -322,6 +337,7 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .google-button:hover {
@@ -346,16 +362,18 @@ export default {
 }
 
 .signup-prompt {
-  font-size: 0.95rem;
+  font-size: 1.15rem;
   color: #6b7280;
   margin: 0;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .signup-link {
-  color: #2563EB;
+  color: #4fb6e1;
   font-weight: 600;
   text-decoration: none;
   transition: all 0.3s ease;
+  font-family: 'Jersey10', sans-serif;
 }
 
 .signup-link:hover {
@@ -374,7 +392,7 @@ export default {
   }
 
   .card-header h1 {
-    font-size: 1.75rem;
+    font-size: 2.4rem;
   }
 
   .login-form {
@@ -396,7 +414,7 @@ export default {
   }
 
   .card-header h1 {
-    font-size: 1.5rem;
+    font-size: 2rem;
   }
 
   .login-form {
@@ -405,12 +423,12 @@ export default {
 
   .form-group input {
     padding: 0.75rem 0.875rem;
-    font-size: 0.95rem;
+    font-size: 1.1rem;
   }
 
   .login-button {
     padding: 0.875rem;
-    font-size: 1rem;
+    font-size: 1.2rem;
   }
 
   .card-footer {
@@ -418,7 +436,7 @@ export default {
   }
 
   .signup-prompt {
-    font-size: 0.875rem;
+    font-size: 1.05rem;
   }
 }
 </style>
