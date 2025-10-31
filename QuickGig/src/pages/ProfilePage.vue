@@ -184,7 +184,7 @@
                   <div>
                     <h3>{{ job.job_title || job.title }}</h3>
                     <p class="completed-by">
-                      <strong>{{ job.role }}:</strong> {{ job.otherPartyName }}
+                      <strong>{{ job.role === 'Job Poster' ? 'Job completed by' : 'Client' }}:</strong> {{ job.otherPartyName }}
                     </p>
                     <p class="job-date">Completed: {{ formatDateShort(job.created_at) }}</p>
                   </div>
@@ -204,41 +204,77 @@
 
           <div v-if="activeTab === 'listings'" class="tab-content">
             <div class="content-body">
-              <h2>My Job Listings (Active & In Progress)</h2>
+              <h2>My Job Listings</h2>
 
-              <div v-if="activeAndInProgressListings && activeAndInProgressListings.length" class="listings-list">
-                <div v-for="listing in activeAndInProgressListings" :key="listing.id" class="listing-card">
-                  <div class="listing-main">
-                    <div class="listing-header-row">
-                      <h3>{{ listing.title }}</h3>
-                      <span :class="['listing-status-badge', getStatusClass(listing.status)]">{{ (listing.status || '').toUpperCase() }}</span>
-                    </div>
-                    <p class="listing-description">{{ listing.description }}</p>
-                    
-                    <div class="listing-details">
-                      <div class="listing-detail-item">
-                        <span class="detail-label">Posted:</span>
-                        <span>{{ formatDateShort(listing.created_at) }}</span>
+              <!-- Active & In Progress Section -->
+              <div v-if="activeAndInProgressListings && activeAndInProgressListings.length" class="listings-section">
+                <h3 class="section-title">Active & In Progress</h3>
+                <div class="listings-list">
+                  <div v-for="listing in activeAndInProgressListings" :key="listing.id" class="listing-card">
+                    <div class="listing-main">
+                      <div class="listing-header-row">
+                        <h3>{{ listing.title }}</h3>
+                        <span :class="['listing-status-badge', getStatusClass(listing.status)]">{{ (listing.status || '').toUpperCase() }}</span>
+                      </div>
+                      <p class="listing-description">{{ listing.description }}</p>
+                      
+                      <div class="listing-details">
+                        <div class="listing-detail-item">
+                          <span class="detail-label">Posted:</span>
+                          <span>{{ formatDateShort(listing.created_at) }}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div class="listing-footer">
-                    <p class="listing-payment">${{ listing.payment }}</p>
-                    
-                    <div class="listing-actions">
-                      <button v-if="listing.status === 'open' || listing.status === 'in-progress'" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">Mark as Completed</button>
-                      <button v-if="listing.status === 'open'" @click="editListing(listing)" class="btn-action btn-action-edit" type="button">Edit</button>
-                      <button v-if="listing.status === 'open'" @click="deleteListing(listing.id)" class="btn-action btn-action-delete" type="button">Delete</button>
+                    <div class="listing-footer">
+                      <p class="listing-payment">${{ listing.payment }}</p>
+                      
+                      <div class="listing-actions">
+                        <button v-if="listing.status === 'open' || listing.status === 'in-progress'" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">Mark as Completed</button>
+                        <button v-if="listing.status === 'open'" @click="editListing(listing)" class="btn-action btn-action-edit" type="button">Edit</button>
+                        <button v-if="listing.status === 'open'" @click="deleteListing(listing.id)" class="btn-action btn-action-delete" type="button">Delete</button>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div v-else class="empty-state">
+              <!-- Completed Listings Section -->
+              <div v-if="completedListings && completedListings.length" class="listings-section">
+                <h3 class="section-title">Completed Jobs</h3>
+                <div class="listings-list">
+                  <div v-for="listing in completedListings" :key="listing.id" class="listing-card">
+                    <div class="listing-main">
+                      <div class="listing-header-row">
+                        <h3>{{ listing.title }}</h3>
+                        <span :class="['listing-status-badge', getStatusClass(listing.status)]">{{ (listing.status || '').toUpperCase() }}</span>
+                      </div>
+                      <p class="listing-description">{{ listing.description }}</p>
+                      
+                      <div v-if="listing.completedBy && listing.completedBy.length > 0" class="completed-by-wrapper">
+                        <strong>Completed By:</strong> {{ listing.completedBy.join(', ') }}
+                      </div>
+                      
+                      <div class="listing-details">
+                        <div class="listing-detail-item">
+                          <span class="detail-label">Posted:</span>
+                          <span>{{ formatDateShort(listing.created_at) }}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="listing-footer">
+                      <p class="listing-payment">${{ listing.payment }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Empty State -->
+              <div v-if="!activeAndInProgressListings.length && !completedListings.length" class="empty-state">
                 <div class="empty-icon-text">No Listings</div>
-                <p class="empty-title">No active job listings</p>
-                <p class="empty-text">Your active and in-progress job listings will appear here.</p>
+                <p class="empty-title">No job listings yet</p>
+                <p class="empty-text">Your job listings will appear here.</p>
               </div>
 
               </div>
@@ -540,6 +576,11 @@ const activeListingsCount = computed(() => activeListings.value.length);
 // New computed property to show only active and in-progress listings
 const activeAndInProgressListings = computed(() => {
   return userListings.value.filter(l => l.status === 'open' || l.status === 'in-progress');
+});
+
+// New computed property to show only completed listings
+const completedListings = computed(() => {
+  return userListings.value.filter(l => l.status === 'completed');
 });
 
 function isDaySelected(day) {
@@ -1395,6 +1436,8 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 .service-badge { display:inline-block; padding:.25rem .5rem; background:#eff6ff; color:#2563eb; border-radius:9999px; margin:.5rem 0; }
 
 .jobs-list, .listings-list { display:flex; flex-direction:column; gap:1rem; }
+.listings-section { margin-bottom:2rem; }
+.section-title { font-size:1.125rem; font-weight:600; color:#374151; margin-bottom:1rem; padding-bottom:0.5rem; border-bottom:2px solid #e5e7eb; }
 .job-card, .listing-card { border:1px solid #e5e7eb; padding:1rem; border-radius:.5rem; }
 .job-card { display:flex; justify-content:space-between; align-items:start; }
 .job-right { display:flex; flex-direction:column; align-items:flex-end; gap:.5rem; }
