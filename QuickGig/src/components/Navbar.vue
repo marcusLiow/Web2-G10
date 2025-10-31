@@ -477,22 +477,24 @@ export default {
 
 .nav-link {
   text-decoration: none;
-  color: white;
+  color: rgba(255, 255, 255, 0.85);
   font-weight: bold;
   transition: all 0.3s;
   white-space: nowrap;
   font-size: 1.1em;
-  padding-bottom: 0.25rem;
-  border-bottom: 3px solid transparent;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
 }
 
 .nav-link:hover {
-  opacity: 0.8;
+  color: white;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .nav-link.router-link-active,
 .nav-link.active {
-  border-bottom: 3px solid white;
+  color: white;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .nav-button {
@@ -789,6 +791,7 @@ export default {
 
   .nav-link {
     font-size: 0.9rem;
+    padding: 0.4rem 0.6rem;
   }
 
   .nav-button {

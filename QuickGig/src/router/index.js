@@ -147,7 +147,12 @@ const router = createRouter({
       path: '/user/:id',
       name: 'ViewProfile',
       component: () => import('../pages/ViewProfile.vue')
-    }
+    },
+    {
+      path: '/dashboard',
+      name: 'Dashboard',
+      component: () => import('../pages/Earnings.vue')
+    },
   ],
 })
 
