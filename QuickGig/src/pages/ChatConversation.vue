@@ -331,9 +331,11 @@
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
+import { useToast } from '../composables/useToast';
 
 const route = useRoute();
 const router = useRouter();
+const toast = useToast();
 
 const messages = ref([]);
 const newMessage = ref('');
@@ -790,11 +792,11 @@ const submitOffer = async () => {
     await nextTick();
     scrollToBottom();
 
-    alert('Offer sent successfully!');
+    toast.success('Offer sent successfully!', '', 8000);
 
   } catch (error) {
     console.error('Error sending offer:', error);
-    alert('Failed to send offer. Please try again.');
+    toast.error('Failed to send offer. Please try again.', '', 8000);
   } finally {
     isProcessing.value = false;
   }
@@ -1063,11 +1065,11 @@ const submitCounterOffer = async () => {
     await nextTick();
     scrollToBottom();
 
-    alert('Counter offer sent successfully!');
+    toast.success('Counter offer sent successfully!', '', 8000);
 
   } catch (error) {
     console.error('Error sending counter offer:', error);
-    alert('Failed to send counter offer. Please try again.');
+    toast.error('Failed to send counter offer. Please try again.', '', 8000);
   } finally {
     isProcessing.value = false;
   }
@@ -1175,7 +1177,7 @@ const submitReview = async () => {
     const personToReview = otherUserId.value;
     
     if (!personToReview) {
-      alert('Unable to determine who to review.');
+      toast.error('Unable to determine who to review.', '', 8000);
       isProcessing.value = false;
       return;
     }
@@ -1210,17 +1212,17 @@ const { data, error } = await supabase
 
     if (error) {
       console.error('Error submitting review:', error);
-      alert(`Failed to submit review: ${error.message || 'Please try again.'}`);
+      toast.error(error.message || 'Failed to submit review. Please try again.', 'Review Error', 8000);
       return;
     }
 
     closeReviewModal();
     hasReviewedOtherUser.value = true;
-    alert('Review submitted successfully!');
+    toast.success('Review submitted successfully!', 'Thank You!', 8000);
 
   } catch (error) {
     console.error('Error in submitReview:', error);
-    alert(`Failed to submit review: ${error.message || 'Please try again.'}`);
+    toast.error(error.message || 'Failed to submit review. Please try again.', 'Review Error', 8000);
   } finally {
     isProcessing.value = false;
   }

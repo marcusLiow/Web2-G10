@@ -779,8 +779,8 @@ export default {
 
 .profile-username {
   color: #000;
-  font-weight: 600;
-  font-size: 1.15rem;
+  font-weight: 300;
+  font-size: 1.5rem;
 }
 
 .dropdown-arrow {

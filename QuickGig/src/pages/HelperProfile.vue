@@ -2,7 +2,10 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
+import { useToast } from '../composables/useToast';
 import Reviews from './Reviews.vue';
+
+const toast = useToast();
 
 const route = useRoute();
 const router = useRouter();
@@ -200,13 +203,13 @@ const formatDate = (date) => {
 const startChat = async () => {
   try {
     if (!currentUserId.value) {
-      alert('Please log in to start a chat');
+      toast.warning('Please log in to start a chat', 'Login Required', 8000);
       router.push('/login');
       return;
     }
 
     if (currentUserId.value === helper.value.userId) {
-      alert('You cannot chat with yourself');
+      toast.info('You cannot chat with yourself', 'Invalid Action', 8000);
       return;
     }
 
@@ -244,7 +247,7 @@ const startChat = async () => {
     router.push(`/helper-chat/${chatId}`);
   } catch (error) {
     console.error('Start chat error:', error);
-    alert('Failed to start chat. Please try again.');
+    toast.error('Failed to start chat. Please try again.', 'Chat Error', 8000);
   }
 };
 

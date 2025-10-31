@@ -2,6 +2,9 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
+import { useToast } from '../composables/useToast';
+
+const toast = useToast();
 
 const route = useRoute();
 const router = useRouter();
@@ -133,22 +136,22 @@ const viewJobDetails = (jobId) => {
 const startChat = async () => {
   try {
     if (!currentUserId.value) {
-      alert('Please log in to start a chat');
+      toast.warning('Please log in to start a chat', 'Login Required', 8000);
       router.push('/login');
       return;
     }
 
     if (currentUserId.value === user.value.id) {
-      alert('You cannot chat with yourself');
+      toast.info('You cannot chat with yourself', 'Invalid Action', 8000);
       return;
     }
 
     // For now, redirect to jobs page since direct user chat isn't implemented
-    alert('To chat with this user, please find one of their active job listings and use the Chat button there.');
+    toast.info('To chat with this user, please find one of their active job listings and use the Chat button there.', 'Chat Info', 8000);
     
   } catch (error) {
     console.error('Start chat error:', error);
-    alert('Failed to start chat. Please try again.');
+    toast.error('Failed to start chat. Please try again.', 'Chat Error', 8000);
   }
 };
 
