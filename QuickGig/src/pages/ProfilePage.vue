@@ -37,9 +37,6 @@
                     <div v-if="helperLocation" class="contact-item">
                       <span class="contact-label">Neighbourhood:</span> {{ helperLocation }}
                     </div>
-                    <div v-if="user.email" class="contact-item">
-                      <span class="contact-label">Email:</span> {{ user.email }}
-                    </div>
                   </div>
 
                   <div class="rating-container">
@@ -131,14 +128,6 @@
             >
               {{ tab.label }}
             </button>
-          </div>
-
-          <div v-if="activeTab === 'about'" class="tab-content">
-            <div class="content-body">
-              <h2>About Me</h2>
-              <p v-if="user.bio">{{ user.bio }}</p>
-              <p v-else class="text-placeholder">No bio added yet. Click "Edit Profile" to add one.</p>
-            </div>
           </div>
 
           <div v-if="activeTab === 'skills'" class="tab-content">
@@ -506,9 +495,8 @@ const errorMessage = ref('');
 const currentUserId = ref(null);
 const loadingReviewsMsg = ref('');
 
-const activeTab = ref('about');
+const activeTab = ref('skills');
 const tabs = [
-  { label: 'About', value: 'about' },
   { label: 'Skills & Expertise', value: 'skills' },
   { label: 'Reviews', value: 'reviews' },
   { label: 'Job History', value: 'jobs' },
@@ -759,126 +747,68 @@ async function loadCompletedJobs(uid) {
       }
     }
 
-    // // 3. Fetch completed jobs where the current user was the poster
-    // console.log('📋 Querying User-Job-Request table...');
-    // const { data: posterJobsData, error: posterJobsError } = await supabase
-    //   .from('User-Job-Request')
-    //   .select('id, title, payment, created_at, status')
-    //   .eq('user_id', uid)
-    //   .eq('status', 'completed')
-    //   .order('created_at', { ascending: false });
-
-    // console.log('📊 User-Job-Request query result:', { count: posterJobsData?.length || 0 });
-
-    // if (posterJobsError) throw posterJobsError;
-
-    // if (posterJobsData && posterJobsData.length > 0) {
-    //   for (const job of posterJobsData) {
-    //     let helperNames = [];
-        
-    //     const { data: chatData, error: chatError } = await supabase
-    //       .from('chats')
-    //       .select('job_seeker_id')
-    //       .eq('job_id', job.id)
-    //       .eq('offer_accepted', true);
-
-    //     if (!chatError && chatData && chatData.length > 0) {
-    //       const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
-          
-    //       const { data: helpersData, error: helpersError } = await supabase
-    //         .from('users')
-    //         .select('username')
-    //         .in('id', helperIds);
-
-    //       if (!helpersError && helpersData) {
-    //         helperNames = helpersData.map(u => u.username || 'Unknown');
-    //       }
-    //     }
-
-    //     const jobObj = {
-    //       id: `poster-${job.id}`,
-    //       job_title: job.title,
-    //       title: job.title,
-    //       payment: job.payment,
-    //       agreed_amount: job.payment,
-    //       created_at: job.created_at,
-    //       role: 'Job Poster',
-    //       otherPartyName: helperNames.join(', ') || 'Unknown Helper'
-    //     };
-        
-    //     const uniqueKey = createUniqueKey(jobObj);
-    //     if (!jobsMap.has(uniqueKey)) {
-    //       jobsMap.set(uniqueKey, jobObj);
-    //       console.log('✅ Added poster job:', job.title);
-    //     } else {
-    //       console.log('⚠️ Duplicate skipped (poster):', job.title);
-    //     }
-    //   }
-    // }
-
     // 3. Fetch completed jobs where the current user was the poster
-console.log('📋 Querying User-Job-Request table...');
-const { data: posterJobsData, error: posterJobsError } = await supabase
-  .from('User-Job-Request')
-  .select('id, title, payment, created_at, status')
-  .eq('user_id', uid)
-  .eq('status', 'completed')
-  .order('created_at', { ascending: false });
+    console.log('📋 Querying User-Job-Request table...');
+    const { data: posterJobsData, error: posterJobsError } = await supabase
+      .from('User-Job-Request')
+      .select('id, title, payment, created_at, status')
+      .eq('user_id', uid)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false });
 
-console.log('📊 User-Job-Request query result:', { count: posterJobsData?.length || 0 });
+    console.log('📊 User-Job-Request query result:', { count: posterJobsData?.length || 0 });
 
-if (posterJobsError) throw posterJobsError;
+    if (posterJobsError) throw posterJobsError;
 
-if (posterJobsData && posterJobsData.length > 0) {
-  for (const job of posterJobsData) {
-    let helperNames = [];
-    let actualPaidAmount = job.payment; // Default to original listing price
-    
-    const { data: chatData, error: chatError } = await supabase
-      .from('chats')
-      .select('job_seeker_id, payment_amount')  // <-- ADDED payment_amount
-      .eq('job_id', job.id)
-      .eq('offer_accepted', true);
+    if (posterJobsData && posterJobsData.length > 0) {
+      for (const job of posterJobsData) {
+        let helperNames = [];
+        let actualPaidAmount = job.payment; // Default to original listing price
+        
+        const { data: chatData, error: chatError } = await supabase
+          .from('chats')
+          .select('job_seeker_id, payment_amount')
+          .eq('job_id', job.id)
+          .eq('offer_accepted', true);
 
-    if (!chatError && chatData && chatData.length > 0) {
-      const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
-      
-      const { data: helpersData, error: helpersError } = await supabase
-        .from('users')
-        .select('username')
-        .in('id', helperIds);
+        if (!chatError && chatData && chatData.length > 0) {
+          const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+          
+          const { data: helpersData, error: helpersError } = await supabase
+            .from('users')
+            .select('username')
+            .in('id', helperIds);
 
-      if (!helpersError && helpersData) {
-        helperNames = helpersData.map(u => u.username || 'Unknown');
-      }
-      
-      // Get the actual paid amount from the first accepted chat
-      // If there are multiple helpers, this gets the first one's payment
-      if (chatData[0]?.payment_amount) {
-        actualPaidAmount = chatData[0].payment_amount;
+          if (!helpersError && helpersData) {
+            helperNames = helpersData.map(u => u.username || 'Unknown');
+          }
+          
+          // Get the actual paid amount from the first accepted chat
+          if (chatData[0]?.payment_amount) {
+            actualPaidAmount = chatData[0].payment_amount;
+          }
+        }
+
+        const jobObj = {
+          id: `poster-${job.id}`,
+          job_title: job.title,
+          title: job.title,
+          payment: actualPaidAmount,
+          agreed_amount: actualPaidAmount,
+          created_at: job.created_at,
+          role: 'Job Poster',
+          otherPartyName: helperNames.join(', ') || 'Unknown Helper'
+        };
+        
+        const uniqueKey = createUniqueKey(jobObj);
+        if (!jobsMap.has(uniqueKey)) {
+          jobsMap.set(uniqueKey, jobObj);
+          console.log('✅ Added poster job:', job.title, '- Paid:', actualPaidAmount);
+        } else {
+          console.log('⚠️ Duplicate skipped (poster):', job.title);
+        }
       }
     }
-
-    const jobObj = {
-      id: `poster-${job.id}`,
-      job_title: job.title,
-      title: job.title,
-      payment: actualPaidAmount,  // <-- FIXED: Use actual paid amount
-      agreed_amount: actualPaidAmount,  // <-- FIXED: Use actual paid amount
-      created_at: job.created_at,
-      role: 'Job Poster',
-      otherPartyName: helperNames.join(', ') || 'Unknown Helper'
-    };
-    
-    const uniqueKey = createUniqueKey(jobObj);
-    if (!jobsMap.has(uniqueKey)) {
-      jobsMap.set(uniqueKey, jobObj);
-      console.log('✅ Added poster job:', job.title, '- Paid:', actualPaidAmount);
-    } else {
-      console.log('⚠️ Duplicate skipped (poster):', job.title);
-    }
-  }
-}
 
     // Convert Map values to array and sort
     const deduplicatedJobs = Array.from(jobsMap.values());
