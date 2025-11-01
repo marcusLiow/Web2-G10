@@ -56,7 +56,7 @@
           </div>
         </section>
 
-        <!-- Helper Tier System -->
+        <!-- Adventurer Tier System -->
         <section v-if="user.is_helper && tierInfo.isHelper" class="tier-section">
           <div class="tier-container">
             <div class="tier-badge">
@@ -234,10 +234,10 @@
                 <div class="empty-icon-text">No Jobs</div>
                 <p v-if="jobHistoryFilter === 'all'" class="empty-title">No completed jobs yet</p>
                 <p v-else-if="jobHistoryFilter === 'posted'" class="empty-title">No jobs posted yet</p>
-                <p v-else class="empty-title">No jobs completed as helper yet</p>
-                <p v-if="jobHistoryFilter === 'all'" class="empty-text">Completed jobs (both as poster and helper) will appear here.</p>
+                <p v-else class="empty-title">No jobs completed as adventurer yet</p>
+                <p v-if="jobHistoryFilter === 'all'" class="empty-text">Completed jobs (both as poster and adventurer) will appear here.</p>
                 <p v-else-if="jobHistoryFilter === 'posted'" class="empty-text">Jobs you post for others will appear here once completed.</p>
-                <p v-else class="empty-text">Jobs you complete as a helper will appear here.</p>
+                <p v-else class="empty-text">Jobs you complete as an adventurer will appear here.</p>
               </div>
             </div>
           </div>
@@ -392,22 +392,36 @@
             <textarea v-model="editForm.bio" rows="4"></textarea>
           </div>
 
-          <!-- Helper toggle -->
+          <!-- Adventurer toggle -->
           <div class="form-group">
-            <label>List myself as a helper</label>
+            <label>Become an Adventurer</label>
             <div>
               <button type="button" :class="['helper-toggle-btn', { active: editForm.is_helper }]" @click="editForm.is_helper = !editForm.is_helper">
-                <span v-if="!editForm.is_helper">Become a helper</span>
-                <span v-else>Listed as helper ✓</span>
+                <span v-if="!editForm.is_helper">Become an Adventurer</span>
+                <span v-else>Adventurer Profile ✓</span>
               </button>
             </div>
+            <small class="helper-text">Create your adventurer profile to offer services</small>
+          </div>
+
+          <!-- List on Market toggle - only show if they're an adventurer -->
+          <div v-if="editForm.is_helper" class="form-group">
+            <label>List on Market</label>
+            <div class="toggle-container">
+              <label class="toggle-switch">
+                <input type="checkbox" v-model="editForm.is_listed" />
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label">{{ editForm.is_listed ? 'Visible on Browse Adventurers' : 'Hidden from Browse Adventurers' }}</span>
+            </div>
+            <small class="helper-text">Toggle this on to appear in the Browse Adventurers page</small>
           </div>
 
           <div v-if="editForm.is_helper" class="form-section">
-            <h3>Helper Profile</h3>
+            <h3>Adventurer Profile</h3>
 
             <div class="form-group">
-              <label>Helper Title</label>
+              <label>Adventurer Title</label>
               <input v-model="editForm.helper_title" type="text" placeholder="e.g., Car Washer" />
             </div>
 
@@ -462,7 +476,7 @@
             </div>
 
             <div class="form-group">
-              <label>Helper-specific Skills</label>
+              <label>Adventurer-specific Skills</label>
               <div class="skills-editor-list">
                 <div v-for="(s, i) in editForm.helper_skills" :key="i" class="skill-editor-item">
                   <input v-model="s.name" placeholder="Skill name (e.g., Dog walking)" />
@@ -474,7 +488,7 @@
                   </select>
                   <button @click="removeHelperSkill(i)" type="button" class="btn-remove-skill">×</button>
                 </div>
-                <button @click="addHelperSkill" type="button" class="btn-add-skill">+ Add helper skill</button>
+                <button @click="addHelperSkill" type="button" class="btn-add-skill">+ Add adventurer skill</button>
               </div>
             </div>
 
@@ -555,6 +569,7 @@ const editForm = reactive({
   location: '',
   email: '',
   is_helper: false,
+  is_listed: false, // NEW: Controls visibility on Browse Adventurers page
   helper_title: '',
   helper_description: '',
   helper_location: '',
@@ -1305,6 +1320,10 @@ function openEditModal() {
   editForm.location = user.location || '';
   editForm.email = user.email || '';
   editForm.is_helper = user.is_helper || false;
+  
+  // NEW: Set is_listed from helper_profile
+  editForm.is_listed = user.helper_profile?.is_active || false;
+  
   editForm.helper_title = user.helper_profile?.title || user.helper_title || '';
   editForm.helper_description = user.helper_profile?.description || '';
   editForm.helper_location = user.helper_profile?.location || '';
@@ -1499,7 +1518,7 @@ async function saveProfile() {
         bio: editForm.helper_bio || null,
         experience: Array.isArray(editForm.experience) ? editForm.experience : [],
         location: finalHelperLocation || null,
-        is_active: true,
+        is_active: editForm.is_listed, // NEW: Use the is_listed value
         updated_at: new Date().toISOString()
       };
 
@@ -1802,7 +1821,7 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 .job-card, .listing-card { border:1px solid #e5e7eb; padding:1rem; border-radius:.5rem; }
 .job-card { display:flex; justify-content:space-between; align-items:start; }
 .job-right { display:flex; flex-direction:column; align-items:flex-end; gap:.5rem; }
-.job-amount { font-size:1.25rem; font-weight:700; color:#2563eb; }
+.job-amount { font-size:1.25rem; font-weight:700; color:#16a34a; }
 .status-badge { padding:.25rem .75rem; border-radius:9999px; font-size:.75rem; font-weight:600; }
 .status-completed { background:#dcfce7; color:#166534; }
 .status-open { background:#dbeafe; color:#1e40af; }
@@ -1831,10 +1850,68 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 .form-group { margin-bottom:1rem; display:flex; flex-direction:column; gap:.5rem; }
 .form-group label { font-weight:500; }
 .form-group input, .form-group textarea, .form-group select { padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:.375rem; }
-.hint { font-size:.875rem; color:#6b7280; }
+.hint, .helper-text { font-size:.875rem; color:#6b7280; }
 
 .helper-toggle-btn { padding:.5rem 1rem; border-radius:999px; border:1px solid #d1d5db; background:white; cursor:pointer; }
 .helper-toggle-btn.active { background:#6C5B7F; color:white; border-color:#6C5B7F; }
+
+/* Toggle Switch Styles */
+.toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 56px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #d1d5db;
+  border-radius: 28px;
+  transition: all 0.3s;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  border-radius: 50%;
+  transition: all 0.3s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #2563eb;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(28px);
+}
+
+.toggle-label {
+  font-size: 0.875rem;
+  color: #374151;
+  font-weight: 500;
+}
 
 .form-section { border-top:1px solid #e5e7eb; padding-top:1rem; margin-top:1rem; }
 
@@ -1958,8 +2035,6 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
   background: #fecaca;
 }
 
-/* Remove zoom control styles - no longer needed */
-
 /* Days selector */
 .days-selector {
   display: flex;
@@ -2016,22 +2091,6 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
   color: #6b7280;
   font-weight: 500;
   margin-top: 1.5rem;
-}
-
-/* Dropdown always down */
-.suggestions-dropdown {
-  position: absolute;
-  top: calc(100% + 0.5rem) !important;
-  bottom: auto !important;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  max-height: 300px;
-  overflow-y: auto;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
 }
 
 @media (max-width:768px) {
@@ -2108,8 +2167,8 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 .completed-by-wrapper {
   font-size: 0.9rem;
   color: #374151;
-  background: #f0fdf4; /* Light green background */
-  border: 1px solid #bbf7d0; /* Green border */
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
   border-radius: 0.375rem;
   padding: 0.5rem 0.75rem;
   margin-top: 0.5rem;
@@ -2117,13 +2176,18 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 }
 
 .completed-by-wrapper strong {
-  color: #166534; /* Darker green */
+  color: #166534;
 }
 
-/* Make "Job History" amount stand out */
 .job-right .job-amount {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #16a34a; /* Green for earnings */
+  color: #16a34a;
+}
+
+.error-message {
+  color: #991b1b;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
 }
 </style>
