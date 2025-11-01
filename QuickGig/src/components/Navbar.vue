@@ -3,6 +3,7 @@
     <div class="nav-container">
       <div class="nav-content">
         <div class="logo">
+          <img :src="logoImage" alt="Logo" class="logo-img" />
           <span class="logo-text" @click="navigateToHome">SideQuest</span>
         </div>
         <div class="nav-links">
@@ -84,6 +85,7 @@
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { supabase } from '../supabase/config';
 import { useRouter, useRoute } from 'vue-router';
+import logoImage from '../assets/logo.png';
 
 export default {
   name: 'Navbar',
@@ -416,6 +418,7 @@ export default {
       unreadNotificationsCount,
       isNotificationDropdownOpen,
       currentRouteName,
+      logoImage,
       navigateToHome,
       handleProfileClick,
       closeDropdown,
@@ -471,6 +474,12 @@ export default {
   font-size: 1.5rem;
   font-weight: bold;
   color: #000;
+}
+
+.logo-img {
+  height: 80px;
+  width: auto;
+  object-fit: contain;
 }
 
 .logo-text {
@@ -797,6 +806,10 @@ export default {
     padding: 0 1rem;
   }
 
+  .logo-img {
+    height: 35px;
+  }
+
   .nav-links {
     gap: 0.75rem;
   }
@@ -848,6 +861,10 @@ export default {
   .logo {
     width: 100%;
     justify-content: center;
+  }
+
+  .logo-img {
+    height: 30px;
   }
 
   .nav-links {
