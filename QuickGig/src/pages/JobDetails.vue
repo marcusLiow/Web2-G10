@@ -1488,7 +1488,6 @@ const closeOfferModal = () => {
   min-height: 100vh;
   background: #f5f5f5;
   padding: 1rem;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .container {
