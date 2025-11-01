@@ -330,11 +330,6 @@ onMounted(async () => {
               <div class="stat-value">{{ helper.location }}</div>
               <div class="stat-label">Location</div>
             </div>
-            <div class="stat-card">
-              <div class="stat-icon">⏱️</div>
-              <div class="stat-value">{{ helper.responseTime }}</div>
-              <div class="stat-label">Response Time</div>
-            </div>
           </div>
         </div>
 
@@ -586,10 +581,10 @@ onMounted(async () => {
   margin: 0;
 }
 
-/* Quick Stats */
+/* Quick Stats - Updated for 3 columns */
 .quick-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
   margin-top: 2rem;
 }
@@ -656,7 +651,7 @@ onMounted(async () => {
   font-size: 1rem;
 }
 
-/* Skills Grid - UPDATED */
+/* Skills Grid */
 .skills-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));

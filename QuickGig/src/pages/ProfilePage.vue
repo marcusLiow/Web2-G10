@@ -433,17 +433,6 @@
             </div>
 
             <div class="form-group">
-              <label>Response Time</label>
-              <select v-model="editForm.response_time">
-                <option value="">-- Select response time --</option>
-                <option>Within 1 hour</option>
-                <option>Within 2 hours</option>
-                <option>Within 4 hours</option>
-                <option>Within 24 hours</option>
-              </select>
-            </div>
-
-            <div class="form-group">
               <label>Helper-specific Skills</label>
               <div class="skills-editor-list">
                 <div v-for="(s, i) in editForm.helper_skills" :key="i" class="skill-editor-item">
@@ -454,7 +443,6 @@
                     <option>Advanced</option>
                     <option>Expert</option>
                   </select>
-                  <input v-model.number="s.jobs" type="number" min="0" class="small-input" placeholder="jobs" />
                   <button @click="removeHelperSkill(i)" type="button" class="btn-remove-skill">×</button>
                 </div>
                 <button @click="addHelperSkill" type="button" class="btn-add-skill">+ Add helper skill</button>
@@ -627,7 +615,7 @@ function toggleDay(day) {
   }
 }
 
-function addHelperSkill() { editForm.helper_skills.push({ name: '', level: 'Beginner', jobs: 0 }); }
+function addHelperSkill() { editForm.helper_skills.push({ name: '', level: 'Beginner' }); }
 function removeHelperSkill(i) { editForm.helper_skills.splice(i, 1); }
 function addExperience() { editForm.experience.push(''); }
 function removeExperience(i) { editForm.experience.splice(i, 1); }
@@ -1461,7 +1449,7 @@ async function saveProfile() {
         user_id: uid,
         title: editForm.helper_title || editForm.username,
         description: editForm.helper_description || null,
-        skills: editForm.helper_skills.map(s => ({ name: s.name, level: s.level || 'Beginner', jobs: s.jobs || 0 })),
+        skills: editForm.helper_skills.map(s => ({ name: s.name, level: s.level || 'Beginner', jobs: 0 })),
         availability: availabilityCombined,
         response_time: editForm.response_time || null,
         bio: editForm.helper_bio || null,
@@ -1766,7 +1754,6 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 
 .skills-editor-list { display:flex; flex-direction:column; gap:.5rem; }
 .skill-editor-item { display:flex; gap:.5rem; align-items:center; }
-.small-input { width:80px; }
 .btn-add-skill { padding:.4rem .6rem; border-radius:.375rem; border:1px dashed #d1d5db; background:white; cursor:pointer; }
 .btn-remove-skill { padding:.25rem .5rem; border-radius:.375rem; background:#fee2e2; border:1px solid #fca5a5; cursor:pointer; }
 
