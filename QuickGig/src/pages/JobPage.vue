@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
 
@@ -9,6 +9,7 @@ const searchTerm = ref('');
 const selectedCategory = ref('');
 const isLoading = ref(true);
 const isLoggedIn = ref(false);
+const isHeroCollapsed = ref(false);
 
 // ✅ NEW: Store accepted offer counts for each job
 const acceptedOfferCounts = ref({});
@@ -24,6 +25,12 @@ const categories = [
   'Landscaping',
   'Other'
 ];
+
+// Handle scroll to collapse hero
+const handleScroll = () => {
+  const scrollPosition = window.scrollY;
+  isHeroCollapsed.value = scrollPosition > 100; // Collapse after scrolling 100px
+};
 
 // Check if user is logged in
 const checkLoginStatus = () => {
@@ -207,6 +214,14 @@ onMounted(async () => {
   // Listen for login/logout events
   window.addEventListener('user-logged-in', checkLoginStatus);
   window.addEventListener('user-logged-out', checkLoginStatus);
+  
+  // Add scroll listener
+  window.addEventListener('scroll', handleScroll);
+});
+
+// Cleanup scroll listener
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll);
 });
 
 const filteredJobs = computed(() => {
@@ -296,12 +311,19 @@ if (typeof window !== 'undefined') {
 
 <template>
   <div class="page-wrapper">
-    <div class="container">
-      <!-- Header -->
-      <div class="header-section">
-        <h1 class="main-title">Odd Jobs Hub</h1>
-        <p class="subtitle">Find the perfect side gig or hire the best talent.</p>
+    <!-- Hero Image Section -->
+    <div class="hero-section" :class="{ 'collapsed': isHeroCollapsed }">
+      <div class="hero-image-container">
+        <!-- Replace 'your-image.jpg' with your actual image filename from src/assets -->
+        <img src="@/assets/jobs.png" alt="Odd Jobs Hub" class="hero-image" />
+        <div class="hero-overlay">
+          <h1 class="hero-title">Find Your Next Opportunity</h1>
+          <p class="hero-subtitle">Discover side gigs that are perfect for you</p>
+        </div>
       </div>
+    </div>
+
+    <div class="container">
 
       <!-- Search and Filter Card -->
       <div class="search-card">
@@ -430,18 +452,98 @@ if (typeof window !== 'undefined') {
 .page-wrapper {
   min-height: 100vh;
   background: linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%);
-  padding: 2rem 1rem;
+  padding: 0 0 2rem 0;
+}
+
+/* Hero Section */
+.hero-section {
+  width: 100%;
+  height: 400px;
+  overflow: hidden;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.hero-section.collapsed {
+  height: 0;
+  opacity: 0;
+  margin-bottom: 0;
+}
+
+.hero-image-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.hero-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hero-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.3));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  text-align: center;
+  padding: 2rem;
+}
+
+.hero-title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  margin: 0 0 1rem 0;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.hero-subtitle {
+  font-size: 1.5rem;
+  font-weight: 400;
+  margin: 0;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  max-width: 600px;
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    height: 300px;
+  }
+  
+  .hero-title {
+    font-size: 2.5rem;
+  }
+  
+  .hero-subtitle {
+    font-size: 1.125rem;
+  }
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 0 1rem;
 }
 
 /* Header */
 .header-section {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 2rem;
+  padding: 2rem 1rem 0;
+  transition: padding 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hero-section.collapsed ~ .container .header-section {
+  padding-top: 2rem;
 }
 
 .main-title {
@@ -466,6 +568,7 @@ if (typeof window !== 'undefined') {
   padding: 2rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   margin-bottom: 2rem;
+  margin-top: 2rem;
 }
 
 .search-grid {
