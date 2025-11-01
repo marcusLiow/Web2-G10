@@ -7,7 +7,7 @@
         </svg>
       </button>
 
-      <div class="header-info" @click="navigateToJobDetails" :class="{ 'clickable': !isHelperChat }">
+      <div class="header-info" @click="navigateToProfile" :class="{ 'clickable': true }">
         <div class="user-avatar">
           <img 
             v-if="otherUser?.avatar_url" 
@@ -1446,6 +1446,17 @@ const navigateToJobDetails = () => {
     router.push(`/job/${chatInfo.value.job_id}`);
   }
 };
+
+// New function to handle navigation for both job details and helper profiles
+const navigateToProfile = () => {
+  if (isHelperChat.value && otherUserId.value) {
+    // For helper chats, navigate to the helper's profile
+    router.push(`/helper/${otherUserId.value}`);
+  } else if (!isHelperChat.value && chatInfo.value?.job_id) {
+    // For job chats, navigate to job details
+    router.push(`/job/${chatInfo.value.job_id}`);
+  }
+};
 </script>
 
 <style scoped>
@@ -1585,7 +1596,7 @@ const navigateToJobDetails = () => {
 
 .user-name {
   margin: 0;
-  font-size: 1.95rem;
+  font-size: 1.4625rem; /* 1.95rem * 0.75 */
   font-weight: 400;
   color: #111827;
   white-space: nowrap;
@@ -1595,7 +1606,7 @@ const navigateToJobDetails = () => {
 
 .job-title {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 0.8625rem; /* 1.15rem * 0.75 */
   font-weight: 300;
   color: #6b7280;
   white-space: nowrap;
@@ -1689,12 +1700,12 @@ const navigateToJobDetails = () => {
   word-wrap: break-word;
   line-height: 1.5;
   padding-right: 2rem;
-  font-size: 1.5rem;
-  font-weight: 250;
+  font-size: 1.5rem;     /* 1.3rem * 1.15 - increased */
+  font-weight: 150;      /* 200 / 1.33 - decreased */
 }
 
 .message-time {
-  font-size: 0.85rem;
+  font-size: 0.85rem;    /* 0.75rem * 1.13 - increased */
   opacity: 0.6;
   white-space: nowrap;
   margin-top: 0.25rem;
@@ -1772,7 +1783,7 @@ const navigateToJobDetails = () => {
 }
 
 .offer-type {
-  font-size: 1.25rem;
+  font-size: 0.9375rem; /* 1.25rem * 0.75 */
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1785,7 +1796,7 @@ const navigateToJobDetails = () => {
 }
 
 .offer-job-title {
-  font-size: 1.3rem;
+  font-size: 0.975rem; /* 1.3rem * 0.75 */
   font-weight: 400;
   color: #1e40af;
   margin-bottom: 0.5rem;
@@ -1797,7 +1808,7 @@ const navigateToJobDetails = () => {
 }
 
 .offer-amount {
-  font-size: 2.25rem;
+  font-size: 1.6875rem; /* 2.25rem * 0.75 */
   font-weight: 400;
   color: #1e40af;
   margin-bottom: 0.75rem;
@@ -1808,7 +1819,7 @@ const navigateToJobDetails = () => {
 }
 
 .offer-status {
-  font-size: 0.95rem;
+  font-size: 0.7125rem; /* 0.95rem * 0.75 */
   font-weight: 400;
   text-transform: uppercase;
   color: #6b7280;
@@ -1831,7 +1842,7 @@ const navigateToJobDetails = () => {
   padding: 0.625rem 1rem;
   border: none;
   border-radius: 0.5rem;
-  font-size: 1.05rem;
+  font-size: 0.7875rem; /* 1.05rem * 0.75 */
   font-weight: 400;
   cursor: pointer;
   transition: all 0.2s;
@@ -1898,7 +1909,7 @@ const navigateToJobDetails = () => {
 .completion-text {
   margin: 0 0 0.25rem 0;
   font-weight: 400;
-  font-size: 1.1rem;
+  font-size: 0.825rem; /* 1.1rem * 0.75 */
   color: #5b21b6;
   padding-right: 3rem;
 }
@@ -1924,14 +1935,14 @@ const navigateToJobDetails = () => {
 }
 
 .cancelled-icon {
-  font-size: 2.5rem;
+  font-size: 1.875rem; /* 2.5rem * 0.75 */
   margin-bottom: 0.5rem;
 }
 
 .cancelled-text {
   margin: 0 0 0.5rem 0;
   font-weight: 400;
-  font-size: 1.1rem;
+  font-size: 0.825rem; /* 1.1rem * 0.75 */
   color: #991b1b;
   line-height: 1.5;
   white-space: pre-line;
@@ -1958,7 +1969,7 @@ const navigateToJobDetails = () => {
   color: #dc2626;
   border: 2px solid #fecaca;
   border-radius: 0.5rem;
-  font-size: 1.05rem;
+  font-size: 0.7875rem; /* 1.05rem * 0.75 */
   font-weight: 400;
   cursor: pointer;
   transition: all 0.2s;
@@ -1992,7 +2003,7 @@ const navigateToJobDetails = () => {
   color: white;
   border: none;
   border-radius: 0.5rem;
-  font-size: 1.05rem;
+  font-size: 0.7875rem; /* 1.05rem * 0.75 */
   font-weight: 400;
   cursor: pointer;
   transition: all 0.2s;
@@ -2014,7 +2025,7 @@ const navigateToJobDetails = () => {
   padding: 0.875rem 0.85rem;
   border: 2px solid #e5e7eb;
   border-radius: 1.5rem;
-  font-size: 1.2rem;
+  font-size: 0.9rem; /* 1.2rem * 0.75 */
   transition: all 0.2s;
   background-color: #f9fafb;
 }
@@ -2037,7 +2048,7 @@ const navigateToJobDetails = () => {
   color: white;
   border: none;
   cursor: pointer;
-  font-size: 1.3rem;
+  font-size: 0.975rem; /* 1.3rem * 0.75 */
   font-weight: 300;
   transition: all 0.2s;
   white-space: nowrap;
@@ -2161,7 +2172,7 @@ const navigateToJobDetails = () => {
 
 .modal-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.125rem; /* 1.5rem * 0.75 */
   font-weight: 700;
   color: #111827;
 }
@@ -2169,7 +2180,7 @@ const navigateToJobDetails = () => {
 .close-btn {
   background: none;
   border: none;
-  font-size: 2rem;
+  font-size: 1.5rem; /* 2rem * 0.75 */
   color: #6b7280;
   cursor: pointer;
   line-height: 1;
@@ -2202,14 +2213,14 @@ const navigateToJobDetails = () => {
 }
 
 .info-label {
-  font-size: 0.875rem;
+  font-size: 0.65625rem; /* 0.875rem * 0.75 */
   color: #6b7280;
   margin: 0 0 0.25rem 0;
   font-weight: 500;
 }
 
 .info-value {
-  font-size: 1.25rem;
+  font-size: 0.9375rem; /* 1.25rem * 0.75 */
   font-weight: 700;
   color: #111827;
   margin: 0;
@@ -2221,7 +2232,7 @@ const navigateToJobDetails = () => {
 
 .form-label {
   display: block;
-  font-size: 0.875rem;
+  font-size: 0.65625rem; /* 0.875rem * 0.75 */
   font-weight: 600;
   color: #374151;
   margin-bottom: 0.5rem;
@@ -2232,7 +2243,7 @@ const navigateToJobDetails = () => {
   padding: 0.75rem 1rem;
   border: 2px solid #e5e7eb;
   border-radius: 0.5rem;
-  font-size: 1rem;
+  font-size: 0.75rem; /* 1rem * 0.75 */
   transition: all 0.2s;
   box-sizing: border-box;
 }
@@ -2248,7 +2259,7 @@ const navigateToJobDetails = () => {
   padding: 0.75rem 1rem;
   border: 2px solid #e5e7eb;
   border-radius: 0.5rem;
-  font-size: 0.875rem;
+  font-size: 0.65625rem; /* 0.875rem * 0.75 */
   resize: vertical;
   font-family: inherit;
   transition: all 0.2s;
@@ -2273,7 +2284,7 @@ const navigateToJobDetails = () => {
   padding: 0.875rem 1.5rem;
   border: none;
   border-radius: 0.5rem;
-  font-size: 1rem;
+  font-size: 0.75rem; /* 1rem * 0.75 */
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -2330,7 +2341,7 @@ const navigateToJobDetails = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.25rem;
+  font-size: 0.9375rem; /* 1.25rem * 0.75 */
   font-weight: bold;
   flex-shrink: 0;
 }
@@ -2339,7 +2350,7 @@ const navigateToJobDetails = () => {
   margin: 0;
   font-weight: 600;
   color: #065f46;
-  font-size: 0.9rem;
+  font-size: 0.675rem; /* 0.9rem * 0.75 */
 }
 
 .own-message .confirmed-text {
@@ -2366,11 +2377,11 @@ const navigateToJobDetails = () => {
 
   .offer-btn {
     padding: 0.625rem 1rem;
-    font-size: 0.85rem;
+    font-size: 0.6375rem; /* 0.85rem * 0.75 */
   }
 
   .offer-amount {
-    font-size: 1.5rem;
+    font-size: 1.125rem; /* 1.5rem * 0.75 */
   }
 }
 
@@ -2387,7 +2398,7 @@ const navigateToJobDetails = () => {
   color: white;
   border: none;
   border-radius: 0.5rem;
-  font-size: 0.875rem;
+  font-size: 0.65625rem; /* 0.875rem * 0.75 */
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -2406,7 +2417,7 @@ const navigateToJobDetails = () => {
 .star-btn {
   background: none;
   border: none;
-  font-size: 2rem;
+  font-size: 1.5rem; /* 2rem * 0.75 */
   opacity: 0.3;
   cursor: pointer;
   padding: 0;
@@ -2438,7 +2449,7 @@ const navigateToJobDetails = () => {
 }
 
 .price-label-text {
-  font-size: 0.875rem;
+  font-size: 0.65625rem; /* 0.875rem * 0.75 */
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -2446,14 +2457,14 @@ const navigateToJobDetails = () => {
 }
 
 .current-price-display {
-  font-size: 2.5rem;
+  font-size: 1.875rem; /* 2.5rem * 0.75 */
   font-weight: 700;
   margin-bottom: 0.5rem;
   color: #111827;
 }
 
 .price-subtext {
-  font-size: 0.875rem;
+  font-size: 0.65625rem; /* 0.875rem * 0.75 */
   margin: 0;
   color: #6b7280;
 }
@@ -2474,7 +2485,7 @@ const navigateToJobDetails = () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.875rem;
+  font-size: 0.65625rem; /* 0.875rem * 0.75 */
   font-weight: 600;
   color: #374151;
   margin-bottom: 0.5rem;
@@ -2489,7 +2500,7 @@ const navigateToJobDetails = () => {
 .currency-prefix {
   position: absolute;
   left: 1rem;
-  font-size: 1.25rem;
+  font-size: 0.9375rem; /* 1.25rem * 0.75 */
   font-weight: 600;
   color: #6b7280;
   pointer-events: none;
@@ -2497,7 +2508,7 @@ const navigateToJobDetails = () => {
 
 .offer-amount-input {
   padding-left: 2.5rem !important;
-  font-size: 1.25rem;
+  font-size: 0.9375rem; /* 1.25rem * 0.75 */
   font-weight: 600;
 }
 
@@ -2505,7 +2516,7 @@ const navigateToJobDetails = () => {
   margin-top: 0.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: 0.375rem;
-  font-size: 0.875rem;
+  font-size: 0.65625rem; /* 0.875rem * 0.75 */
   font-weight: 500;
   text-align: center;
   border: 1px solid;
@@ -2575,7 +2586,7 @@ const navigateToJobDetails = () => {
 
 @media (max-width: 768px) {
   .current-price-display {
-    font-size: 2rem;
+    font-size: 1.5rem; /* 2rem * 0.75 */
   }
   
   .current-price-section {

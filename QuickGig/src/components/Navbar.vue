@@ -456,7 +456,7 @@ export default {
 }
 
 .nav-container {
-  max-width: 1200px;
+  max-width: 1400px; /* Increased from 1200px */
   margin: 0 auto;
   padding: 0 2rem;
 }
@@ -465,15 +465,18 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 3rem; /* Added gap for better spacing */
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem; /* Increased from 0.5rem */
   font-size: 1.5rem;
   font-weight: bold;
   color: #000;
+  flex-shrink: 0; /* Prevent logo from shrinking */
+  margin-right: 2rem; /* Added right margin */
 }
 
 .logo-img {
@@ -485,12 +488,15 @@ export default {
 .logo-text {
   font-size: 2.5rem;
   cursor: pointer;
+  white-space: nowrap; /* Prevent text wrapping */
 }
 
 .nav-links {
   display: flex;
   gap: 1.25rem;
   align-items: center;
+  flex: 1; /* Allow nav links to take available space */
+  justify-content: flex-end; /* Push nav links to the right */
 }
 
 .nav-link {
@@ -805,6 +811,15 @@ export default {
   .nav-container {
     padding: 0 1rem;
   }
+  
+  .nav-content {
+    gap: 1.5rem;
+  }
+  
+  .logo {
+    gap: 0.5rem;
+    margin-right: 1rem;
+  }
 
   .logo-img {
     height: 35px;
@@ -861,6 +876,7 @@ export default {
   .logo {
     width: 100%;
     justify-content: center;
+    margin-right: 0; /* Remove margin on mobile */
   }
 
   .logo-img {

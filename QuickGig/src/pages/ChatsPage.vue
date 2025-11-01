@@ -310,11 +310,19 @@ const openChat = (chat) => {
 </script>
 
 <style scoped>
+@font-face {
+  font-family: 'Jersey 25';
+  src: url('@/assets/fonts/Jersey25-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 .chats-page {
   min-height: 100vh;
   background: #f5f5f5;
   padding: 2rem 1rem;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Jersey 25', sans-serif;
 }
 
 .container {
@@ -327,14 +335,14 @@ const openChat = (chat) => {
 }
 
 .page-title {
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 2.3rem;     /* 2rem * 1.15 */
+  font-weight: 350;      /* 700 / 2 */
   color: #111827;
   margin: 0;
 }
 
 .page-subtitle {
-  font-size: 1rem;
+  font-size: 1.15rem;    /* 1rem * 1.15 */
   color: #6b7280;
   margin: 0;
 }
@@ -374,12 +382,12 @@ const openChat = (chat) => {
 }
 
 .empty-icon {
-  font-size: 4rem;
+  font-size: 4.6rem;     /* 4rem * 1.15 */
   margin-bottom: 1rem;
 }
 
 .empty-state h2 {
-  font-size: 1.5rem;
+  font-size: 1.725rem;   /* 1.5rem * 1.15 */
   color: #111827;
   margin: 0 0 0.5rem 0;
 }
@@ -402,7 +410,7 @@ const openChat = (chat) => {
   color: white;
   text-decoration: none;
   border-radius: 0.5rem;
-  font-weight: 600;
+  font-weight: 300;      /* 600 / 2 */
   transition: all 0.2s;
 }
 
@@ -461,8 +469,8 @@ const openChat = (chat) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: 1.725rem;   /* 1.5rem * 1.15 */
+  font-weight: 300;      /* 600 / 2 */
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
@@ -475,8 +483,8 @@ const openChat = (chat) => {
 }
 
 .avatar-letter {
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: 1.725rem;   /* 1.5rem * 1.15 */
+  font-weight: 300;      /* 600 / 2 */
 }
 
 .avatar-badge {
@@ -515,14 +523,14 @@ const openChat = (chat) => {
 }
 
 .chat-name {
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.35rem;    /* 1.15rem * 1.17 (increased more for username) */
+  font-weight: 300;      /* 600 / 2 */
   color: #111827;
   margin: 0;
 }
 
 .chat-time {
-  font-size: 0.875rem;
+  font-size: 1.1rem;     /* 1.006rem * 1.09 */
   color: #6b7280;
   white-space: nowrap;
 }
@@ -534,9 +542,9 @@ const openChat = (chat) => {
 }
 
 .job-title {
-  font-size: 0.875rem;
+  font-size: 1.1rem;     /* 1.006rem * 1.09 */
   color: #2563eb;
-  font-weight: 500;
+  font-weight: 250;      /* 500 / 2 */
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -551,15 +559,15 @@ const openChat = (chat) => {
   padding: 0.125rem 0.5rem;
   background: #10b981;
   color: white;
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.88rem;    /* 0.805rem * 1.09 */
+  font-weight: 300;      /* 600 / 2 */
   border-radius: 0.25rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .last-message {
-  font-size: 0.875rem;
+  font-size: 1.1rem;     /* 1.006rem * 1.09 */
   color: #6b7280;
   margin: 0;
   overflow: hidden;
@@ -569,7 +577,7 @@ const openChat = (chat) => {
 
 .last-message.unread {
   color: #111827;
-  font-weight: 600;
+  font-weight: 300;      /* 600 / 2 */
 }
 
 .unread-badge {
@@ -581,8 +589,8 @@ const openChat = (chat) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 0.94rem;    /* 0.863rem * 1.09 */
+  font-weight: 350;      /* 700 / 2 */
   flex-shrink: 0;
   padding: 0 0.5rem;
   box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
@@ -599,7 +607,7 @@ const openChat = (chat) => {
   }
 
   .page-title {
-    font-size: 1.75rem;
+    font-size: 2.013rem; /* 1.75rem * 1.15 */
   }
 
   .chat-card {
@@ -612,7 +620,7 @@ const openChat = (chat) => {
   }
 
   .avatar-letter {
-    font-size: 1.25rem;
+    font-size: 1.438rem; /* 1.25rem * 1.15 */
   }
 
   .avatar-badge {
@@ -621,13 +629,22 @@ const openChat = (chat) => {
   }
 
   .chat-name {
-    font-size: 0.95rem;
+    font-size: 1.28rem;  /* 1.093rem * 1.17 */
+  }
+
+  .chat-time {
+    font-size: 0.94rem;  /* 0.863rem * 1.09 */
+  }
+
+  .job-title,
+  .last-message {
+    font-size: 1.0rem;   /* 0.92rem * 1.09 */
   }
 
   .unread-badge {
     min-width: 22px;
     height: 22px;
-    font-size: 0.7rem;
+    font-size: 0.88rem;  /* 0.805rem * 1.09 */
   }
 }
 
@@ -643,16 +660,16 @@ const openChat = (chat) => {
   }
 
   .avatar-letter {
-    font-size: 1.1rem;
+    font-size: 1.265rem; /* 1.1rem * 1.15 */
   }
 
   .chat-time {
-    font-size: 0.75rem;
+    font-size: 0.94rem;  /* 0.863rem * 1.09 */
   }
 
   .job-title,
   .last-message {
-    font-size: 0.8rem;
+    font-size: 1.0rem;   /* 0.92rem * 1.09 */
   }
 }
 </style>

@@ -619,19 +619,20 @@ const userIdFromSession = ref(null);
 const tierInfo = reactive({
   isHelper: false,
   currentXP: 0,
-  name: 'Emerald',
-  image: '/src/assets/emerald.png',
+  name: 'Silver',
+  image: '/src/assets/silver.png',
   progress: 0,
-  nextTier: 'Ruby',
+  nextTier: 'Gold',
   nextTierXP: 600,
   xpToNext: 600
 });
 
 const tiers = [
-  { name: 'Emerald', min: 0, max: 600, image: '/src/assets/emerald.png' },
-  { name: 'Ruby', min: 600, max: 1200, image: '/src/assets/ruby.png' },
-  { name: 'Sapphire', min: 1200, max: 1800, image: '/src/assets/sapphire.png' },
-  { name: 'Diamond', min: 1800, max: Infinity, image: '/src/assets/diamond.png' }
+  { name: 'Silver', min: 0, max: 600, image: '/src/assets/silver.png' },
+  { name: 'Gold', min: 600, max: 1200, image: '/src/assets/gold.png' },
+  { name: 'Diamond', min: 1200, max: 1800, image: '/src/assets/diamond.png' },
+  { name: 'Emerald', min: 1800, max: 2400, image: '/src/assets/emerald.png' },
+  { name: 'Ruby', min: 2400, max: Infinity, image: '/src/assets/ruby.png' }
 ];
 
 const activeListings = computed(() => userListings.value.filter(l => l.status === 'open'));
@@ -1821,6 +1822,7 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 .job-card, .listing-card { border:1px solid #e5e7eb; padding:1rem; border-radius:.5rem; }
 .job-card { display:flex; justify-content:space-between; align-items:start; }
 .job-right { display:flex; flex-direction:column; align-items:flex-end; gap:.5rem; }
+
 .job-amount { font-size:1.25rem; font-weight:700; color:#16a34a; }
 .status-badge { padding:.25rem .75rem; border-radius:9999px; font-size:.75rem; font-weight:600; }
 .status-completed { background:#dcfce7; color:#166534; }

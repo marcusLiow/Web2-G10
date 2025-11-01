@@ -36,10 +36,11 @@ const skillsList = [
 
 // Tier order for sorting (highest to lowest)
 const tierOrder = {
-  'Diamond': 4,
-  'Sapphire': 3,
-  'Ruby': 2,
-  'Emerald': 1,
+  'Ruby': 5,
+  'Emerald': 4,
+  'Diamond': 3,
+  'Gold': 2,
+  'Silver': 1,
   '': 0,
   null: 0
 };
@@ -48,6 +49,7 @@ const tierOrder = {
 function getTierImage(tier) {
   if (!tier) return null;
   const tierLower = tier.toLowerCase();
+  // You should have these images in your assets folder
   return `/src/assets/${tierLower}.png`;
 }
 
@@ -168,7 +170,7 @@ const fetchHelpers = async () => {
           latestReview: latestReviewMap[user.id] || null,
           canLeaveReview: false,
           hasReviewed: false,
-          tier: profile.helper_tier || 'Emerald',
+          tier: profile.helper_tier || 'Silver',
           tierXP: profile.helper_xp || 0
         };
       });
