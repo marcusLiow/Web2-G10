@@ -189,9 +189,34 @@
             <div class="content-body">
               <h2>My Job History</h2>
               
-              <div v-if="completedJobs.length" class="jobs-list">
+              <!-- Filter Buttons -->
+              <div class="job-history-filters">
+                <button 
+                  type="button"
+                  :class="['filter-btn', { active: jobHistoryFilter === 'all' }]"
+                  @click="jobHistoryFilter = 'all'"
+                >
+                  All Jobs <span class="filter-count">({{ completedJobs.length }})</span>
+                </button>
+                <button 
+                  type="button"
+                  :class="['filter-btn', { active: jobHistoryFilter === 'posted' }]"
+                  @click="jobHistoryFilter = 'posted'"
+                >
+                  Jobs I Posted <span class="filter-count">({{ postedJobsCount }})</span>
+                </button>
+                <button 
+                  type="button"
+                  :class="['filter-btn', { active: jobHistoryFilter === 'completed' }]"
+                  @click="jobHistoryFilter = 'completed'"
+                >
+                  Jobs I Completed <span class="filter-count">({{ completedAsHelperJobsCount }})</span>
+                </button>
+              </div>
+              
+              <div v-if="filteredCompletedJobs.length" class="jobs-list">
                 
-                <div v-for="job in completedJobs" :key="job.id || job.job_title" class="job-card">
+                <div v-for="job in filteredCompletedJobs" :key="job.id || job.job_title" class="job-card">
                   <div>
                     <h3>{{ job.job_title || job.title }}</h3>
                     <p class="completed-by">
@@ -207,8 +232,12 @@
                 </div>
               <div v-else class="empty-state">
                 <div class="empty-icon-text">No Jobs</div>
-                <p class="empty-title">No completed jobs yet</p>
-                <p class="empty-text">Completed jobs (both as poster and helper) will appear here.</p>
+                <p v-if="jobHistoryFilter === 'all'" class="empty-title">No completed jobs yet</p>
+                <p v-else-if="jobHistoryFilter === 'posted'" class="empty-title">No jobs posted yet</p>
+                <p v-else class="empty-title">No jobs completed as helper yet</p>
+                <p v-if="jobHistoryFilter === 'all'" class="empty-text">Completed jobs (both as poster and helper) will appear here.</p>
+                <p v-else-if="jobHistoryFilter === 'posted'" class="empty-text">Jobs you post for others will appear here once completed.</p>
+                <p v-else class="empty-text">Jobs you complete as a helper will appear here.</p>
               </div>
             </div>
           </div>
@@ -482,6 +511,7 @@ const isLoading = ref(true);
 const errorMessage = ref('');
 const currentUserId = ref(null);
 const loadingReviewsMsg = ref('');
+const jobHistoryFilter = ref('all'); // 'all', 'posted', 'completed'
 
 const activeTab = ref('skills');
 const tabs = [
@@ -601,6 +631,20 @@ const activeAndInProgressListings = computed(() => {
 const completedListings = computed(() => {
   return userListings.value.filter(l => l.status === 'completed');
 });
+
+// Computed property for filtered job history
+const filteredCompletedJobs = computed(() => {
+  if (jobHistoryFilter.value === 'posted') {
+    return completedJobs.value.filter(job => job.role === 'Job Poster');
+  } else if (jobHistoryFilter.value === 'completed') {
+    return completedJobs.value.filter(job => job.role === 'Helper');
+  }
+  return completedJobs.value; // 'all'
+});
+
+// Computed properties for job counts
+const postedJobsCount = computed(() => completedJobs.value.filter(job => job.role === 'Job Poster').length);
+const completedAsHelperJobsCount = computed(() => completedJobs.value.filter(job => job.role === 'Helper').length);
 
 function isDaySelected(day) {
   return editForm.availability_days.includes(day);
@@ -1712,6 +1756,48 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 
 .jobs-list, .listings-list { display:flex; flex-direction:column; gap:1rem; }
 .listings-section { margin-bottom:2rem; }
+
+/* Job History Filters */
+.job-history-filters {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.filter-btn {
+  padding: 0.5rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: white;
+  color: #6b7280;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.filter-btn.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: white;
+}
+
+.filter-count {
+  font-size: 0.8125rem;
+  opacity: 0.8;
+}
+
+.filter-btn.active .filter-count {
+  opacity: 0.9;
+}
+
 .section-title { font-size:1.125rem; font-weight:600; color:#374151; margin-bottom:1rem; padding-bottom:0.5rem; border-bottom:2px solid #e5e7eb; }
 .job-card, .listing-card { border:1px solid #e5e7eb; padding:1rem; border-radius:.5rem; }
 .job-card { display:flex; justify-content:space-between; align-items:start; }
@@ -1953,6 +2039,16 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
   .skill-card { flex-direction:column; align-items:flex-start; gap:.5rem; }
   .listing-footer { flex-direction:column; align-items:stretch; gap:1rem; }
   .listing-actions { flex-direction:column; }
+  
+  .job-history-filters {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .filter-btn {
+    width: 100%;
+    min-width: unset;
+  }
   
   .tier-container {
     flex-direction: column;
