@@ -114,7 +114,7 @@ const fetchHelperProfile = async () => {
       experience: profileData.experience || ['Contact for details'],
       rating: Math.round(Number(statsData?.avg_rating || 0) * 10) / 10,
       reviewCount: Number(statsData?.review_count || 0),
-      completedJobs: Number(statsData?.completed_jobs || 0),
+      completedJobs: Number(profileData.jobs_completed || 0),
       reviews: reviewsData || [],
       joinedDate: new Date(userData.created_at).toLocaleDateString('en-US', {
         year: 'numeric',
