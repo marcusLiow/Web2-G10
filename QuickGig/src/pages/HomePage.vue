@@ -71,7 +71,7 @@
           <div class="step-card">
             <div class="step-number">1</div>
             <div class="step-image">
-              <img src="https://www.reuters.com/resizer/v2/ZA4VDDIHVJMDHKFQZDTQGY5FLQ.jpg?auth=fcc8692434f2e20349dcd96036b2c6ff745c2a0e31480e8641e6a0886e34c54c&width=2965&quality=80" alt="Post a request">
+              <img src="@/assets/post_req.png" alt="Post a request">
             </div>
             <h3 class="step-title">Post a Request</h3>
             <p class="step-description">Let others know in detail what you need done!</p>
@@ -80,7 +80,7 @@
           <div class="step-card">
             <div class="step-number">2</div>
             <div class="step-image">
-              <img src="https://www.reuters.com/resizer/v2/ZA4VDDIHVJMDHKFQZDTQGY5FLQ.jpg?auth=fcc8692434f2e20349dcd96036b2c6ff745c2a0e31480e8641e6a0886e34c54c&width=2965&quality=80" alt="Choose helper">
+              <img src="@/assets/choose_helper.png" alt="Choose helper">
             </div>
             <h3 class="step-title">Choose the Helper</h3>
             <p class="step-description">Receive offers within seconds and look at their reviews to see who's best.</p>
@@ -89,7 +89,7 @@
           <div class="step-card">
             <div class="step-number">3</div>
             <div class="step-image">
-              <img src="https://www.reuters.com/resizer/v2/ZA4VDDIHVJMDHKFQZDTQGY5FLQ.jpg?auth=fcc8692434f2e20349dcd96036b2c6ff745c2a0e31480e8641e6a0886e34c54c&width=2965&quality=80" alt="Pay safely">
+              <img src="@/assets/pay_safely.png" alt="Pay safely">
             </div>
             <h3 class="step-title">Pay Safely</h3>
             <p class="step-description">Only release your payment once the request is done to your satisfaction.</p>

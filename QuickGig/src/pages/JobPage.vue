@@ -314,7 +314,6 @@ if (typeof window !== 'undefined') {
     <!-- Hero Image Section -->
     <div class="hero-section" :class="{ 'collapsed': isHeroCollapsed }">
       <div class="hero-image-container">
-        <!-- Replace 'your-image.jpg' with your actual image filename from src/assets -->
         <img src="@/assets/jobs.png" alt="Odd Jobs Hub" class="hero-image" />
         <div class="hero-overlay">
           <h1 class="hero-title">Find Your Next Opportunity</h1>
