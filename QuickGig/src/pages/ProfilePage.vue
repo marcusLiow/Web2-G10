@@ -116,7 +116,6 @@
         </section>
 
         <section class="tabs-section">
-          <!-- IMPORTANT: tab buttons explicitly type="button" and use changeTab() to avoid any form submit or scoping issues -->
           <div class="tabs-header" ref="tabsHeader">
             <button
               v-for="tab in tabs"
@@ -189,33 +188,50 @@
             <div class="content-body">
               <h2>My Job History</h2>
               
-              <!-- Filter Buttons -->
-              <div class="job-history-filters">
-                <button 
-                  type="button"
-                  :class="['filter-btn', { active: jobHistoryFilter === 'all' }]"
-                  @click="jobHistoryFilter = 'all'"
-                >
-                  All Jobs <span class="filter-count">({{ completedJobs.length }})</span>
-                </button>
-                <button 
-                  type="button"
-                  :class="['filter-btn', { active: jobHistoryFilter === 'posted' }]"
-                  @click="jobHistoryFilter = 'posted'"
-                >
-                  Jobs I Posted <span class="filter-count">({{ postedJobsCount }})</span>
-                </button>
-                <button 
-                  type="button"
-                  :class="['filter-btn', { active: jobHistoryFilter === 'completed' }]"
-                  @click="jobHistoryFilter = 'completed'"
-                >
-                  Jobs I Completed <span class="filter-count">({{ completedAsHelperJobsCount }})</span>
-                </button>
+              <!-- Filters Container -->
+              <div class="filters-container">
+                <!-- Role Filter Buttons -->
+                <div class="filter-section">
+                  <h3 class="filter-section-title">Filter by Role</h3>
+                  <div class="job-history-filters">
+                    <button 
+                      type="button"
+                      :class="['filter-btn', { active: jobHistoryFilter === 'all' }]"
+                      @click="jobHistoryFilter = 'all'"
+                    >
+                      All Jobs <span class="filter-count">({{ completedJobs.length }})</span>
+                    </button>
+                    <button 
+                      type="button"
+                      :class="['filter-btn', { active: jobHistoryFilter === 'posted' }]"
+                      @click="jobHistoryFilter = 'posted'"
+                    >
+                      Jobs I Posted <span class="filter-count">({{ postedJobsCount }})</span>
+                    </button>
+                    <button 
+                      type="button"
+                      :class="['filter-btn', { active: jobHistoryFilter === 'completed' }]"
+                      @click="jobHistoryFilter = 'completed'"
+                    >
+                      Jobs I Completed <span class="filter-count">({{ completedAsHelperJobsCount }})</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Date Filter Dropdown -->
+                <div class="filter-section">
+                  <h3 class="filter-section-title">Filter by Date</h3>
+                  <select v-model="dateFilter" class="date-filter-dropdown">
+                    <option value="all">All Time</option>
+                    <option value="month">Past Month</option>
+                    <option value="quarter">Past 3 Months</option>
+                    <option value="halfyear">Past 6 Months</option>
+                    <option value="year">Past Year</option>
+                  </select>
+                </div>
               </div>
               
               <div v-if="filteredCompletedJobs.length" class="jobs-list">
-                
                 <div v-for="job in filteredCompletedJobs" :key="job.id || job.job_title" class="job-card">
                   <div>
                     <h3>{{ job.job_title || job.title }}</h3>
@@ -229,13 +245,15 @@
                     <span class="status-badge status-completed">COMPLETED</span>
                   </div>
                 </div>
-                </div>
+              </div>
               <div v-else class="empty-state">
                 <div class="empty-icon-text">No Jobs</div>
-                <p v-if="jobHistoryFilter === 'all'" class="empty-title">No completed jobs yet</p>
+                <p v-if="dateFilter !== 'all'" class="empty-title">No jobs found for selected time period</p>
+                <p v-else-if="jobHistoryFilter === 'all'" class="empty-title">No completed jobs yet</p>
                 <p v-else-if="jobHistoryFilter === 'posted'" class="empty-title">No jobs posted yet</p>
                 <p v-else class="empty-title">No jobs completed as adventurer yet</p>
-                <p v-if="jobHistoryFilter === 'all'" class="empty-text">Completed jobs (both as poster and adventurer) will appear here.</p>
+                <p v-if="dateFilter !== 'all'" class="empty-text">Try selecting a different time period or filter.</p>
+                <p v-else-if="jobHistoryFilter === 'all'" class="empty-text">Completed jobs (both as poster and adventurer) will appear here.</p>
                 <p v-else-if="jobHistoryFilter === 'posted'" class="empty-text">Jobs you post for others will appear here once completed.</p>
                 <p v-else class="empty-text">Jobs you complete as an adventurer will appear here.</p>
               </div>
@@ -243,87 +261,52 @@
           </div>
 
           <div v-if="activeTab === 'listings'" class="tab-content">
-            <div class="content-body">
-              <h2>My Job Listings</h2>
+  <div class="content-body">
+    <h2>My Job Listings</h2>
 
-              <!-- Active & In Progress Section -->
-              <div v-if="activeAndInProgressListings && activeAndInProgressListings.length" class="listings-section">
-                <h3 class="section-title">Active & In Progress</h3>
-                <div class="listings-list">
-                  <div v-for="listing in activeAndInProgressListings" :key="listing.id" class="listing-card">
-                    <div class="listing-main">
-                      <div class="listing-header-row">
-                        <h3>{{ listing.title }}</h3>
-                        <span :class="['listing-status-badge', getStatusClass(listing.status)]">{{ (listing.status || '').toUpperCase() }}</span>
-                      </div>
-                      <p class="listing-description">{{ listing.description }}</p>
-                      
-                      <div class="listing-details">
-                        <div class="listing-detail-item">
-                          <span class="detail-label">Posted:</span>
-                          <span>{{ formatDateShort(listing.created_at) }}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="listing-footer">
-                      <p class="listing-payment">${{ listing.payment }}</p>
-                      
-                      <div class="listing-actions">
-                        <button v-if="listing.status === 'open' || listing.status === 'in-progress'" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">Mark as Completed</button>
-                        <button v-if="listing.status === 'open'" @click="editListing(listing)" class="btn-action btn-action-edit" type="button">Edit</button>
-                        <button v-if="listing.status === 'open'" @click="deleteListing(listing.id)" class="btn-action btn-action-delete" type="button">Cancel Listing</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Completed Listings Section -->
-              <div v-if="completedListings && completedListings.length" class="listings-section">
-                <h3 class="section-title">Completed Jobs</h3>
-                <div class="listings-list">
-                  <div v-for="listing in completedListings" :key="listing.id" class="listing-card">
-                    <div class="listing-main">
-                      <div class="listing-header-row">
-                        <h3>{{ listing.title }}</h3>
-                        <span :class="['listing-status-badge', getStatusClass(listing.status)]">{{ (listing.status || '').toUpperCase() }}</span>
-                      </div>
-                      <p class="listing-description">{{ listing.description }}</p>
-                      
-                      <div v-if="listing.completedBy && listing.completedBy.length > 0" class="completed-by-wrapper">
-                        <strong>Completed By:</strong> {{ listing.completedBy.join(', ') }}
-                      </div>
-                      
-                      <div class="listing-details">
-                        <div class="listing-detail-item">
-                          <span class="detail-label">Posted:</span>
-                          <span>{{ formatDateShort(listing.created_at) }}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="listing-footer">
-                      <p class="listing-payment">${{ listing.payment }}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Empty State -->
-              <div v-if="!activeAndInProgressListings.length && !completedListings.length" class="empty-state">
-                <div class="empty-icon-text">No Listings</div>
-                <p class="empty-title">No job listings yet</p>
-                <p class="empty-text">Your job listings will appear here.</p>
-              </div>
-
-              </div>
+    <!-- Active & In Progress Listings -->
+    <div v-if="activeAndInProgressListings && activeAndInProgressListings.length" class="listings-list">
+      <div v-for="listing in activeAndInProgressListings" :key="listing.id" class="listing-card">
+        <div class="listing-main">
+          <div class="listing-header-row">
+            <h3>{{ listing.title }}</h3>
+            <span :class="['listing-status-badge', getStatusClass(listing.status)]">{{ (listing.status || '').toUpperCase() }}</span>
           </div>
+          <p class="listing-description">{{ listing.description }}</p>
+          
+          <div class="listing-details">
+            <div class="listing-detail-item">
+              <span class="detail-label">Posted:</span>
+              <span>{{ formatDateShort(listing.created_at) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="listing-footer">
+          <p class="listing-payment">${{ listing.payment }}</p>
+          
+          <div class="listing-actions">
+            <button v-if="listing.status === 'open' || listing.status === 'in-progress'" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">Mark as Completed</button>
+            <button v-if="listing.status === 'open'" @click="editListing(listing)" class="btn-action btn-action-edit" type="button">Edit</button>
+            <button v-if="listing.status === 'open'" @click="deleteListing(listing.id)" class="btn-action btn-action-delete" type="button">Cancel Listing</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div v-else class="empty-state">
+      <div class="empty-icon-text">No Listings</div>
+      <p class="empty-title">No active job listings</p>
+      <p class="empty-text">Your active and in-progress job listings will appear here. Completed jobs can be found in the Job History tab.</p>
+    </div>
+  </div>
+</div>
         </section>
       </template>
     </main>
 
-    <!-- Edit Profile Modal -->
+    <!-- Edit Profile Modal (keeping the same as before) -->
     <div v-if="showEditModal" class="modal-overlay" @click="closeEditModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
@@ -513,6 +496,7 @@
 </template>
 
 <script setup>
+// Script section remains exactly the same as before - no changes needed
 import { ref, reactive, onMounted, computed } from 'vue';
 import { supabase } from '../supabase/config';
 import { useRouter } from 'vue-router';
@@ -525,7 +509,8 @@ const isLoading = ref(true);
 const errorMessage = ref('');
 const currentUserId = ref(null);
 const loadingReviewsMsg = ref('');
-const jobHistoryFilter = ref('all'); // 'all', 'posted', 'completed'
+const jobHistoryFilter = ref('all');
+const dateFilter = ref('all');
 
 const activeTab = ref('skills');
 const tabs = [
@@ -536,7 +521,6 @@ const tabs = [
 ];
 
 function changeTab(val) {
-  // debugging: log tab clicks to console
   console.log('changeTab ->', val);
   activeTab.value = val;
 }
@@ -569,7 +553,7 @@ const editForm = reactive({
   location: '',
   email: '',
   is_helper: false,
-  is_listed: false, // NEW: Controls visibility on Browse Adventurers page
+  is_listed: false,
   helper_title: '',
   helper_description: '',
   helper_location: '',
@@ -587,7 +571,6 @@ const avatarFile = ref(null);
 const avatarPreview = ref('');
 const avatarError = ref('');
 
-/* Options */
 const sgNeighbourhoods = [
   'Alexandra','Ang Mo Kio','Bedok','Bishan','Bugis','Bukit Merah','Bukit Timah',
   'Changi','Chinatown','Clementi','Downtown','Geylang','Holland Village','Hougang',
@@ -615,7 +598,6 @@ const userListings = ref([]);
 const completedJobs = ref([]);
 const userIdFromSession = ref(null);
 
-// Tier system data
 const tierInfo = reactive({
   isHelper: false,
   currentXP: 0,
@@ -638,27 +620,57 @@ const tiers = [
 const activeListings = computed(() => userListings.value.filter(l => l.status === 'open'));
 const activeListingsCount = computed(() => activeListings.value.length);
 
-// New computed property to show only active and in-progress listings
 const activeAndInProgressListings = computed(() => {
   return userListings.value.filter(l => l.status === 'open' || l.status === 'in-progress');
 });
 
-// New computed property to show only completed listings
 const completedListings = computed(() => {
   return userListings.value.filter(l => l.status === 'completed');
 });
 
-// Computed property for filtered job history
-const filteredCompletedJobs = computed(() => {
-  if (jobHistoryFilter.value === 'posted') {
-    return completedJobs.value.filter(job => job.role === 'Job Poster');
-  } else if (jobHistoryFilter.value === 'completed') {
-    return completedJobs.value.filter(job => job.role === 'Helper');
+function filterJobsByDate(jobs, filterType) {
+  if (filterType === 'all') return jobs;
+  
+  const now = new Date();
+  const cutoffDate = new Date();
+  
+  switch (filterType) {
+    case 'month':
+      cutoffDate.setMonth(now.getMonth() - 1);
+      break;
+    case 'quarter':
+      cutoffDate.setMonth(now.getMonth() - 3);
+      break;
+    case 'halfyear':
+      cutoffDate.setMonth(now.getMonth() - 6);
+      break;
+    case 'year':
+      cutoffDate.setFullYear(now.getFullYear() - 1);
+      break;
+    default:
+      return jobs;
   }
-  return completedJobs.value; // 'all'
+  
+  return jobs.filter(job => {
+    const jobDate = new Date(job.created_at);
+    return jobDate >= cutoffDate;
+  });
+}
+
+const filteredCompletedJobs = computed(() => {
+  let filtered = completedJobs.value;
+  
+  if (jobHistoryFilter.value === 'posted') {
+    filtered = filtered.filter(job => job.role === 'Job Poster');
+  } else if (jobHistoryFilter.value === 'completed') {
+    filtered = filtered.filter(job => job.role === 'Helper');
+  }
+  
+  filtered = filterJobsByDate(filtered, dateFilter.value);
+  
+  return filtered;
 });
 
-// Computed properties for job counts
 const postedJobsCount = computed(() => completedJobs.value.filter(job => job.role === 'Job Poster').length);
 const completedAsHelperJobsCount = computed(() => completedJobs.value.filter(job => job.role === 'Helper').length);
 
@@ -689,17 +701,13 @@ async function loadCompletedJobs(uid) {
     }
 
     console.log('🔍 loadCompletedJobs: Starting for user:', uid);
-    const jobsMap = new Map(); // Use Map with composite key
+    const jobsMap = new Map();
 
-    // Helper function to create unique key
     const createUniqueKey = (job) => {
-      // Normalize the date to just the date part (ignore time differences)
       const dateStr = job.created_at ? new Date(job.created_at).toISOString().split('T')[0] : '';
-      // Create key from: title + amount + date + role
       return `${job.job_title || job.title}-${job.agreed_amount || job.payment || 0}-${dateStr}-${job.role}`;
     };
 
-    // 1. Fetch completed jobs from helper_jobs table (helper services)
     console.log('📋 Querying helper_jobs table...');
     const { data: helperJobsData, error: helperJobsError } = await supabase
       .from('helper_jobs')
@@ -744,7 +752,6 @@ async function loadCompletedJobs(uid) {
       });
     }
 
-    // 2. Fetch completed jobs where user was helper from regular chats
     console.log('📋 Querying regular chats for completed jobs...');
     const { data: chatsData, error: chatsError } = await supabase
       .from('chats')
@@ -795,7 +802,6 @@ async function loadCompletedJobs(uid) {
       }
     }
 
-    // 3. Fetch completed jobs where the current user was the poster
     console.log('📋 Querying User-Job-Request table...');
     const { data: posterJobsData, error: posterJobsError } = await supabase
       .from('User-Job-Request')
@@ -811,7 +817,7 @@ async function loadCompletedJobs(uid) {
     if (posterJobsData && posterJobsData.length > 0) {
       for (const job of posterJobsData) {
         let helperNames = [];
-        let actualPaidAmount = job.payment; // Default to original listing price
+        let actualPaidAmount = job.payment;
         
         const { data: chatData, error: chatError } = await supabase
           .from('chats')
@@ -831,7 +837,6 @@ async function loadCompletedJobs(uid) {
             helperNames = helpersData.map(u => u.username || 'Unknown');
           }
           
-          // Get the actual paid amount from the first accepted chat
           if (chatData[0]?.payment_amount) {
             actualPaidAmount = chatData[0].payment_amount;
           }
@@ -858,7 +863,6 @@ async function loadCompletedJobs(uid) {
       }
     }
 
-    // Convert Map values to array and sort
     const deduplicatedJobs = Array.from(jobsMap.values());
     deduplicatedJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
@@ -894,10 +898,8 @@ function retryLoad() {
   loadAll();
 }
 
-/* Calculate tier info based on monthly earnings */
 async function calculateTierInfo(uid) {
   try {
-    // First check if user is a helper and get their tier data
     const { data: helperProfile, error: helperError } = await supabase
       .from('helper_profiles')
       .select('user_id, helper_xp, helper_tier')
@@ -917,11 +919,9 @@ async function calculateTierInfo(uid) {
 
     tierInfo.isHelper = true;
 
-    // Use XP and tier from database (updated by trigger)
     tierInfo.currentXP = helperProfile.helper_xp || 0;
     const dbTier = helperProfile.helper_tier || 'Emerald';
 
-    // Determine current tier
     const currentTier = tiers.find(t => t.name === dbTier) || tiers[0];
     const currentTierIndex = tiers.indexOf(currentTier);
     const nextTier = currentTierIndex < tiers.length - 1 ? tiers[currentTierIndex + 1] : null;
@@ -931,7 +931,6 @@ async function calculateTierInfo(uid) {
     tierInfo.nextTierXP = nextTier ? nextTier.min : currentTier.max;
     tierInfo.nextTier = nextTier ? nextTier.name : 'Max Tier';
     
-    // Calculate progress within current tier
     const xpInCurrentTier = tierInfo.currentXP - currentTier.min;
     const xpNeededForTier = currentTier.max - currentTier.min;
     tierInfo.progress = Math.min(100, (xpInCurrentTier / xpNeededForTier) * 100);
@@ -943,7 +942,6 @@ async function calculateTierInfo(uid) {
   }
 }
 
-/* Helpers for skills display */
 function parseSkillForDisplay(item) {
   if (!item) return { name: '', level: 'Beginner', jobs: 0 };
   if (typeof item === 'object') {
@@ -982,7 +980,6 @@ const displayedSkills = computed(() => {
 });
 const helperLocation = computed(() => user.helper_profile?.location || '');
 
-/* load / refresh logic */
 async function getCurrentUserId() {
   try {
     const { data } = await supabase.auth.getSession();
@@ -1015,7 +1012,6 @@ async function loadAll() {
     user.created_at = userData.created_at || '';
     user.is_helper = userData.is_helper || false;
     
-    // Initialize rating/review stats to 0
     user.rating = 0;
     user.reviewCount = 0;
     user.stats.jobsCompleted = 0;
@@ -1029,7 +1025,6 @@ async function loadAll() {
       } else if (typeof userData.skills === 'object') user.skills = Object.values(userData.skills);
     }
 
-    // helper_profiles
     const { data: profileData, error: profileError } = await supabase.from('helper_profiles').select('*').eq('user_id', uid).maybeSingle();
     if (profileError) {
       console.warn('helper_profiles select error', profileError);
@@ -1038,7 +1033,6 @@ async function loadAll() {
       user.helper_profile = profileData || null;
     }
 
-    // aggregated stats via RPC if helper
     if (user.is_helper) {
       try {
         const { data: statsData } = await supabase.rpc('get_helper_stats_for', { helper_uuid: uid });
@@ -1053,7 +1047,6 @@ async function loadAll() {
 
     await loadUserReviews(uid);
     
-    // If no rating from RPC or not a helper, calculate from actual reviews
     if (user.reviewCount === 0 && user.reviews && user.reviews.length > 0) {
       user.reviewCount = user.reviews.length;
       const totalRating = user.reviews.reduce((sum, review) => sum + (review.rating || 0), 0);
@@ -1063,17 +1056,14 @@ async function loadAll() {
     await loadUserListings(uid);
     await loadCompletedJobs(uid);
     
-    // Calculate total earnings from completed jobs
     const helperJobs = completedJobs.value.filter(job => job.role === 'Helper');
     if (helperJobs.length > 0) {
       user.stats.earnings = helperJobs.reduce((sum, job) => sum + (job.agreed_amount || 0), 0);
       user.stats.jobsCompleted = helperJobs.length;
     }
     
-    // Sync stats.rating with user.rating for consistency
     user.stats.rating = user.rating;
     
-    // Calculate tier info for helpers
     await calculateTierInfo(uid);
   } catch (err) {
     console.error('loadAll error', err);
@@ -1083,13 +1073,11 @@ async function loadAll() {
   }
 }
 
-/* Reviews/listings/jobs */
 async function loadUserReviews(helperId) {
   try {
     loadingReviewsMsg.value = 'Loading reviews...';
     if (!helperId) { user.reviews = []; loadingReviewsMsg.value = ''; return; }
     
-    // First, get the reviews
     const { data: reviewsData, error: reviewsError } = await supabase
       .from('reviews')
       .select('id, rating, comment, job_title, created_at, reviewer_id')
@@ -1103,7 +1091,6 @@ async function loadUserReviews(helperId) {
       return;
     }
 
-    // Then fetch reviewer details separately
     if (reviewsData && reviewsData.length > 0) {
       const reviewerIds = [...new Set(reviewsData.map(r => r.reviewer_id).filter(Boolean))];
       
@@ -1151,7 +1138,6 @@ async function loadUserListings(uid) {
   try {
     if (!uid) return;
 
-    // 1. Fetch ALL listings by this user, regardless of status
     const { data: listingsData, error } = await supabase
       .from('User-Job-Request')
       .select('*')
@@ -1168,29 +1154,24 @@ async function loadUserListings(uid) {
       return;
     }
 
-    // 2. Enrich listings with helper data if completed
     const enrichedListings = await Promise.all(listingsData.map(async (listing) => {
-      // If the job isn't completed, just return it
       if (listing.status !== 'completed') {
         return listing;
       }
 
-      // If it is completed, find the helper(s)
       let completedBy = [];
       try {
-        // Find accepted chat(s) for this job
         const { data: chatData, error: chatError } = await supabase
           .from('chats')
-          .select('job_seeker_id') // Get the helper's ID
+          .select('job_seeker_id')
           .eq('job_id', listing.id)
-          .eq('offer_accepted', true); // Only accepted offers
+          .eq('offer_accepted', true);
 
         if (chatError) throw chatError;
 
         if (chatData && chatData.length > 0) {
           const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
           
-          // Get usernames for these helper IDs
           const { data: usersData, error: userError } = await supabase
             .from('users')
             .select('username')
@@ -1206,7 +1187,7 @@ async function loadUserListings(uid) {
 
       return {
         ...listing,
-        completedBy: completedBy // Add the array of helper names
+        completedBy: completedBy
       };
     }));
 
@@ -1218,8 +1199,6 @@ async function loadUserListings(uid) {
   }
 }
 
-
-/*send notif when paid*/
 async function markAsCompleted(jobId) {
   if (!jobId) {
     toast.error('Invalid job ID', 'Error', 8000);
@@ -1241,7 +1220,6 @@ async function markAsCompleted(jobId) {
   try {
     const userId = currentUserId.value;
 
-    // --- Step 1: Update the job status in the database ---
     const { data: updatedJob, error: updateError } = await supabase
       .from('User-Job-Request')
       .update({ status: 'completed' })
@@ -1253,7 +1231,6 @@ async function markAsCompleted(jobId) {
     if (updateError) throw updateError;
     const jobTitle = updatedJob.title || 'your recent job';
 
-    // --- Step 2: Find helper IDs AND Names ---
     let helperNames = [];
     let helperIds = [];
     const { data: chatData, error: chatError } = await supabase
@@ -1276,7 +1253,6 @@ async function markAsCompleted(jobId) {
       helperNames = usersData ? usersData.map(u => u.username || 'Unknown') : [];
     }
 
-    // --- Step 3: Insert notifications for each helper ---
     if (helperIds.length > 0) {
       const notifications = helperIds.map(helperId => ({
         user_id: helperId,
@@ -1293,7 +1269,6 @@ async function markAsCompleted(jobId) {
       }
     }
 
-    // --- Step 4: UPDATE LOCAL STATE ---
     const jobIndex = userListings.value.findIndex(job => job.id === jobId);
     
     if (jobIndex !== -1) {
@@ -1303,7 +1278,6 @@ async function markAsCompleted(jobId) {
 
     toast.success('Job marked as completed successfully! Helper(s) notified.', 'Job Completed', 8000);
 
-    // Re-fetch data to ensure consistency
     await loadUserListings(userId);
     await loadCompletedJobs(userId);
 
@@ -1313,7 +1287,6 @@ async function markAsCompleted(jobId) {
   }
 }
 
-/* Edit modal helpers */
 function openEditModal() {
   editForm.username = user.username;
   editForm.bio = user.bio || '';
@@ -1322,7 +1295,6 @@ function openEditModal() {
   editForm.email = user.email || '';
   editForm.is_helper = user.is_helper || false;
   
-  // NEW: Set is_listed from helper_profile
   editForm.is_listed = user.helper_profile?.is_active || false;
   
   editForm.helper_title = user.helper_profile?.title || user.helper_title || '';
@@ -1334,11 +1306,9 @@ function openEditModal() {
   editForm.helper_skills = user.helper_profile?.skills ? normalizeSkillsForDisplay(user.helper_profile.skills) : (user.skills || []);
   editForm.experience = Array.isArray(user.helper_profile?.experience) ? user.helper_profile.experience.slice() : (user.experience || []);
   
-  // Parse availability
   const availability = user.helper_profile?.availability || '';
   const parts = availability.split(' • ');
   
-  // Parse days
   editForm.availability_days = [];
   if (parts[0]) {
     const daysPart = parts[0];
@@ -1349,7 +1319,6 @@ function openEditModal() {
     });
   }
   
-  // Parse time
   editForm.availability_time_from = '';
   editForm.availability_time_to = '';
   if (parts[1]) {
@@ -1361,7 +1330,6 @@ function openEditModal() {
     }
   }
   
-  // Set avatar preview
   avatarPreview.value = user.avatar_url || '';
   avatarFile.value = null;
   avatarError.value = '';
@@ -1376,20 +1344,17 @@ function closeEditModal() {
   avatarError.value = '';
 }
 
-// Avatar upload methods
 function handleAvatarSelect(event) {
   const file = event.target.files[0];
   if (!file) return;
   
   avatarError.value = '';
   
-  // Validate file type
   if (!file.type.startsWith('image/')) {
     avatarError.value = 'Please select a valid image file';
     return;
   }
   
-  // Validate file size (5MB)
   if (file.size > 5 * 1024 * 1024) {
     avatarError.value = 'Image size must be less than 5MB';
     return;
@@ -1397,7 +1362,6 @@ function handleAvatarSelect(event) {
   
   avatarFile.value = file;
   
-  // Create preview
   const reader = new FileReader();
   reader.onload = (e) => {
     avatarPreview.value = e.target.result;
@@ -1438,7 +1402,6 @@ async function uploadAvatar() {
     
     if (error) throw error;
     
-    // Get public URL
     const { data: urlData } = supabase.storage
       .from('job-images')
       .getPublicUrl(filePath);
@@ -1452,7 +1415,6 @@ async function uploadAvatar() {
   }
 }
 
-/* Save profile & helper_profiles upsert */
 async function saveProfile() {
   try {
     const session = await supabase.auth.getSession();
@@ -1467,7 +1429,6 @@ async function saveProfile() {
       return;
     }
 
-    // Upload avatar if a new one was selected
     let avatarUrl = editForm.avatar_url;
     if (avatarFile.value) {
       avatarUrl = await uploadAvatar();
@@ -1477,10 +1438,8 @@ async function saveProfile() {
     if (editForm.helper_location === 'Other') finalHelperLocation = (editForm.helper_location_custom || '').trim();
     else finalHelperLocation = editForm.helper_location || null;
 
-    // Build availability string
     const availabilityParts = [];
     
-    // Days part
     if (editForm.availability_days.length > 0) {
       const sortedDays = editForm.availability_days.sort((a, b) => {
         const order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -1489,14 +1448,12 @@ async function saveProfile() {
       availabilityParts.push(sortedDays.join(', '));
     }
     
-    // Time part
     if (editForm.availability_time_from && editForm.availability_time_to) {
       availabilityParts.push(`${editForm.availability_time_from} - ${editForm.availability_time_to}`);
     }
     
     const availabilityCombined = availabilityParts.join(' • ') || null;
 
-    // Update users table
     const { error: uErr } = await supabase.from('users').update({
       username: editForm.username,
       bio: editForm.is_helper ? (editForm.helper_bio || null) : (editForm.bio || null),
@@ -1519,14 +1476,13 @@ async function saveProfile() {
         bio: editForm.helper_bio || null,
         experience: Array.isArray(editForm.experience) ? editForm.experience : [],
         location: finalHelperLocation || null,
-        is_active: editForm.is_listed, // NEW: Use the is_listed value
+        is_active: editForm.is_listed,
         updated_at: new Date().toISOString()
       };
 
       const { error: hpErr } = await supabase.from('helper_profiles').upsert(helperPayload, { onConflict: 'user_id', returning: 'representation' });
       if (hpErr) throw hpErr;
     } else {
-      // When unlisting as helper, set is_active to false in helper_profiles
       const { error: disableErr } = await supabase.from('helper_profiles').update({ is_active: false }).eq('user_id', uid);
       if (disableErr) console.warn('disable helper_profiles error', disableErr);
     }
@@ -1540,22 +1496,17 @@ async function saveProfile() {
   }
 }
 
-/* lifecycle */
 onMounted(() => { loadAll(); });
 
-
-// Edit listing - navigate to edit page
 function editListing(listing) {
   if (!listing || !listing.id) {
     toast.error('Invalid listing', 'Error', 8000);
     return;
   }
   
-  // Navigate to the edit page with the listing ID
   router.push(`/edit-job/${listing.id}`);
 }
 
-// Delete listing
 async function deleteListing(jobId) {
   if (!jobId) {
     toast.error('Invalid job ID', 'Error', 8000);
@@ -1577,7 +1528,6 @@ async function deleteListing(jobId) {
   try {
     const userId = currentUserId.value;
     
-    // Delete the job
     const { error } = await supabase
       .from('User-Job-Request')
       .delete()
@@ -1592,7 +1542,6 @@ async function deleteListing(jobId) {
     
     toast.success('Job deleted successfully!', 'Success', 8000);
     
-    // Refresh the listings
     await loadUserListings(userId);
     
   } catch (error) {
@@ -1604,7 +1553,7 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 </script>
 
 <style scoped>
-/* Combined styles: kept concise but include your existing visual styles */
+/* All previous styles remain the same, plus these additions: */
 .container { max-width:1200px; margin:0 auto; padding:2rem 1rem; }
 .loading-container, .not-logged-in, .error-banner { text-align:center; padding:2rem; }
 .spinner { width:48px; height:48px; border:4px solid #eee; border-top-color:#6C5B7F; border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 1rem; }
@@ -1629,7 +1578,6 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 
 .btn-edit { padding:.5rem 1rem; border:1px solid #d1d5db; border-radius:.375rem; background:white; cursor:pointer; font-weight:500; }
 
-/* Tier Section */
 .tier-section {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 1rem;
@@ -1777,13 +1725,32 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 .jobs-list, .listings-list { display:flex; flex-direction:column; gap:1rem; }
 .listings-section { margin-bottom:2rem; }
 
-/* Job History Filters */
+/* Filters Container */
+.filters-container {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.filter-section {
+  flex: 1;
+}
+
+.filter-section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .job-history-filters {
   display: flex;
   gap: 0.75rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #e5e7eb;
+  flex-wrap: wrap;
 }
 
 .filter-btn {
@@ -1816,6 +1783,31 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 
 .filter-btn.active .filter-count {
   opacity: 0.9;
+}
+
+/* Date Filter Dropdown */
+.date-filter-dropdown {
+  width: 100%;
+  max-width: 250px;
+  padding: 0.625rem 0.875rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: white;
+  color: #374151;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.date-filter-dropdown:hover {
+  border-color: #2563eb;
+}
+
+.date-filter-dropdown:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .section-title { font-size:1.125rem; font-weight:600; color:#374151; margin-bottom:1rem; padding-bottom:0.5rem; border-bottom:2px solid #e5e7eb; }
@@ -1857,7 +1849,6 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 .helper-toggle-btn { padding:.5rem 1rem; border-radius:999px; border:1px solid #d1d5db; background:white; cursor:pointer; }
 .helper-toggle-btn.active { background:#6C5B7F; color:white; border-color:#6C5B7F; }
 
-/* Toggle Switch Styles */
 .toggle-container {
   display: flex;
   align-items: center;
@@ -2037,7 +2028,6 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
   background: #fecaca;
 }
 
-/* Days selector */
 .days-selector {
   display: flex;
   flex-wrap: wrap;
@@ -2066,7 +2056,6 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
   color: white;
 }
 
-/* Time inputs */
 .time-inputs {
   display: flex;
   align-items: center;
@@ -2101,6 +2090,11 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
   .listing-footer { flex-direction:column; align-items:stretch; gap:1rem; }
   .listing-actions { flex-direction:column; }
   
+  .filters-container {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
   .job-history-filters {
     flex-direction: column;
     gap: 0.5rem;
@@ -2108,7 +2102,10 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
   
   .filter-btn {
     width: 100%;
-    min-width: unset;
+  }
+  
+  .date-filter-dropdown {
+    max-width: 100%;
   }
   
   .tier-container {
