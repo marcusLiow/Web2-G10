@@ -1559,7 +1559,7 @@ const navigateToProfile = () => {
   */
   height: 100dvh; /* Use dynamic viewport height */
   max-height: 100dvh;
-  padding-top: 80px; /* Add padding to offset the navbar. Adjust this value to your navbar's height */
+  padding-top: 92px; /* Navbar height: logo (60px) + padding (1rem top + 1rem bottom = 32px) = 92px */
   box-sizing: border-box; /* Ensures padding is included in the height calculation */
   width: 100%;
   position: fixed;
@@ -1577,7 +1577,7 @@ const navigateToProfile = () => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   flex-shrink: 0; /* Prevents the header from shrinking */
   position: fixed; /* Fix the header to the top of the .chat-page container */
-  top: 90px; /* Position it right below the main navbar */
+  top: 92px; /* Position it right below the main navbar (92px) */
   left: 0;
   width: 100%;
   z-index: 20; /* Ensure it's above the messages container */
@@ -2505,6 +2505,26 @@ const navigateToProfile = () => {
 
   .offer-amount {
     font-size: 1.125rem; /* 1.5rem * 0.75 */
+  }
+
+  /* Adjust chat positioning for mobile navbar height */
+  .chat-page {
+    padding-top: 180px !important; /* Increased to account for actual mobile navbar height */
+  }
+
+  .chat-header {
+    top: 180px !important; /* Position chat header right below mobile navbar */
+  }
+}
+
+@media (max-width: 480px) {
+  /* Very small screens where navbar wraps */
+  .chat-page {
+    padding-top: 200px !important; /* Account for wrapped navbar content on very small screens */
+  }
+
+  .chat-header {
+    top: 200px !important; /* Position chat header below wrapped navbar */
   }
 }
 
