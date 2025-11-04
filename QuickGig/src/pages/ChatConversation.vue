@@ -904,7 +904,7 @@ const submitOffer = async () => {
   }
 };
 
-// Accept Offer Function - UPDATED to handle multiple helpers
+// Accept Offer Function - UPDATED to handle both chat types
 const acceptOffer = async (offerMessage) => {
   if (isProcessing.value) return;
 
@@ -925,87 +925,100 @@ const acceptOffer = async (offerMessage) => {
     const chatId = route.params.id;
 
     console.log('Accepting offer:', offerMessage.id);
+    console.log('Is helper chat:', isHelperChat.value);
 
     // ✅ 1. Update the offer message status
     const { error: updateError } = await supabase
       .from(messagesTable.value)
       .update({ offer_status: 'accepted' })
       .eq('id', offerMessage.id);
-    if (updateError) throw updateError;
-
-    // --- MODIFICATION START ---
-    // ✅ 2. Mark chat as accepted and store the final payment amount
-    const { error: chatUpdateError } = await supabase
-      .from('chats')
-      .update({ 
-        offer_accepted: true,
-        accepted_at: new Date().toISOString(),
-        payment_amount: offerMessage.offer_amount // Store the accepted amount
-      })
-      .eq('id', chatId);
-    if (chatUpdateError) throw chatUpdateError;
-    // --- MODIFICATION END ---
-
-
-    // ✅ 3. Get job details to check if it requires multiple helpers
-    const { data: jobData, error: jobFetchError } = await supabase
-      .from('User-Job-Request')
-      .select('multiple_positions, positions_available, positions_filled')
-      .eq('id', chatInfo.value.job_id)
-      .single();
-    
-    if (jobFetchError) throw jobFetchError;
-
-    // Check if this job requires multiple helpers
-    const requiresMultipleHelpers = jobData?.multiple_positions || false;
-    const positionsAvailable = jobData?.positions_available || 1;
-    const positionsFilled = jobData?.positions_filled || 0;
-
-    console.log('Job data:', { requiresMultipleHelpers, positionsAvailable, positionsFilled });
-
-    if (requiresMultipleHelpers) {
-      // Increment positions_filled
-      const newPositionsFilled = positionsFilled + 1;
-
-      console.log(`Positions filled: ${newPositionsFilled}/${positionsAvailable}`);
-
-      // Check if all positions are now filled
-      if (newPositionsFilled >= positionsAvailable) {
-        // All positions filled - mark as in-progress
-        const { error: jobUpdateError } = await supabase
-          .from('User-Job-Request')
-          .update({ 
-            status: 'in-progress',
-            positions_filled: newPositionsFilled
-          })
-          .eq('id', chatInfo.value.job_id);
-        if (jobUpdateError) throw jobUpdateError;
-        
-        console.log('All positions filled - job marked as in-progress');
-      } else {
-        // Still need more helpers - keep status as 'open' but increment counter
-        const { error: jobUpdateError } = await supabase
-          .from('User-Job-Request')
-          .update({ 
-            positions_filled: newPositionsFilled
-          })
-          .eq('id', chatInfo.value.job_id);
-        if (jobUpdateError) throw jobUpdateError;
-        
-        console.log('Job still needs more helpers - keeping status as open');
-      }
-    } else {
-      // Single helper job - mark as in-progress immediately
-      const { error: jobUpdateError } = await supabase
-        .from('User-Job-Request')
-        .update({ status: 'in-progress' })
-        .eq('id', chatInfo.value.job_id);
-      if (jobUpdateError) throw jobUpdateError;
-      
-      console.log('Single helper job - marked as in-progress');
+    if (updateError) {
+      console.error('Message update error:', updateError);
+      throw updateError;
     }
 
-    // ✅ 5. Send acceptance message WITH offer_amount stored
+    // ✅ 2. Mark chat as accepted - COMPLETELY DIFFERENT approach for each table
+    const tableName = isHelperChat.value ? 'helper_chats' : 'chats';
+    
+    let chatUpdateError;
+    
+    if (isHelperChat.value) {
+      // For helper_chats: ONLY update offer_accepted field
+      const { error } = await supabase
+        .from('helper_chats')
+        .update({ offer_accepted: true })
+        .eq('id', chatId);
+      chatUpdateError = error;
+    } else {
+      // For regular chats: Update all three fields
+      const { error } = await supabase
+        .from('chats')
+        .update({ 
+          offer_accepted: true,
+          accepted_at: new Date().toISOString(),
+          payment_amount: offerMessage.offer_amount
+        })
+        .eq('id', chatId);
+      chatUpdateError = error;
+    }
+      
+    if (chatUpdateError) {
+      console.error('Chat update error:', chatUpdateError);
+      throw chatUpdateError;
+    }
+    console.log('Chat updated successfully');
+
+    // ✅ 3. Handle job status updates - ONLY for regular job chats, not helper chats
+    if (!isHelperChat.value && chatInfo.value?.job_id) {
+      const { data: jobData, error: jobFetchError } = await supabase
+        .from('User-Job-Request')
+        .select('multiple_positions, positions_available, positions_filled')
+        .eq('id', chatInfo.value.job_id)
+        .single();
+      
+      if (jobFetchError) throw jobFetchError;
+
+      const requiresMultipleHelpers = jobData?.multiple_positions || false;
+      const positionsAvailable = jobData?.positions_available || 1;
+      const positionsFilled = jobData?.positions_filled || 0;
+
+      console.log('Job data:', { requiresMultipleHelpers, positionsAvailable, positionsFilled });
+
+      if (requiresMultipleHelpers) {
+        const newPositionsFilled = positionsFilled + 1;
+        console.log(`Positions filled: ${newPositionsFilled}/${positionsAvailable}`);
+
+        if (newPositionsFilled >= positionsAvailable) {
+          const { error: jobUpdateError } = await supabase
+            .from('User-Job-Request')
+            .update({ 
+              status: 'in-progress',
+              positions_filled: newPositionsFilled
+            })
+            .eq('id', chatInfo.value.job_id);
+          if (jobUpdateError) throw jobUpdateError;
+          console.log('All positions filled - job marked as in-progress');
+        } else {
+          const { error: jobUpdateError } = await supabase
+            .from('User-Job-Request')
+            .update({ 
+              positions_filled: newPositionsFilled
+            })
+            .eq('id', chatInfo.value.job_id);
+          if (jobUpdateError) throw jobUpdateError;
+          console.log('Job still needs more helpers - keeping status as open');
+        }
+      } else {
+        const { error: jobUpdateError } = await supabase
+          .from('User-Job-Request')
+          .update({ status: 'in-progress' })
+          .eq('id', chatInfo.value.job_id);
+        if (jobUpdateError) throw jobUpdateError;
+        console.log('Single helper job - marked as in-progress');
+      }
+    }
+
+    // ✅ 4. Send acceptance message WITH offer_amount stored
     const acceptanceText = `Offer of $${offerMessage.offer_amount} has been accepted!`;
     const { data: acceptanceMsg, error: msgError } = await supabase
       .from(messagesTable.value)
@@ -1019,9 +1032,12 @@ const acceptOffer = async (offerMessage) => {
       }])
       .select()
       .single();
-    if (msgError) throw msgError;
+    if (msgError) {
+      console.error('Acceptance message error:', msgError);
+      throw msgError;
+    }
 
-    // ✅ 6. Update chat's last message
+    // ✅ 5. Update chat's last message
     await supabase
       .from(chatTable.value)
       .update({
@@ -1030,7 +1046,7 @@ const acceptOffer = async (offerMessage) => {
       })
       .eq('id', chatId);
 
-    // ✅ 7. Update local state
+    // ✅ 6. Update local state
     const msgIndex = messages.value.findIndex(m => m.id === offerMessage.id);
     if (msgIndex !== -1) {
       messages.value[msgIndex].offer_status = 'accepted';
@@ -1039,14 +1055,22 @@ const acceptOffer = async (offerMessage) => {
       messages.value.push(acceptanceMsg);
     }
     
-    offerAcceptedInThisChat.value = true; // ✅ Set state to hide "Make Offer" button
-    chatInfo.value.payment_amount = offerMessage.offer_amount; // Update local chat info
+    offerAcceptedInThisChat.value = true;
+    if (chatInfo.value) {
+      chatInfo.value.payment_amount = offerMessage.offer_amount;
+    }
 
     await nextTick();
     scrollToBottom();
     await checkJobCompleted();
     await checkIfReviewed();
 
+    toast.success('Offer accepted successfully!', '', 5000);
+
+  } catch (error) {
+    console.error('Error accepting offer:', error);
+    console.error('Error details:', error);
+    toast.error('Failed to accept offer. Please try again.', '', 5000);
   } finally {
     isProcessing.value = false;
   }
@@ -1102,17 +1126,30 @@ const cancelOffer = async (acceptanceMessage) => {
       console.log('Offer message marked as cancelled');
     }
 
-    // 3. Reset chat status - FIXED: Use proper table name without .value for non-computed
+    // 3. Reset chat status - Use completely different updates for each table
     const tableName = isHelperChat.value ? 'helper_chats' : 'chats';
-    const { error: chatUpdateError } = await supabase
-      .from(tableName)
-      .update({ 
-        offer_accepted: false,
-        accepted_at: null,
-        payment_amount: null
-        // Note: cancelled_at column doesn't exist in database, tracked via message instead
-      })
-      .eq('id', chatId);
+    
+    let chatUpdateError;
+    
+    if (isHelperChat.value) {
+      // For helper_chats: ONLY update offer_accepted field
+      const { error } = await supabase
+        .from('helper_chats')
+        .update({ offer_accepted: false })
+        .eq('id', chatId);
+      chatUpdateError = error;
+    } else {
+      // For regular chats: Update all fields
+      const { error } = await supabase
+        .from('chats')
+        .update({ 
+          offer_accepted: false,
+          accepted_at: null,
+          payment_amount: null
+        })
+        .eq('id', chatId);
+      chatUpdateError = error;
+    }
     
     if (chatUpdateError) {
       console.error('Chat update error:', chatUpdateError);
