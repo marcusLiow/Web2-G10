@@ -45,6 +45,15 @@ const tierOrder = {
   null: 0
 };
 
+// ✅ NEW: Tier information with XP requirements
+const tierInfo = {
+  'Silver': { xp: '0 - 599 XP', description: 'Starting tier' },
+  'Gold': { xp: '600 - 1,199 XP', description: 'Experienced helper' },
+  'Diamond': { xp: '1,200 - 1,799 XP', description: 'Elite helper' },
+  'Emerald': { xp: '1,800 - 2,399 XP', description: 'Master helper' },
+  'Ruby': { xp: '2,400+ XP', description: 'Legendary helper' }
+};
+
 // Get tier image path
 function getTierImage(tier) {
   if (!tier) return null;
@@ -317,9 +326,17 @@ onUnmounted(() => {
         :key="helper.id" 
         class="helper-card"
       >
-        <!-- Tier Badge (Top Right Corner) -->
+        <!-- ✅ UPDATED: Tier Badge with Tooltip -->
         <div v-if="helper.tier" class="tier-badge-corner">
-          <img :src="getTierImage(helper.tier)" :alt="helper.tier" class="tier-badge-img" :title="helper.tier" />
+          <img 
+            :src="getTierImage(helper.tier)" 
+            :alt="helper.tier" 
+            class="tier-badge-img"
+          />
+          <div class="tier-tooltip">
+            <div class="tooltip-tier-name">{{ helper.tier }} Tier</div>
+            <div class="tooltip-xp-range">{{ tierInfo[helper.tier]?.description }}</div>
+          </div>
         </div>
 
         <!-- Card Header -->
@@ -458,33 +475,6 @@ onUnmounted(() => {
   .hero-subtitle {
     font-size: 1.125rem;
   }
-}
-
-/* Header */
-.header-section {
-  text-align: center;
-  margin-bottom: 2rem;
-  padding: 2rem 1rem 0;
-  transition: padding 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.hero-section.collapsed ~ .header-section {
-  padding-top: 2rem;
-}
-
-.main-title {
-  font-size: 4.5rem;
-  font-weight: 400;
-  color: #2563eb;
-  margin: 0 0 0.5rem 0;
-  letter-spacing: -0.02em;
-}
-
-.subtitle {
-  font-size: 1.5rem;
-  font-weight: 300;
-  color: #6b7280;
-  margin: 0;
 }
 
 /* Search Card */
@@ -659,7 +649,7 @@ onUnmounted(() => {
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
-/* Tier Badge in Top Right Corner */
+/* ✅ UPDATED: Tier Badge with Tooltip */
 .tier-badge-corner {
   position: absolute;
   top: 8px;
@@ -669,6 +659,7 @@ onUnmounted(() => {
   z-index: 10;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
   transition: transform 0.2s;
+  cursor: help;
 }
 
 .helper-card:hover .tier-badge-corner {
@@ -679,6 +670,74 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+/* ✅ NEW: Tooltip Styles */
+.tier-tooltip {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: #1f2937;
+  color: white;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s;
+  pointer-events: none;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
+.tier-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  right: 1rem;
+  border: 6px solid transparent;
+  border-bottom-color: #1f2937;
+}
+
+.tier-badge-corner:hover .tier-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.tooltip-tier-name {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+  color: #fbbf24;
+}
+
+.tooltip-xp-range {
+  font-size: 0.8125rem;
+  color: #d1d5db;
+  margin-bottom: 0.25rem;
+}
+
+.tooltip-current-xp {
+  font-size: 0.8125rem;
+  color: #9ca3af;
+  padding-top: 0.25rem;
+  border-top: 1px solid #374151;
+}
+
+@media (max-width: 768px) {
+  .tier-tooltip {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  
+  .tier-tooltip::before {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+  }
 }
 
 .card-header {
