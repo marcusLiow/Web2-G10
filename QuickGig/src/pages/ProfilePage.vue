@@ -663,7 +663,7 @@ const filteredCompletedJobs = computed(() => {
   if (jobHistoryFilter.value === 'posted') {
     filtered = filtered.filter(job => job.role === 'Job Poster');
   } else if (jobHistoryFilter.value === 'completed') {
-    filtered = filtered.filter(job => job.role === 'Helper');
+    filtered = filtered.filter(job => job.role === 'Adventurer');  // ✅ FIXED: Changed from 'Helper' to 'Adventurer'
   }
   
   filtered = filterJobsByDate(filtered, dateFilter.value);
@@ -672,7 +672,7 @@ const filteredCompletedJobs = computed(() => {
 });
 
 const postedJobsCount = computed(() => completedJobs.value.filter(job => job.role === 'Job Poster').length);
-const completedAsHelperJobsCount = computed(() => completedJobs.value.filter(job => job.role === 'Helper').length);
+const completedAsHelperJobsCount = computed(() => completedJobs.value.filter(job => job.role === 'Adventurer').length);  // ✅ FIXED: Changed from 'Helper' to 'Adventurer'
 
 function isDaySelected(day) {
   return editForm.availability_days.includes(day);
@@ -1065,10 +1065,15 @@ async function loadAll() {
     await loadUserListings(uid);
     await loadCompletedJobs(uid);
     
-    const helperJobs = completedJobs.value.filter(job => job.role === 'Helper');
-    if (helperJobs.length > 0) {
-      user.stats.earnings = helperJobs.reduce((sum, job) => sum + (job.agreed_amount || 0), 0);
-      user.stats.jobsCompleted = helperJobs.length;
+    // ✅ FIXED: Calculate stats from completed jobs using 'Adventurer' role
+    const adventurerJobs = completedJobs.value.filter(job => job.role === 'Adventurer');
+    
+    // Total jobs completed (both as poster and adventurer)
+    user.stats.jobsCompleted = completedJobs.value.length;
+    
+    // Total earnings from jobs completed as adventurer
+    if (adventurerJobs.length > 0) {
+      user.stats.earnings = adventurerJobs.reduce((sum, job) => sum + (job.agreed_amount || 0), 0);
     }
     
     user.stats.rating = user.rating;
