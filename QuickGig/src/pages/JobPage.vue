@@ -29,7 +29,7 @@ const categories = [
 // Handle scroll to collapse hero
 const handleScroll = () => {
   const scrollPosition = window.scrollY;
-  isHeroCollapsed.value = scrollPosition > 100; // Collapse after scrolling 100px
+  isHeroCollapsed.value = scrollPosition > 10; // Changed from 100 to 10
 };
 
 // Check if user is logged in

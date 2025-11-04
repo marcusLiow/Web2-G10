@@ -21,7 +21,7 @@ const currentUserId = ref(null);
 // Handle scroll to collapse hero
 const handleScroll = () => {
   const scrollPosition = window.scrollY;
-  isHeroCollapsed.value = scrollPosition > 100; // Collapse after scrolling 100px
+  isHeroCollapsed.value = scrollPosition > 10; // Collapse after scrolling 100px
 };
 
 const isCurrentUserTheHelper = computed(() => {

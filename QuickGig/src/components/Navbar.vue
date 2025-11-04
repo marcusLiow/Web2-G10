@@ -480,7 +480,7 @@ export default {
 }
 
 .logo-img {
-  height: 80px;
+  height: 60px;
   width: auto;
   object-fit: contain;
 }
