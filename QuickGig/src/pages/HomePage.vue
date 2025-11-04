@@ -20,42 +20,48 @@
             </p>
           </div>
           <div class="title-image">
-            <div class="reviews-container">
-              <div class="review-card">
-                <div class="stars">
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                </div>
-                <p class="review-text">"Found someone to fix my sink in minutes! The whole process was so smooth and easy."</p>
-                <p class="reviewer-name">- Sarah M.</p>
+            <img src="@/assets/questcomplete.jpg" alt="Quest Complete" class="hero-image">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reviews Section -->
+    <section class="reviews-section" ref="reviewsSection">
+      <div class="reviews-full-width">
+        <h2 class="reviews-title" :class="{ 'fade-in-up': reviewsVisible }">What Our Users Say</h2>
+        <p class="reviews-subtitle" :class="{ 'fade-in-up': reviewsVisible }">Join thousands of satisfied users who found the help they needed</p>
+        
+        <div class="reviews-scroll-container" :class="{ 'fade-in-up': reviewsVisible }">
+          <div class="reviews-scroll-track">
+            <div 
+              v-for="review in allReviews" 
+              :key="review.id"
+              class="small-review-card"
+            >
+              <div class="review-avatar">
+                <img :src="review.avatar" :alt="review.name" class="avatar-image">
               </div>
-              
-              <div class="review-card">
-                <div class="stars">
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                </div>
-                <p class="review-text">"Amazing service! The photographer was professional and delivered exactly what I needed."</p>
-                <p class="reviewer-name">- James L.</p>
+              <div class="review-stars-small">
+                <span v-for="n in review.rating" :key="n" class="review-star-small">★</span>
               </div>
-              
-              <div class="review-card">
-                <div class="stars">
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                  <span class="star">★</span>
-                </div>
-                <p class="review-text">"Best decision ever! Got my furniture assembled quickly and the helper was super friendly."</p>
-                <p class="reviewer-name">- Maria K.</p>
+              <p class="small-review-text">"{{ review.text }}"</p>
+              <p class="small-reviewer-name">{{ review.name }}</p>
+            </div>
+            <!-- Duplicate for seamless loop -->
+            <div 
+              v-for="review in allReviews" 
+              :key="`duplicate-${review.id}`"
+              class="small-review-card"
+            >
+              <div class="review-avatar">
+                <img :src="review.avatar" :alt="review.name" class="avatar-image">
               </div>
+              <div class="review-stars-small">
+                <span v-for="n in review.rating" :key="n" class="review-star-small">★</span>
+              </div>
+              <p class="small-review-text">"{{ review.text }}"</p>
+              <p class="small-reviewer-name">{{ review.name }}</p>
             </div>
           </div>
         </div>
@@ -63,12 +69,16 @@
     </section>
 
     <!-- How It Works Section -->
-    <section class="how-it-works-section">
+    <section class="how-it-works-section" ref="howItWorksSection">
       <div class="container">
-        <h2 class="section-title">How It Works</h2>
+        <h2 class="section-title" :class="{ 'fade-in-up': howItWorksVisible }">How It Works</h2>
         
         <div class="steps-grid">
-          <div class="step-card">
+          <div 
+            class="step-card" 
+            :class="{ 'fade-in-up': howItWorksVisible }"
+            style="animation-delay: 0.1s"
+          >
             <div class="step-number">1</div>
             <div class="step-image">
               <img src="@/assets/post_req.png" alt="Post a request">
@@ -77,7 +87,11 @@
             <p class="step-description">Let others know in detail what you need done!</p>
           </div>
 
-          <div class="step-card">
+          <div 
+            class="step-card"
+            :class="{ 'fade-in-up': howItWorksVisible }"
+            style="animation-delay: 0.2s"
+          >
             <div class="step-number">2</div>
             <div class="step-image">
               <img src="@/assets/choose_helper.png" alt="Choose helper">
@@ -86,7 +100,11 @@
             <p class="step-description">Receive offers within seconds and look at their reviews to see who's best.</p>
           </div>
 
-          <div class="step-card">
+          <div 
+            class="step-card"
+            :class="{ 'fade-in-up': howItWorksVisible }"
+            style="animation-delay: 0.3s"
+          >
             <div class="step-number">3</div>
             <div class="step-image">
               <img src="@/assets/pay_safely.png" alt="Pay safely">
@@ -99,9 +117,9 @@
     </section>
 
     <!-- Secure Payments Section -->
-    <section class="secure-payments-section">
+    <section class="secure-payments-section" ref="securePaymentsSection">
       <div class="container">
-        <div class="secure-content">
+        <div class="secure-content" :class="{ 'fade-in-up': securePaymentsVisible }">
           <p class="secure-label">SECURE PAYMENTS</p>
           <h2 class="secure-title">Can't get safer than this</h2>
           <p class="secure-description">
@@ -116,13 +134,18 @@
     </section>
 
     <!-- Categories Section -->
-    <section class="categories-section">
+    <section class="categories-section" ref="categoriesSection">
       <div class="container">
-        <h2 class="categories-title">Popular Services</h2>
-        <p class="categories-subtitle">Whatever you need, we've got someone who can help</p>
+        <h2 class="categories-title" :class="{ 'fade-in-up': categoriesVisible }">Popular Services</h2>
+        <p class="categories-subtitle" :class="{ 'fade-in-up': categoriesVisible }">Whatever you need, we've got someone who can help</p>
         
         <div class="categories-grid">
-          <div class="category-card" style="background-image: url('https://generationhomesnw.com/wp-content/uploads/Home-Maintenance.jpg');">
+          <div 
+            class="category-card" 
+            style="background-image: url('https://generationhomesnw.com/wp-content/uploads/Home-Maintenance.jpg');"
+            :class="{ 'fade-in-up': categoriesVisible }"
+            :style="{ animationDelay: '0.1s' }"
+          >
             <div class="category-overlay"></div>
             <div class="category-content">
               <h3 class="category-name">Home Services</h3>
@@ -130,7 +153,12 @@
             </div>
           </div>
 
-          <div class="category-card" style="background-image: url('https://t4.ftcdn.net/jpg/02/67/54/81/360_F_267548196_S2gNmvRnxMl6r4hpwAm0dUjjWqEtxugG.jpg');">
+          <div 
+            class="category-card" 
+            style="background-image: url('https://t4.ftcdn.net/jpg/02/67/54/81/360_F_267548196_S2gNmvRnxMl6r4hpwAm0dUjjWqEtxugG.jpg');"
+            :class="{ 'fade-in-up': categoriesVisible }"
+            :style="{ animationDelay: '0.15s' }"
+          >
             <div class="category-overlay"></div>
             <div class="category-content">
               <h3 class="category-name">Cleaning</h3>
@@ -138,7 +166,12 @@
             </div>
           </div>
 
-          <div class="category-card" style="background-image: url('https://thumbs.dreamstime.com/b/food-delivery-cheerful-handsome-young-delivery-guy-holding-boxes-hot-pizza-109997703.jpg');">
+          <div 
+            class="category-card" 
+            style="background-image: url('https://thumbs.dreamstime.com/b/food-delivery-cheerful-handsome-young-delivery-guy-holding-boxes-hot-pizza-109997703.jpg');"
+            :class="{ 'fade-in-up': categoriesVisible }"
+            :style="{ animationDelay: '0.2s' }"
+          >
             <div class="category-overlay"></div>
             <div class="category-content">
               <h3 class="category-name">Delivery</h3>
@@ -146,7 +179,12 @@
             </div>
           </div>
 
-          <div class="category-card" style="background-image: url('https://www.metropolbanquet.com/wp-content/uploads/wedding-videographer.jpg');">
+          <div 
+            class="category-card" 
+            style="background-image: url('https://www.metropolbanquet.com/wp-content/uploads/wedding-videographer.jpg');"
+            :class="{ 'fade-in-up': categoriesVisible }"
+            :style="{ animationDelay: '0.25s' }"
+          >
             <div class="category-overlay"></div>
             <div class="category-content">
               <h3 class="category-name">Photography</h3>
@@ -154,7 +192,12 @@
             </div>
           </div>
 
-          <div class="category-card" style="background-image: url('https://avahr.com/wp-content/uploads/2023/02/web-graphic-designer-job-description-template.jpg');">
+          <div 
+            class="category-card" 
+            style="background-image: url('https://avahr.com/wp-content/uploads/2023/02/web-graphic-designer-job-description-template.jpg');"
+            :class="{ 'fade-in-up': categoriesVisible }"
+            :style="{ animationDelay: '0.3s' }"
+          >
             <div class="category-overlay"></div>
             <div class="category-content">
               <h3 class="category-name">Design</h3>
@@ -162,7 +205,12 @@
             </div>
           </div>
 
-          <div class="category-card" style="background-image: url('https://images.ctfassets.net/9wfm2v6d5j1f/4G9jrxO5FdxjUk0AA9HJ6f/8a4804f2ca1db647927c65772986dbc7/how-to-become-a-gardener.jpg?w=1920');">
+          <div 
+            class="category-card" 
+            style="background-image: url('https://images.ctfassets.net/9wfm2v6d5j1f/4G9jrxO5FdxjUk0AA9HJ6f/8a4804f2ca1db647927c65772986dbc7/how-to-become-a-gardener.jpg?w=1920');"
+            :class="{ 'fade-in-up': categoriesVisible }"
+            :style="{ animationDelay: '0.35s' }"
+          >
             <div class="category-overlay"></div>
             <div class="category-content">
               <h3 class="category-name">Gardening</h3>
@@ -170,7 +218,12 @@
             </div>
           </div>
 
-          <div class="category-card" style="background-image: url('https://www.housemoverssingapore.com/wp-content/uploads/2024/05/House-Moving.jpg');">
+          <div 
+            class="category-card" 
+            style="background-image: url('https://www.housemoverssingapore.com/wp-content/uploads/2024/05/House-Moving.jpg');"
+            :class="{ 'fade-in-up': categoriesVisible }"
+            :style="{ animationDelay: '0.4s' }"
+          >
             <div class="category-overlay"></div>
             <div class="category-content">
               <h3 class="category-name">Moving</h3>
@@ -178,7 +231,12 @@
             </div>
           </div>
 
-          <div class="category-card" style="background-color: #2563EB;">
+          <div 
+            class="category-card" 
+            style="background-color: #2563EB;"
+            :class="{ 'fade-in-up': categoriesVisible }"
+            :style="{ animationDelay: '0.45s' }"
+          >
             <div class="category-content">
               <h3 class="category-name">Many More...</h3>
               <p class="category-description">Any needs you require</p>
@@ -208,15 +266,109 @@ export default {
     return {
       words: ['cleaning', 'assembling', 'building', 'photography', 'repairs', 'organizing', 'delivery', 'design', 'moving', 'gardening'],
       currentWord: 'cleaning',
-      wordIndex: 0
+      wordIndex: 0,
+      allReviews: [
+        {
+          id: 1,
+          text: "Found someone to fix my sink in minutes! The whole process was so smooth and easy.",
+          name: "Sarah M.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=1"
+        },
+        {
+          id: 2,
+          text: "Amazing service! The photographer was professional and delivered exactly what I needed.",
+          name: "James L.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=12"
+        },
+        {
+          id: 3,
+          text: "Best decision ever! Got my furniture assembled quickly and the helper was super friendly.",
+          name: "Maria K.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=5"
+        },
+        {
+          id: 4,
+          text: "I needed someone to walk my dog while I was at work. Found a reliable person in no time!",
+          name: "David R.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=13"
+        },
+        {
+          id: 5,
+          text: "The gardener transformed my backyard into a paradise. Highly recommend this platform!",
+          name: "Lisa T.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=9"
+        },
+        {
+          id: 6,
+          text: "Moving was stress-free thanks to the amazing helpers I found here. Will use again!",
+          name: "Michael B.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=15"
+        },
+        {
+          id: 7,
+          text: "Got my website designed by a talented freelancer. Exceeded all my expectations!",
+          name: "Emma S.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=47"
+        },
+        {
+          id: 8,
+          text: "Deep cleaning service was incredible. My apartment has never looked this good!",
+          name: "Ryan P.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=33"
+        },
+        {
+          id: 9,
+          text: "Perfect for busy parents! Found a tutor for my kids within hours.",
+          name: "Jessica W.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=10"
+        },
+        {
+          id: 10,
+          text: "The plumber arrived on time and fixed everything perfectly. Great experience!",
+          name: "Tom H.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=14"
+        },
+        {
+          id: 11,
+          text: "Event planning made easy! Found the perfect coordinator for my party.",
+          name: "Amanda C.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=44"
+        },
+        {
+          id: 12,
+          text: "Car repairs done right. The mechanic was skilled and honest about pricing.",
+          name: "Chris D.",
+          rating: 5,
+          avatar: "https://i.pravatar.cc/150?img=52"
+        }
+      ],
+      reviewsVisible: false,
+      howItWorksVisible: false,
+      securePaymentsVisible: false,
+      categoriesVisible: false
     };
   },
   mounted() {
     this.startWordRotation();
+    this.setupScrollObserver();
   },
   beforeUnmount() {
     if (this.wordInterval) {
       clearInterval(this.wordInterval);
+    }
+    if (this.scrollObserver) {
+      this.scrollObserver.disconnect();
     }
   },
   methods: {
@@ -225,6 +377,41 @@ export default {
         this.wordIndex = (this.wordIndex + 1) % this.words.length;
         this.currentWord = this.words[this.wordIndex];
       }, 2500);
+    },
+    setupScrollObserver() {
+      const options = {
+        threshold: 0.2,
+        rootMargin: '0px'
+      };
+
+      this.scrollObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            if (entry.target === this.$refs.reviewsSection) {
+              this.reviewsVisible = true;
+            } else if (entry.target === this.$refs.howItWorksSection) {
+              this.howItWorksVisible = true;
+            } else if (entry.target === this.$refs.securePaymentsSection) {
+              this.securePaymentsVisible = true;
+            } else if (entry.target === this.$refs.categoriesSection) {
+              this.categoriesVisible = true;
+            }
+          }
+        });
+      }, options);
+
+      if (this.$refs.reviewsSection) {
+        this.scrollObserver.observe(this.$refs.reviewsSection);
+      }
+      if (this.$refs.howItWorksSection) {
+        this.scrollObserver.observe(this.$refs.howItWorksSection);
+      }
+      if (this.$refs.securePaymentsSection) {
+        this.scrollObserver.observe(this.$refs.securePaymentsSection);
+      }
+      if (this.$refs.categoriesSection) {
+        this.scrollObserver.observe(this.$refs.categoriesSection);
+      }
     },
     navigateToLogin() {
       // Check if user is logged in
@@ -327,6 +514,24 @@ export default {
   opacity: 0;
 }
 
+.fade-slide-enter-active {
+  transition: all 0.6s ease-out;
+}
+
+.fade-slide-leave-active {
+  transition: all 0.5s ease-in;
+}
+
+.fade-slide-enter-from {
+  transform: translateX(30px);
+  opacity: 0;
+}
+
+.fade-slide-leave-to {
+  transform: translateX(-30px);
+  opacity: 0;
+}
+
 .main-description {
   font-size: 1.2rem;
   color: #666;
@@ -340,49 +545,181 @@ export default {
   align-items: center;
 }
 
-.reviews-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+.hero-image {
   width: 100%;
-}
-
-.review-card {
-  background: white;
-  border-radius: 16px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  max-width: 600px;
+  height: auto;
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.review-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+.hero-image:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.2);
 }
 
-.stars {
-  margin-bottom: 0.75rem;
+/* Reviews Section */
+.reviews-section {
+  padding: 5rem 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+}
+
+.reviews-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.05" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,112C672,96,768,96,864,112C960,128,1056,160,1152,165.3C1248,171,1344,149,1392,138.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') no-repeat bottom;
+  background-size: cover;
+  opacity: 0.3;
+}
+
+.reviews-full-width {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+}
+
+.reviews-title {
+  font-size: 2.8rem;
+  color: white;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+  transform: translateY(30px);
+  padding: 0 2rem;
+}
+
+.reviews-title.fade-in-up {
+  animation: fadeInUp 0.8s ease forwards;
+}
+
+.reviews-subtitle {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.9);
+  text-align: center;
+  margin-bottom: 3rem;
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+  transform: translateY(30px);
+  padding: 0 2rem;
+}
+
+.reviews-subtitle.fade-in-up {
+  animation: fadeInUp 0.8s ease 0.2s forwards;
+}
+
+.reviews-scroll-container {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  padding: 2rem 0;
+  opacity: 0;
+  transform: translateY(30px);
+  width: 100%;
+  max-width: 100%;
+}
+
+.reviews-scroll-container.fade-in-up {
+  animation: fadeInUp 0.8s ease 0.4s forwards;
+}
+
+.reviews-scroll-track {
+  display: flex;
+  gap: 2rem;
+  animation: scrollLeftToRight 80s linear infinite;
+  width: fit-content;
+}
+
+.reviews-scroll-track:hover {
+  animation-play-state: paused;
+}
+
+@keyframes scrollLeftToRight {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.small-review-card {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem 1.75rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  min-width: 320px;
+  max-width: 320px;
+  flex-shrink: 0;
+}
+
+.small-review-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+}
+
+.review-avatar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.avatar-image {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.review-stars-small {
+  margin-bottom: 1rem;
   display: flex;
   gap: 0.25rem;
+  justify-content: center;
 }
 
-.star {
+.review-star-small {
   color: #FFA500;
-  font-size: 1.3rem;
+  font-size: 1.2rem;
 }
 
-.review-text {
-  font-size: 1rem;
-  color: #333;
+.small-review-text {
+  font-size: 0.95rem;
+  color: #1a1a1a;
   line-height: 1.6;
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
   font-style: italic;
+  min-height: 80px;
+  text-align: center;
 }
 
-.reviewer-name {
+.small-reviewer-name {
   font-size: 0.9rem;
-  color: #2563EB;
-  font-weight: 600;
+  color: #667eea;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Secure Payments Section */
@@ -396,6 +733,12 @@ export default {
   text-align: center;
   max-width: 800px;
   margin: 0 auto;
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.secure-content.fade-in-up {
+  animation: fadeInUp 0.8s ease forwards;
 }
 
 .secure-label {
@@ -453,6 +796,12 @@ export default {
   text-align: center;
   margin-bottom: 0.5rem;
   font-weight: 700;
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.categories-title.fade-in-up {
+  animation: fadeInUp 0.8s ease forwards;
 }
 
 .categories-subtitle {
@@ -460,6 +809,12 @@ export default {
   color: #666;
   text-align: center;
   margin-bottom: 4rem;
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.categories-subtitle.fade-in-up {
+  animation: fadeInUp 0.8s ease 0.2s forwards;
 }
 
 .categories-grid {
@@ -483,6 +838,12 @@ export default {
   display: flex;
   align-items: flex-end;
   overflow: hidden;
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.category-card.fade-in-up {
+  animation: fadeInUp 0.6s ease forwards;
 }
 
 .category-overlay {
@@ -581,6 +942,12 @@ export default {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 2px;
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.section-title.fade-in-up {
+  animation: fadeInUp 0.8s ease forwards;
 }
 
 .steps-grid {
@@ -599,6 +966,12 @@ export default {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   position: relative;
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.step-card.fade-in-up {
+  animation: fadeInUp 0.6s ease forwards;
 }
 
 .step-card:hover {
@@ -700,8 +1073,27 @@ export default {
     font-size: 1rem;
   }
 
-  .reviews-container {
+  .hero-image {
     margin-top: 2rem;
+  }
+
+  .reviews-title {
+    font-size: 2rem;
+  }
+
+  .reviews-subtitle {
+    font-size: 1rem;
+  }
+
+  .small-review-card {
+    min-width: 280px;
+    max-width: 280px;
+    padding: 1.5rem;
+  }
+
+  .avatar-image {
+    width: 70px;
+    height: 70px;
   }
 
   .secure-title {
@@ -737,12 +1129,32 @@ export default {
     font-size: 2rem;
   }
 
-  .review-card {
+  .hero-image {
+    max-width: 100%;
+  }
+
+  .reviews-title {
+    font-size: 1.75rem;
+  }
+
+  .reviews-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .small-review-card {
+    min-width: 260px;
+    max-width: 260px;
     padding: 1.25rem;
   }
 
-  .review-text {
+  .avatar-image {
+    width: 60px;
+    height: 60px;
+  }
+
+  .small-review-text {
     font-size: 0.9rem;
+    min-height: auto;
   }
 
   .secure-description {
