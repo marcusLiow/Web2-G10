@@ -18,6 +18,10 @@ const isLoggedIn = ref(false);
 const isSubmitting = ref(false);
 const showDeleteModal = ref(false);
 
+// ✅ NEW: State for accepted offer check
+const currentUserHasAcceptedOffer = ref(false);
+const existingChatId = ref(null);
+
 // Helper counter state
 const helperSignupCount = ref(0);
 const maxHelpers = ref(0);
@@ -56,6 +60,39 @@ const isOwnListing = computed(() => {
   const currentUserId = localStorage.getItem('userId');
   return currentUserId && job.value && currentUserId === job.value.userId;
 });
+
+// ✅ NEW: Check if the current user has an accepted offer for this job
+const checkIfUserHasAcceptedOffer = async () => {
+  if (isOwnListing.value || !isLoggedIn.value || !job.value?.id) {
+    return;
+  }
+
+  const currentUserId = localStorage.getItem('userId');
+  if (!currentUserId) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('chats')
+      .select('id')
+      .eq('job_id', job.value.id)
+      .eq('job_seeker_id', currentUserId)
+      .eq('offer_accepted', true)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error checking for accepted offer:', error);
+      return;
+    }
+
+    if (data) {
+      console.log('User has an existing accepted offer for this job in chat:', data.id);
+      currentUserHasAcceptedOffer.value = true;
+      existingChatId.value = data.id;
+    }
+  } catch (err) {
+    console.error('Unexpected error in checkIfUserHasAcceptedOffer:', err);
+  }
+};
 
 // Check if user is logged in
 const checkLoginStatus = () => {
@@ -282,6 +319,9 @@ onMounted(async () => {
     // Update localStorage with fresh data for caching
     localStorage.setItem('selectedJob', JSON.stringify(job.value));
     
+    // ✅ NEW: Check if the current user already has an accepted offer for this job
+    await checkIfUserHasAcceptedOffer();
+
     // Set max helpers if the job requires multiple helpers
     if (job.value.requiresMultipleHelpers && job.value.numberOfHelpers) {
       maxHelpers.value = job.value.numberOfHelpers;
@@ -529,6 +569,13 @@ const viewPosterProfile = () => {
   
   console.log('Navigating to user profile:', job.value.userId);
   router.push(`/user/${job.value.userId}`);
+};
+
+// ✅ NEW: Navigate to existing conversation
+const viewConversation = () => {
+  if (existingChatId.value) {
+    router.push(`/chat/${existingChatId.value}`);
+  }
 };
 
 // Carousell-style Chat function
@@ -1067,6 +1114,16 @@ const closeOfferModal = () => {
                 </button>
               </div>
 
+              <!-- ✅ NEW: Action button for users who already have an accepted offer -->
+              <div v-else-if="currentUserHasAcceptedOffer" class="action-buttons-own">
+                <button @click="viewConversation" class="view-chats-btn">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  View Conversation
+                </button>
+              </div>
+
               <!-- Carousell-style Action Buttons for non-owners -->
               <div v-else class="action-buttons">
                 <button @click="startChat" class="chat-btn">
@@ -1075,12 +1132,28 @@ const closeOfferModal = () => {
                   </svg>
                   Chat
                 </button>
-                <button @click="openOfferModal" class="offer-btn">
+                <button 
+                  v-if="!currentUserHasAcceptedOffer"
+                  @click="openOfferModal" 
+                  class="offer-btn" 
+                  :disabled="isFullyBooked"
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
                     <line x1="7" y1="7" x2="7.01" y2="7"></line>
                   </svg>
-                  Make Offer
+                  {{ isFullyBooked ? 'Job Full' : 'Make Offer' }}
+                </button>
+                <button 
+                  v-else
+                  @click="viewConversation" 
+                  class="offer-btn offer-accepted-btn"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                  </svg>
+                  Offer Accepted
                 </button>
               </div>
 
@@ -2162,6 +2235,23 @@ const closeOfferModal = () => {
   box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
 }
 
+.offer-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.offer-accepted-btn {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.offer-accepted-btn:hover {
+  background: #059669;
+  border-color: #059669;
+}
+
 /* Safety Tips */
 .safety-tips {
   background: #fef3c7;
@@ -2297,7 +2387,7 @@ const closeOfferModal = () => {
 .offer-input, .offer-textarea {
   width: 100%;
   padding: 0.75rem;
-  border:  2px solid #e5e7eb;
+  border: 2px solid #e5e7eb;
   border-radius: 0.5rem;
   font-size: 1rem;
   transition: all 0.2s;
@@ -2327,7 +2417,7 @@ const closeOfferModal = () => {
   border-radius: 0.5rem;
   font-size: 1rem;
   font-weight: 600;
-   cursor: pointer;
+  cursor: pointer;
   transition: all 0.2s;
   border: none;
 }
