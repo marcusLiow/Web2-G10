@@ -742,8 +742,11 @@ const userJobListings = ref([]); // New: store user's job listings
 const selectedJobId = ref(null); // New: track selected job
 
 // New: Load user's job listings for helper chats
+// New: Load user's job listings for helper chats
 const loadUserJobListings = async () => {
   try {
+    const chatId = route.params.id;
+    
     // First, get all the user's open jobs
     const { data: allJobs, error: jobsError } = await supabase
       .from('User-Job-Request')
@@ -762,7 +765,23 @@ const loadUserJobListings = async () => {
     // Get all job IDs to check for accepted offers
     const jobIds = allJobs.map(job => job.id);
 
-    // Check BOTH regular chats AND helper chats for accepted offers
+    // ✅ NEW: Check if this specific helper has already accepted a job in THIS chat
+    const { data: thisHelperJobs, error: thisHelperError } = await supabase
+      .from('helper_jobs')
+      .select('job_id')
+      .eq('helper_chat_id', chatId)
+      .in('status', ['accepted', 'in-progress', 'completed']);
+
+    if (thisHelperError) throw thisHelperError;
+
+    // Create a Set of job IDs already accepted by THIS helper in THIS chat
+    const jobsAcceptedInThisChat = new Set(
+      (thisHelperJobs || []).map(job => job.job_id)
+    );
+
+    console.log('🔍 Jobs already accepted in this chat:', Array.from(jobsAcceptedInThisChat));
+
+    // Check BOTH regular chats AND helper chats for accepted offers (for multi-position jobs)
     const [regularChatsResult, helperJobsResult] = await Promise.all([
       // Check regular chats
       supabase
@@ -771,7 +790,7 @@ const loadUserJobListings = async () => {
         .in('job_id', jobIds)
         .eq('offer_accepted', true),
       
-      // Check helper_jobs
+      // Check ALL helper_jobs (for multi-position tracking)
       supabase
         .from('helper_jobs')
         .select('job_id')
@@ -790,10 +809,17 @@ const loadUserJobListings = async () => {
 
     // Filter out jobs based on their type and accepted offer status
     const availableJobs = allJobs.filter(job => {
-      // If job already has an accepted offer
+      // ✅ CRITICAL: Always exclude jobs already accepted in THIS chat
+      if (jobsAcceptedInThisChat.has(job.id)) {
+        console.log(`❌ Excluding job "${job.title}" - already accepted by this helper in this chat`);
+        return false;
+      }
+
+      // If job already has an accepted offer (from other helpers/chats)
       if (jobsWithAcceptedOffers.has(job.id)) {
         // For single-helper jobs, exclude them completely
         if (!job.multiple_positions) {
+          console.log(`❌ Excluding single-position job "${job.title}" - already accepted elsewhere`);
           return false;
         }
         
@@ -803,14 +829,19 @@ const loadUserJobListings = async () => {
         
         // Exclude if all positions are filled
         if (positionsFilled >= positionsAvailable) {
+          console.log(`❌ Excluding multi-position job "${job.title}" - all positions filled (${positionsFilled}/${positionsAvailable})`);
           return false;
         }
+        
+        console.log(`✅ Including multi-position job "${job.title}" - positions available (${positionsFilled}/${positionsAvailable})`);
       }
       
       // Include the job if it passes all filters
+      console.log(`✅ Including job "${job.title}" - available`);
       return true;
     });
 
+    console.log(`📊 Found ${availableJobs.length} available jobs out of ${allJobs.length} total jobs`);
     userJobListings.value = availableJobs;
     
   } catch (error) {
