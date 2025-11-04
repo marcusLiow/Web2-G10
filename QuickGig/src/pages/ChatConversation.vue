@@ -164,182 +164,196 @@
         </button></div>
       </form>
     </div>
-  </div>
 
-  <!-- ✅ ALL MODALS MOVED OUTSIDE chat-page -->
-  
-  <!-- Make Offer Modal -->
-  <div v-if="showMakeOfferModal" class="modal-overlay" @click="closeMakeOfferModal">
-    <div class="modal-content" @click.stop>
-      <div class="modal-header">
-        <h2 class="modal-title">Make an Offer</h2>
-        <button @click="closeMakeOfferModal" class="close-btn">×</button>
+    <!-- Make Offer Modal -->
+    <div v-if="showMakeOfferModal" class="modal-overlay" @click="closeMakeOfferModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">Make an Offer</h2>
+          <button @click="closeMakeOfferModal" class="close-btn">×</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Current Asking Price Display - Only for non-helper chats -->
+          <div v-if="!isHelperChat" class="current-price-section">
+            <div class="price-label-row">
+              <span class="price-label-text">Current Asking Price</span>
+            </div>
+            <div class="current-price-display">
+              ${{ jobInfo?.payment || '0.00' }}
+            </div>
+            <p class="price-subtext">Posted by {{ otherUser?.username }}</p>
+          </div>
+
+          <!-- Job Info - Only for non-helper chats -->
+          <div v-if="!isHelperChat" class="job-info-box">
+            <div class="job-info-header">
+              <p class="info-label">Job Title</p>
+            </div>
+            <p class="info-value">{{ jobInfo?.title }}</p>
+          </div>
+
+          <!-- NEW: Job Selection for Helper Chats -->
+          <div v-if="isHelperChat" class="form-group">
+            <label class="form-label">Select Job to Offer *</label>
+            
+            <!-- Show job cards if available -->
+            <div v-if="userJobListings.length > 0" class="job-cards-container">
+              <div
+                v-for="job in userJobListings"
+                :key="job.id"
+                @click="selectJob(job.id)"
+                :class="['job-card', { selected: selectedJobId === job.id }]"
+              >
+                <div v-if="selectedJobId === job.id" class="job-card-check">✓</div>
+                <div class="job-card-header">
+                  <h3 class="job-card-title">{{ job.title }}</h3>
+                  <span class="job-card-price">${{ job.payment }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Show message if no jobs available -->
+            <div v-else class="no-jobs-message">
+              <p class="no-jobs-text">You don't have any open jobs to offer.</p>
+              <router-link to="/create-job" class="create-job-link">Create a Job</router-link>
+            </div>
+          </div>
+
+          <!-- Your Offer Amount -->
+          <div class="form-group">
+            <label class="form-label">Your Offer Amount ($) *</label>
+            <div class="offer-amount-input-wrapper">
+              <span class="currency-prefix">$</span>
+              <input
+                v-model="offerAmount"
+                type="number"
+                placeholder="Enter your offer"
+                class="offer-input offer-amount-input"
+                min="1"
+                step="0.01"
+              />
+            </div>
+            <div v-if="offerAmount && jobInfo?.payment" class="price-difference">
+              <span v-if="parseFloat(offerAmount) < parseFloat(jobInfo.payment)" class="difference-lower">
+                ${{ (parseFloat(jobInfo.payment) - parseFloat(offerAmount)).toFixed(2) }} lower than asking price
+              </span>
+              <span v-else-if="parseFloat(offerAmount) > parseFloat(jobInfo.payment)" class="difference-higher">
+                ${{ (parseFloat(offerAmount) - parseFloat(jobInfo.payment)).toFixed(2) }} higher than asking price
+              </span>
+              <span v-else class="difference-equal">
+                Matches asking price
+              </span>
+            </div>
+          </div>
+
+          <!-- Optional Message -->
+          <div class="form-group">
+            <label class="form-label">Message (Optional)</label>
+            <textarea
+              v-model="offerMessage"
+              placeholder="Add a message to explain your offer or ask questions..."
+              class="offer-textarea"
+              rows="3"
+            ></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button @click="closeMakeOfferModal" class="cancel-btn">Cancel</button>
+            <button @click="submitOffer" class="submit-btn" :disabled="!canSubmitOffer || isProcessing">
+              {{ isProcessing ? 'Sending...' : 'Send Offer' }}
+            </button>
+          </div>
+        </div>
       </div>
+    </div>
 
-      <div class="modal-body">
-        <!-- Current Asking Price Display - Only for non-helper chats -->
-        <div v-if="!isHelperChat" class="current-price-section">
-          <div class="price-label-row">
-            <span class="price-label-text">Current Asking Price</span>
-          </div>
-          <div class="current-price-display">
-            ${{ jobInfo?.payment || '0.00' }}
-          </div>
-          <p class="price-subtext">Posted by {{ otherUser?.username }}</p>
+    <!-- Counter Offer Modal -->
+    <div v-if="showCounterModal" class="modal-overlay" @click="closeCounterModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">Counter Offer</h2>
+          <button @click="closeCounterModal" class="close-btn">×</button>
         </div>
 
-        <!-- Job Info -->
-        <div class="job-info-box">
-          <div class="job-info-header">
-            <p class="info-label">{{ isHelperChat ? 'Adventurer Service' : 'Job Title' }}</p>
+        <div class="modal-body">
+          <div class="current-offer-info">
+            <p class="info-label">Current Offer</p>
+            <p class="info-value">${{ selectedOffer?.offer_amount }}</p>
           </div>
-          <p class="info-value">{{ isHelperChat ? otherUser?.username : jobInfo?.title }}</p>
-        </div>
 
-        <!-- Adventurer Chat Job Title Input -->
-        <div v-if="isHelperChat" class="form-group">
-          <label class="form-label">Job Title *</label>
-          <input
-            v-model="offerJobTitle"
-            type="text"
-            placeholder="e.g., Dog Walking, House Cleaning"
-            class="offer-input"
-          />
-        </div>
-
-        <!-- Your Offer Amount -->
-        <div class="form-group">
-          <label class="form-label">Your Offer Amount ($) *</label>
-          <div class="offer-amount-input-wrapper">
-            <span class="currency-prefix">$</span>
+          <div class="form-group">
+            <label class="form-label">Your Counter Offer Amount *</label>
             <input
-              v-model="offerAmount"
+              v-model="counterAmount"
               type="number"
-              placeholder="Enter your offer"
-              class="offer-input offer-amount-input"
+              placeholder="Enter your counter offer"
+              class="offer-input"
               min="1"
               step="0.01"
             />
           </div>
-          <div v-if="offerAmount && jobInfo?.payment" class="price-difference">
-            <span v-if="parseFloat(offerAmount) < parseFloat(jobInfo.payment)" class="difference-lower">
-              ${{ (parseFloat(jobInfo.payment) - parseFloat(offerAmount)).toFixed(2) }} lower than asking price
-            </span>
-            <span v-else-if="parseFloat(offerAmount) > parseFloat(jobInfo.payment)" class="difference-higher">
-              ${{ (parseFloat(offerAmount) - parseFloat(jobInfo.payment)).toFixed(2) }} higher than asking price
-            </span>
-            <span v-else class="difference-equal">
-              Matches asking price
-            </span>
+
+          <div class="form-group">
+            <label class="form-label">Message (Optional)</label>
+            <textarea
+              v-model="counterMessage"
+              placeholder="Add a message to explain your counter offer..."
+              class="offer-textarea"
+              rows="3"
+            ></textarea>
           </div>
-        </div>
 
-        <!-- Optional Message -->
-        <div class="form-group">
-          <label class="form-label">Message (Optional)</label>
-          <textarea
-            v-model="offerMessage"
-            placeholder="Add a message to explain your offer or ask questions..."
-            class="offer-textarea"
-            rows="3"
-          ></textarea>
-        </div>
-
-        <div class="modal-actions">
-          <button @click="closeMakeOfferModal" class="cancel-btn">Cancel</button>
-          <button @click="submitOffer" class="submit-btn" :disabled="!canSubmitOffer || isProcessing">
-            {{ isProcessing ? 'Sending...' : 'Send Offer' }}
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Counter Offer Modal -->
-  <div v-if="showCounterModal" class="modal-overlay" @click="closeCounterModal">
-    <div class="modal-content" @click.stop>
-      <div class="modal-header">
-        <h2 class="modal-title">Counter Offer</h2>
-        <button @click="closeCounterModal" class="close-btn">×</button>
-      </div>
-
-      <div class="modal-body">
-        <div class="current-offer-info">
-          <p class="info-label">Current Offer</p>
-          <p class="info-value">${{ selectedOffer?.offer_amount }}</p>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Your Counter Offer Amount *</label>
-          <input
-            v-model="counterAmount"
-            type="number"
-            placeholder="Enter your counter offer"
-            class="offer-input"
-            min="1"
-            step="0.01"
-          />
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Message (Optional)</label>
-          <textarea
-            v-model="counterMessage"
-            placeholder="Add a message to explain your counter offer..."
-            class="offer-textarea"
-            rows="3"
-          ></textarea>
-        </div>
-
-        <div class="modal-actions">
-          <button @click="closeCounterModal" class="cancel-btn">Cancel</button>
-          <button @click="submitCounterOffer" class="submit-btn" :disabled="!counterAmount || isProcessing">
-            Send Counter Offer
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Review Modal -->
-  <div v-if="showReviewModal" class="modal-overlay" @click="closeReviewModal">
-    <div class="modal-content" @click.stop>
-      <div class="modal-header">
-        <h2 class="modal-title">Leave a Review for {{ otherUser?.username }}</h2>
-        <button @click="closeReviewModal" class="close-btn">×</button>
-      </div>
-
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">Rating *</label>
-          <div class="rating-input">
-            <button
-              v-for="star in 5"
-              :key="star"
-              @click="reviewRating = star"
-              :class="['star-btn', { active: star <= reviewRating }]"
-              type="button"
-            >
-              ⭐
+          <div class="modal-actions">
+            <button @click="closeCounterModal" class="cancel-btn">Cancel</button>
+            <button @click="submitCounterOffer" class="submit-btn" :disabled="!counterAmount || isProcessing">
+              Send Counter Offer
             </button>
           </div>
         </div>
+      </div>
+    </div>
 
-        <div class="form-group">
-          <label class="form-label">Your Review *</label>
-          <textarea
-            v-model="reviewComment"
-            placeholder="Share your experience..."
-            class="offer-textarea"
-            rows="4"
-          ></textarea>
+    <!-- Review Modal -->
+    <div v-if="showReviewModal" class="modal-overlay" @click="closeReviewModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">Leave a Review for {{ otherUser?.username }}</h2>
+          <button @click="closeReviewModal" class="close-btn">×</button>
         </div>
 
-        <div class="modal-actions">
-          <button @click="closeReviewModal" class="cancel-btn">Cancel</button>
-          <button @click="submitReview" class="submit-btn" :disabled="!reviewRating || !reviewComment.trim() || isProcessing">
-            Submit Review
-          </button>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Rating *</label>
+            <div class="rating-input">
+              <button
+                v-for="star in 5"
+                :key="star"
+                @click="reviewRating = star"
+                :class="['star-btn', { active: star <= reviewRating }]"
+                type="button"
+              >
+                ⭐
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Your Review *</label>
+            <textarea
+              v-model="reviewComment"
+              placeholder="Share your experience..."
+              class="offer-textarea"
+              rows="4"
+            ></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button @click="closeReviewModal" class="cancel-btn">Cancel</button>
+            <button @click="submitReview" class="submit-btn" :disabled="!reviewRating || !reviewComment.trim() || isProcessing">
+              Submit Review
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -367,7 +381,7 @@ const isSending = ref(false);
 const isProcessing = ref(false);
 const messagesContainer = ref(null);
 const jobCompletedExists = ref(false);
-const offerAcceptedInThisChat = ref(false); // ✅ New state to track accepted offer in this chat
+const offerAcceptedInThisChat = ref(false);
 const isPaymentCompleted = ref(false);
 let messageChannel = null;
 
@@ -410,19 +424,16 @@ const chatSubtitle = computed(() => {
 
 // Permissions
 const canMakeOffer = computed(() => {
-  // Hide "Make Offer" button if the job is globally in-progress/completed OR if an offer has been accepted in this specific chat.
   return !jobCompletedExists.value && !offerAcceptedInThisChat.value;
 });
 
 const canAcceptOffer = computed(() => {
-  // Anyone who receives an offer can accept it
   return true;
 });
 
 const shouldShowPaymentButton = computed(() => isPayer.value);
 
 const canCancelOffer = computed(() => {
-  // Either party can cancel (job poster OR helper/job seeker)
   const isParticipant = currentUserId.value && chatInfo.value && (
     (!isHelperChat.value && (
       currentUserId.value === chatInfo.value.job_poster_id || 
@@ -434,10 +445,7 @@ const canCancelOffer = computed(() => {
     ))
   );
   
-  // Must have an accepted offer
   const hasAcceptedOffer = offerAcceptedInThisChat.value === true;
-  
-  // Cannot cancel after payment
   const notPaid = !isPaymentCompleted.value;
   
   return isParticipant && hasAcceptedOffer && notPaid;
@@ -463,18 +471,12 @@ const otherUserId = computed(() => {
   }
 });
 
-// compute helper id for reviews: the entity that should be stored in reviews.helper_id
+// compute helper id for reviews
 const reviewHelperId = computed(() => {
-  // If the helper is the current user (i.e., current user is helper), helper id is currentUserId
-  // Otherwise helper is the otherUserId
   if (isHelper.value) return currentUserId.value;
   return otherUserId.value;
 });
 
-// Check if the current user already reviewed the helper
-// Check if the current user already reviewed the other user
-// Check if the current user already reviewed the other user
-// Check if the current user already reviewed the other user
 // Check if the current user already reviewed the other user
 const checkIfReviewed = async () => {
   try {
@@ -483,7 +485,6 @@ const checkIfReviewed = async () => {
       return;
     }
     
-    // Check if current user already reviewed the other user
     const { data, error } = await supabase
       .from('reviews')
       .select('id')
@@ -497,9 +498,6 @@ const checkIfReviewed = async () => {
       return;
     }
     
-    console.log('Check if reviewed - data:', data, 'currentUser:', currentUserId.value, 'otherUser:', otherUserId.value, 'isHelper:', isHelper.value);
-    
-    // Only set to true if a review actually exists
     hasReviewedOtherUser.value = !!data;
   } catch (err) {
     console.error('Error in checkIfReviewed:', err);
@@ -521,7 +519,7 @@ onMounted(async () => {
   await checkJobCompleted();
   await markMessagesAsRead();
   await checkIfReviewed();
-  // New: load job listings for adventurer chats
+  // New: load job listings for helper chats
   if (isHelperChat.value) {
     await loadUserJobListings();
   }
@@ -553,14 +551,8 @@ const loadChatData = async () => {
     }
 
     chatInfo.value = chat;
-    offerAcceptedInThisChat.value = chat.offer_accepted === true; // ✅ Initialize based on chat data
-    
-    // --- MODIFICATION START ---
-    // Set payment status based on the individual chat record
+    offerAcceptedInThisChat.value = chat.offer_accepted === true;
     isPaymentCompleted.value = chat.payment_status === 'paid';
-    // --- MODIFICATION END ---
-    
-    console.log('Chat data loaded:', chat); // Debug log to see what job_id is stored
 
     const otherId = isHelperChat.value
       ? (chat.helper_id === currentUserId.value ? chat.client_id : chat.helper_id)
@@ -586,9 +578,6 @@ const loadChatData = async () => {
 
       if (!jobError && job) {
         jobInfo.value = job;
-        console.log('Job info loaded:', job); // Debug log
-      } else {
-        console.error('Error loading job:', jobError);
       }
     }
 
@@ -598,12 +587,9 @@ const loadChatData = async () => {
   }
 };
 
-// check job status/completion (for showing review button / payment)
+// check job status/completion
 const checkJobCompleted = async () => {
   try {
-    // --- MODIFICATION START ---
-    // This function now only checks the JOB status for UI logic like 'canMakeOffer'
-    // Payment status is now handled in loadChatData from the chat record itself.
     if (isHelperChat.value) {
       const { data, error } = await supabase
         .from('helper_jobs')
@@ -624,7 +610,6 @@ const checkJobCompleted = async () => {
       if (error) console.error('Error checking job status:', error);
       jobCompletedExists.value = data?.status === 'in-progress' || data?.status === 'completed';
     }
-    // --- MODIFICATION END ---
   } catch (error) {
     console.error('Error in checkJobCompleted:', error);
   }
@@ -727,18 +712,66 @@ const offerJobTitle = ref('');
 const userJobListings = ref([]); // New: store user's job listings
 const selectedJobId = ref(null); // New: track selected job
 
-// New: Load user's job listings for adventurer chats
+// New: Load user's job listings for helper chats
 const loadUserJobListings = async () => {
   try {
-    const { data, error } = await supabase
+    // First, get all the user's open jobs
+    const { data: allJobs, error: jobsError } = await supabase
       .from('User-Job-Request')
-      .select('id, title, payment, status')
+      .select('id, title, payment, status, multiple_positions, positions_available, positions_filled')
       .eq('user_id', currentUserId.value)
       .eq('status', 'open')
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    userJobListings.value = data || [];
+    if (jobsError) throw jobsError;
+
+    if (!allJobs || allJobs.length === 0) {
+      userJobListings.value = [];
+      return;
+    }
+
+    // Get all job IDs to check for accepted offers
+    const jobIds = allJobs.map(job => job.id);
+
+    // Check which jobs have accepted offers in regular chats
+    const { data: acceptedChats, error: chatsError } = await supabase
+      .from('chats')
+      .select('job_id')
+      .in('job_id', jobIds)
+      .eq('offer_accepted', true);
+
+    if (chatsError) throw chatsError;
+
+    // Create a Set of job IDs that have accepted offers
+    const jobsWithAcceptedOffers = new Set(
+      (acceptedChats || []).map(chat => chat.job_id)
+    );
+
+    // Filter out jobs based on their type and accepted offer status
+    const availableJobs = allJobs.filter(job => {
+      // If job already has an accepted offer
+      if (jobsWithAcceptedOffers.has(job.id)) {
+        // For single-helper jobs, exclude them completely
+        if (!job.multiple_positions) {
+          return false;
+        }
+        
+        // For multi-helper jobs, check if all positions are filled
+        const positionsFilled = job.positions_filled || 0;
+        const positionsAvailable = job.positions_available || 1;
+        
+        // Exclude if all positions are filled
+        if (positionsFilled >= positionsAvailable) {
+          return false;
+        }
+      }
+      
+      // Include the job if it passes all filters
+      return true;
+    });
+
+    userJobListings.value = availableJobs;
+    
   } catch (error) {
     console.error('Error loading job listings:', error);
     userJobListings.value = [];
@@ -785,14 +818,14 @@ const submitOffer = async () => {
     isProcessing.value = true;
     const chatId = route.params.id;
 
-    // ✅ Check if there's a pending offer from the other user
+    // Check if there's a pending offer from the other user
     const pendingOfferFromOther = messages.value.find(
       m => m.message_type === 'offer' && 
            m.offer_status === 'pending' && 
            m.sender_id !== currentUserId.value
     );
 
-    // ✅ If there's a pending offer, mark it as countered
+    // If there's a pending offer, mark it as countered
     if (pendingOfferFromOther) {
       const { error: updateError } = await supabase
         .from(messagesTable.value)
@@ -801,7 +834,6 @@ const submitOffer = async () => {
 
       if (updateError) throw updateError;
 
-      // Update local state
       const msgIndex = messages.value.findIndex(m => m.id === pendingOfferFromOther.id);
       if (msgIndex !== -1) {
         messages.value[msgIndex].offer_status = 'countered';
@@ -812,7 +844,6 @@ const submitOffer = async () => {
       ? `Offer: $${offerAmount.value} for ${offerJobTitle.value}`
       : `Offer: $${offerAmount.value}`;
 
-    // ✅ Determine if this is a counter offer or initial offer
     const messageType = pendingOfferFromOther ? 'counter_offer' : 'offer';
 
     const offerData = {
@@ -886,7 +917,7 @@ const submitOffer = async () => {
   }
 };
 
-// Accept Offer Function - UPDATED to handle both chat types
+// Accept Offer Function
 const acceptOffer = async (offerMessage) => {
   if (isProcessing.value) return;
 
@@ -906,33 +937,25 @@ const acceptOffer = async (offerMessage) => {
     isProcessing.value = true;
     const chatId = route.params.id;
 
-    console.log('Accepting offer:', offerMessage.id);
-    console.log('Is helper chat:', isHelperChat.value);
-
-    // ✅ 1. Update the offer message status
+    // 1. Update the offer message status
     const { error: updateError } = await supabase
       .from(messagesTable.value)
       .update({ offer_status: 'accepted' })
       .eq('id', offerMessage.id);
-    if (updateError) {
-      console.error('Message update error:', updateError);
-      throw updateError;
-    }
+    if (updateError) throw updateError;
 
-    // ✅ 2. Mark chat as accepted - COMPLETELY DIFFERENT approach for each table
+    // 2. Mark chat as accepted
     const tableName = isHelperChat.value ? 'helper_chats' : 'chats';
     
     let chatUpdateError;
     
     if (isHelperChat.value) {
-      // For helper_chats: ONLY update offer_accepted field
       const { error } = await supabase
         .from('helper_chats')
         .update({ offer_accepted: true })
         .eq('id', chatId);
       chatUpdateError = error;
     } else {
-      // For regular chats: Update all three fields
       const { error } = await supabase
         .from('chats')
         .update({ 
@@ -943,14 +966,10 @@ const acceptOffer = async (offerMessage) => {
         .eq('id', chatId);
       chatUpdateError = error;
     }
-      
-    if (chatUpdateError) {
-      console.error('Chat update error:', chatUpdateError);
-      throw chatUpdateError;
-    }
-    console.log('Chat updated successfully');
+        
+    if (chatUpdateError) throw chatUpdateError;
 
-    // ✅ 3. Handle job status updates - ONLY for regular job chats, not helper chats
+    // 3. Handle job status updates - ONLY for regular job chats
     if (!isHelperChat.value && chatInfo.value?.job_id) {
       const { data: jobData, error: jobFetchError } = await supabase
         .from('User-Job-Request')
@@ -964,11 +983,8 @@ const acceptOffer = async (offerMessage) => {
       const positionsAvailable = jobData?.positions_available || 1;
       const positionsFilled = jobData?.positions_filled || 0;
 
-      console.log('Job data:', { requiresMultipleHelpers, positionsAvailable, positionsFilled });
-
       if (requiresMultipleHelpers) {
         const newPositionsFilled = positionsFilled + 1;
-        console.log(`Positions filled: ${newPositionsFilled}/${positionsAvailable}`);
 
         if (newPositionsFilled >= positionsAvailable) {
           const { error: jobUpdateError } = await supabase
@@ -979,7 +995,6 @@ const acceptOffer = async (offerMessage) => {
             })
             .eq('id', chatInfo.value.job_id);
           if (jobUpdateError) throw jobUpdateError;
-          console.log('All positions filled - job marked as in-progress');
         } else {
           const { error: jobUpdateError } = await supabase
             .from('User-Job-Request')
@@ -988,7 +1003,6 @@ const acceptOffer = async (offerMessage) => {
             })
             .eq('id', chatInfo.value.job_id);
           if (jobUpdateError) throw jobUpdateError;
-          console.log('Job still needs more helpers - keeping status as open');
         }
       } else {
         const { error: jobUpdateError } = await supabase
@@ -996,11 +1010,10 @@ const acceptOffer = async (offerMessage) => {
           .update({ status: 'in-progress' })
           .eq('id', chatInfo.value.job_id);
         if (jobUpdateError) throw jobUpdateError;
-        console.log('Single helper job - marked as in-progress');
       }
     }
 
-    // ✅ 4. Send acceptance message WITH offer_amount stored
+    // 4. Send acceptance message
     const acceptanceText = `Offer of $${offerMessage.offer_amount} has been accepted!`;
     const { data: acceptanceMsg, error: msgError } = await supabase
       .from(messagesTable.value)
@@ -1014,12 +1027,9 @@ const acceptOffer = async (offerMessage) => {
       }])
       .select()
       .single();
-    if (msgError) {
-      console.error('Acceptance message error:', msgError);
-      throw msgError;
-    }
+    if (msgError) throw msgError;
 
-    // ✅ 5. Update chat's last message
+    // 5. Update chat's last message
     await supabase
       .from(chatTable.value)
       .update({
@@ -1028,7 +1038,7 @@ const acceptOffer = async (offerMessage) => {
       })
       .eq('id', chatId);
 
-    // ✅ 6. Update local state
+    // 6. Update local state
     const msgIndex = messages.value.findIndex(m => m.id === offerMessage.id);
     if (msgIndex !== -1) {
       messages.value[msgIndex].offer_status = 'accepted';
@@ -1051,7 +1061,6 @@ const acceptOffer = async (offerMessage) => {
 
   } catch (error) {
     console.error('Error accepting offer:', error);
-    console.error('Error details:', error);
     toast.error('Failed to accept offer. Please try again.', '', 5000);
   } finally {
     isProcessing.value = false;
@@ -1086,11 +1095,8 @@ const cancelOffer = async (acceptanceMessage) => {
   try {
     isProcessing.value = true;
     const chatId = route.params.id;
-    
-    console.log('=== CANCELLING ACCEPTED OFFER ===');
-    console.log('Acceptance message:', acceptanceMessage);
 
-    // 1. Find the original offer message that was accepted
+    // 1. Find the original offer message
     const originalOfferMessage = messages.value.find(m =>
       (m.message_type === 'offer' || m.message_type === 'counter_offer') &&
       m.offer_status === 'accepted' &&
@@ -1098,30 +1104,26 @@ const cancelOffer = async (acceptanceMessage) => {
     );
 
     if (originalOfferMessage) {
-      // 2. Update offer message status to 'cancelled'
       const { error: updateError } = await supabase
         .from(messagesTable.value)
         .update({ offer_status: 'cancelled' })
         .eq('id', originalOfferMessage.id);
       
       if (updateError) throw updateError;
-      console.log('Offer message marked as cancelled');
     }
 
-    // 3. Reset chat status - Use completely different updates for each table
+    // 2. Reset chat status
     const tableName = isHelperChat.value ? 'helper_chats' : 'chats';
     
     let chatUpdateError;
     
     if (isHelperChat.value) {
-      // For helper_chats: ONLY update offer_accepted field
       const { error } = await supabase
         .from('helper_chats')
         .update({ offer_accepted: false })
         .eq('id', chatId);
       chatUpdateError = error;
     } else {
-      // For regular chats: Update all fields
       const { error } = await supabase
         .from('chats')
         .update({ 
@@ -1133,13 +1135,9 @@ const cancelOffer = async (acceptanceMessage) => {
       chatUpdateError = error;
     }
     
-    if (chatUpdateError) {
-      console.error('Chat update error:', chatUpdateError);
-      throw chatUpdateError;
-    }
-    console.log('Chat status reset');
+    if (chatUpdateError) throw chatUpdateError;
 
-    // 4. Get job details to update positions (only for non-helper chats)
+    // 3. Update job status (only for non-helper chats)
     if (!isHelperChat.value && chatInfo.value?.job_id) {
       const { data: jobData, error: jobFetchError } = await supabase
         .from('User-Job-Request')
@@ -1149,15 +1147,11 @@ const cancelOffer = async (acceptanceMessage) => {
       
       if (jobFetchError) throw jobFetchError;
 
-      // 5. Update job status and positions
       const requiresMultipleHelpers = jobData?.multiple_positions || false;
       const positionsFilled = jobData?.positions_filled || 0;
 
       if (requiresMultipleHelpers && positionsFilled > 0) {
-        // Decrement positions_filled
         const newPositionsFilled = Math.max(0, positionsFilled - 1);
-        
-        console.log(`Updating positions: ${positionsFilled} -> ${newPositionsFilled}`);
         
         const { error: jobUpdateError } = await supabase
           .from('User-Job-Request')
@@ -1169,7 +1163,6 @@ const cancelOffer = async (acceptanceMessage) => {
         
         if (jobUpdateError) throw jobUpdateError;
       } else {
-        // Single helper job - just revert status
         const { error: jobUpdateError } = await supabase
           .from('User-Job-Request')
           .update({ status: 'open' })
@@ -1177,11 +1170,9 @@ const cancelOffer = async (acceptanceMessage) => {
         
         if (jobUpdateError) throw jobUpdateError;
       }
-      
-      console.log('Job status reverted to open');
     }
 
-    // 6. Send cancellation message
+    // 4. Send cancellation message
     const isJobPoster = !isHelperChat.value && currentUserId.value === chatInfo.value?.job_poster_id;
     const cancellationText = isJobPoster
       ? `Offer acceptance has been cancelled by job poster.\nThis position is now available again.`
@@ -1199,12 +1190,9 @@ const cancelOffer = async (acceptanceMessage) => {
       .select()
       .single();
     
-    if (msgError) {
-      console.error('Message insert error:', msgError);
-      throw msgError;
-    }
+    if (msgError) throw msgError;
 
-    // 7. Update chat's last message - FIXED: Use proper table name
+    // 5. Update chat's last message
     await supabase
       .from(tableName)
       .update({
@@ -1213,7 +1201,7 @@ const cancelOffer = async (acceptanceMessage) => {
       })
       .eq('id', chatId);
 
-    // 8. Update local state
+    // 6. Update local state
     if (originalOfferMessage) {
       const msgIndex = messages.value.findIndex(m => m.id === originalOfferMessage.id);
       if (msgIndex !== -1) {
@@ -1234,8 +1222,7 @@ const cancelOffer = async (acceptanceMessage) => {
     scrollToBottom();
     await checkJobCompleted();
 
-    const isJobPosterSuccess = !isHelperChat.value && currentUserId.value === chatInfo.value?.job_poster_id;
-    const successMessage = isJobPosterSuccess
+    const successMessage = isJobPoster
       ? 'Offer acceptance cancelled successfully. The position is now available again.'
       : 'You have successfully withdrawn from this job. The position is now available again.';
     
@@ -1243,10 +1230,7 @@ const cancelOffer = async (acceptanceMessage) => {
 
   } catch (error) {
     console.error('Error cancelling offer:', error);
-    console.error('Error details:', JSON.stringify(error, null, 2));
-    
-    const errorMessage = error.message || 'Failed to cancel offer. Please try again.';
-    toast.error(`Failed to cancel: ${errorMessage}`, 'Error', 5000);
+    toast.error('Failed to cancel offer. Please try again.', 'Error', 5000);
   } finally {
     isProcessing.value = false;
   }
@@ -1385,7 +1369,7 @@ const submitCounterOffer = async () => {
   }
 };
 
-// Subscribe to realtime messages and updates
+// Subscribe to realtime messages
 const subscribeToMessages = () => {
   const chatId = route.params.id;
   const channelName = `${isHelperChat.value ? 'helper-' : ''}chat-${chatId}`;
@@ -1414,8 +1398,6 @@ const subscribeToMessages = () => {
           window.dispatchEvent(new Event('chat-read'));
         }
         
-        // Reload chat data if a system message about payment comes in,
-        // or if an offer is accepted, to get the latest payment_status.
         if (payload.new.message_type === 'system' && payload.new.message.includes('Payment')) {
           await loadChatData();
         }
@@ -1439,11 +1421,7 @@ const subscribeToMessages = () => {
         }
       }
     )
-    .subscribe((status, err) => {
-      if (err) {
-        console.error("Subscription error:", err);
-      }
-    });
+    .subscribe();
 };
 
 // scroll helper
@@ -1465,7 +1443,7 @@ const goBack = () => {
   router.push('/chats');
 };
 
-// Review modal functions & submit
+// Review modal functions
 const openReviewModal = () => {
   reviewRating.value = 5;
   reviewComment.value = '';
@@ -1490,7 +1468,7 @@ const submitReview = async () => {
       return;
     }
 
-const { data, error } = await supabase
+    const { data, error } = await supabase
       .from('reviews')
       .update({
         rating: reviewRating.value,
@@ -1502,7 +1480,6 @@ const { data, error } = await supabase
       .eq('reviewer_id', currentUserId.value)
       .select();
 
-    // If no rows updated, insert a new review
     if (!error && (!data || data.length === 0)) {
       const { data: insertData, error: insertError } = await supabase
         .from('reviews')
@@ -1520,7 +1497,7 @@ const { data, error } = await supabase
 
     if (error) {
       console.error('Error submitting review:', error);
-      toast.error(error.message || 'Failed to submit review. Please try again.', 'Review Error', 8000);
+      toast.error(error.message || 'Failed to submit review.', 'Review Error', 8000);
       return;
     }
 
@@ -1530,1025 +1507,1014 @@ const { data, error } = await supabase
 
   } catch (error) {
     console.error('Error in submitReview:', error);
-    toast.error(error.message || 'Failed to submit review. Please try again.', 'Review Error', 8000);
+    toast.error(error.message || 'Failed to submit review.', 'Review Error', 8000);
   } finally {
     isProcessing.value = false;
   }
 };
 
-const navigateToJobDetails = () => {
-  // Only navigate for regular job chats, not helper chats
-  if (!isHelperChat.value && chatInfo.value?.job_id) {
-    // Use the job_id from the chat
-    router.push(`/job/${chatInfo.value.job_id}`);
-  }
-};
-
-// New function to handle navigation for both job details and helper profiles
 const navigateToProfile = () => {
   if (isHelperChat.value && otherUserId.value) {
-    // For helper chats, navigate to the helper's profile
     router.push(`/helper/${otherUserId.value}`);
   } else if (!isHelperChat.value && chatInfo.value?.job_id) {
-    // For job chats, navigate to job details
     router.push(`/job/${chatInfo.value.job_id}`);
   }
 };
 </script>
 
-<style scoped>
-.chat-page {
-  display: flex;
-  flex-direction: column;
-  /* 
-    This is the key change. We use a dynamic viewport height unit (dvh).
-    100dvh represents 100% of the dynamic viewport height, which adjusts
-    for mobile browser UI like the address bar appearing and disappearing.
-    We then subtract the space taken by the sticky navbar.
-    'var(--navbar-height)' would be ideal, but since we don't have that,
-    we can use a reasonable estimate or set it in a parent component.
-    For now, let's assume a navbar height. A more robust solution is
-    to set this value via JavaScript if it's dynamic.
-    
-    A simpler approach that avoids calc() is to set the container that
-    holds the navbar and router-view to height: 100vh and be a flex-column,
-    but this change is self-contained to the component.
-
-    Let's go back to the most robust, self-contained Flexbox solution.
-  */
-  height: 100dvh; /* Use dynamic viewport height */
-  max-height: 100dvh;
-  padding-top: 92px; /* Navbar height: logo (60px) + padding (1rem top + 1rem bottom = 32px) = 92px */
-  box-sizing: border-box; /* Ensures padding is included in the height calculation */
-  width: 100%;
-  position: fixed;
-  top: 0;
-  left: 0;
-}
-
-.chat-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  flex-shrink: 0; /* Prevents the header from shrinking */
-  position: fixed; /* Fix the header to the top of the .chat-page container */
-  top: 92px; /* Position it right below the main navbar (92px) */
-  left: 0;
-  width: 100%;
-  z-index: 20; /* Ensure it's above the messages container */
-  box-sizing: border-box;
-}
-
-.messages-container {
-  flex: 1;
-  overflow-y: auto;
-  background: #f9fafb;
-  min-height: 0;
-  /* Add padding to the top to avoid content being hidden by the fixed chat-header */
-  padding: 1.5rem;
-  /* We need to calculate the top padding to be the header's height */
-  padding-top: calc(1.5rem + 80px); /* Adjust 80px to your chat-header's actual height */
-}
-
-.message-input-container {
-  padding: 1rem 1.5rem;
-  background: white;
-  border-top: 1px solid #e5e7eb;
-  flex-shrink: 0; /* Prevents the input area from shrinking */
-}
-/* --- END OF FIX --- */
-
-
-.back-btn {
-  background: none;
-  border: none;
-  color: #374151;
-  cursor: pointer;
-  padding: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.2s;
-}
-
-.back-btn:hover {
-  background: #f3f4f6;
-}
-
-.header-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.header-info.clickable {
-  cursor: pointer;
-  border-radius: 0.5rem;
-  padding: 0.5rem;
-  margin: -0.5rem;
-  transition: background-color 0.2s;
-}
-
-.header-info.clickable:hover {
-  background-color: #f9fafb;
-}
-
-.header-info.clickable:active {
-  background-color: #f3f4f6;
-}
-
-.user-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: #2563eb;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  font-weight: 400;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.avatar-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 50%;
-}
-
-.header-text {
-  flex: 1;
-  min-width: 0;
-}
-
-.user-name {
-  margin: 0;
-  font-size: 1.4625rem; /* 1.95rem * 0.75 */
-  font-weight: 400;
-  color: #111827;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.job-title {
-  margin: 0;
-  font-size: 0.8625rem; /* 1.15rem * 0.75 */
-  font-weight: 300;
-  color: #6b7280;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.chevron-icon {
-  flex-shrink: 0;
-  opacity: 0.6;
-}
-
-.clickable .job-title {
-  color: #2563eb;
-}
-
-.clickable:hover .job-title {
-  color: #1d4ed8;
-}
-
-.clickable:hover .chevron-icon {
-  opacity: 1;
-  transform: translateX(2px);
-  transition: all 0.2s;
-}
-
-.loading-messages {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-}
-
-.spinner {
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 3px solid #e5e7eb;
-  border-top-color: #2563eb;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.empty-messages {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  color: #6b7280;
-  text-align: center;
-}
-
-.messages-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.message-wrapper {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.message-wrapper.own-message {
-  justify-content: flex-end;
-}
-
-.message-bubble {
-  max-width: 70%;
-  padding: 0.75rem 1rem;
-  border-radius: 1rem;
-  background: white;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  position: relative;
-  word-wrap: break-word;
-}
-
-.own-message .message-bubble {
-  background: #2563eb;
-  color: white;
-}
-
-.message-text {
-  margin: 0 0 0.25rem 0;
-  word-wrap: break-word;
-  line-height: 1.5;
-  padding-right: 2rem;
-  font-size: 1.5rem;     /* 1.3rem * 1.15 - increased */
-  font-weight: 150;      /* 200 / 1.33 - decreased */
-}
-
-.message-time {
-  font-size: 0.85rem;    /* 0.75rem * 1.13 - increased */
-  opacity: 0.6;
-  white-space: nowrap;
-  margin-top: 0.25rem;
-  display: block;
-  text-align: right;
-}
-
-.offer-bubble {
-  max-width: 75%;
-  padding: 1rem;
-  background: white;
-  border: 2px solid #2563eb;
-  border-radius: 0.75rem;
-}
-
-.own-message .offer-bubble {
-  background: #2563eb;
-  color: white;
-  border-color: #1e40af;
-}
-
-.offer-bubble.offer-accepted {
-  background: #f0fdf4;
-  border-color: #10b981;
-}
-
-.own-message .offer-bubble.offer-accepted {
-  background: #10b981;
-  border-color: #059669;
-  color: white;
-}
-
-.offer-bubble.offer-countered {
-  background: #fffbeb;
-  border-color: #f59e0b;
-}
-
-.own-message .offer-bubble.offer-countered {
-  background: #f59e0b;
-  border-color: #d97706;
-  color: white;
-}
-
-.offer-bubble.offer-cancelled {
-  background: #fef2f2;
-  border-color: #fca5a5;
-  opacity: 0.7;
-  position: relative;
-}
-
-.own-message .offer-bubble.offer-cancelled {
-  background: #dc2626;
-  border-color: #b91c1c;
-  color: white;
-  opacity: 0.7;
-}
-
-.offer-bubble.offer-cancelled::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 10%;
-  right: 10%;
-  height: 2px;
-  background: #dc2626;
-  transform: translateY(-50%);
-}
-
-.own-message .offer-bubble.offer-cancelled::after {
-  background: white;
-}
-
-.offer-content {
-  margin-bottom: 0.5rem;
-}
-
-.offer-type {
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0.1rem;
-  color: #6b7280;
-}
-
-.own-message .offer-type {
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.offer-job-title {
-  font-size: 0.975rem; /* 1.3rem * 0.75 */
-  font-weight: 400;
-  color: #1e40af;
-  margin-bottom: 0.75rem;
-  line-height: 1.4;
-}
-
-.own-message .offer-job-title {
-  color: white;
-}
-
-.offer-amount {
-  font-size: 1.6875rem; /* 2.25rem * 0.75 */
-  font-weight: 400;
-  color: #1e40af;
-  margin-bottom: 0.75rem;
-}
-
-.own-message .offer-amount {
-  color: white;
-}
-
-.offer-status {
-  font-size: 0.7125rem; /* 0.95rem * 0.75 */
-  font-weight: 400;
-  text-transform: uppercase;
-  color: #6b7280;
-}
-
-.offer-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-.own-message .offer-actions {
-  border-top-color: rgba(255, 255, 255, 0.3);
-}
-
-.offer-action-btn {
-  flex: 1;
-  padding: 0.625rem 1rem;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 0.7875rem; /* 1.05rem * 0.75 */
-  font-weight: 400;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.accept-btn {
-  background: #10b981;
-  color: white;
-}
-
-.accept-btn:hover:not(:disabled) {
-  background: #059669;
-}
-
-.counter-btn {
-  background: #f59e0b;
-  color: white;
-}
-
-.counter-btn:hover:not(:disabled) {
-  background: #d97706;
-}
-
-.offer-action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.accepted-bubble {
-  background: #f0fdf4;
-  border: 2px solid #10b981;
-  padding: 1rem;
-}
-
-.own-message .accepted-bubble {
-  background: #10b981;
-  border-color: #059669;
-  color: white;
-}
-
-.acceptance-text {
-  margin: 0 0 0.25rem 0;
-  font-weight: 600;
-  color: #065f46;
-  padding-right: 3rem;
-}
-
-.own-message .acceptance-text {
-  color: white;
-}
-
-.completed-bubble {
-  background: #ede9fe;
-  border: 2px solid #8b5cf6;
-  padding: 1rem;
-}
-
-.own-message .completed-bubble {
-  background: #8b5cf6;
-  border-color: #7c3aed;
-  color: white;
-}
-
-.completion-text {
-  margin: 0 0 0.25rem 0;
-  font-weight: 400;
-  font-size: 0.825rem; /* 1.1rem * 0.75 */
-  color: #5b21b6;
-  padding-right: 3rem;
-}
-
-.own-message .completion-text {
-  color: white;
-}
-
-.cancelled-bubble {
-  background: #fef2f2;
-  border: 2px solid #fca5a5;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.own-message .cancelled-bubble {
-  background: #dc2626;
-  border-color: #b91c1c;
-  color: white;
-}
-
-.cancelled-icon {
-  font-size: 1.875rem; /* 2.5rem * 0.75 */
-  margin-bottom: 0.5rem;
-}
-
-.cancelled-text {
-  margin: 0 0 0.5rem 0;
-  font-weight: 400;
-  font-size: 0.825rem; /* 1.1rem * 0.75 */
-  color: #991b1b;
-  line-height: 1.5;
-  white-space: pre-line;
-}
-
-.own-message .cancelled-text {
-  color: white;
-}
-
-.cancel-action {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #10b981;
-}
-
-.own-message .cancel-action {
-  border-top-color: rgba(255, 255, 255, 0.3);
-}
-
-.cancel-offer-btn {
-  width: 100%;
-  padding: 0.75rem 1.25rem;
-  background: white;
-  color: #dc2626;
-  border: 2px solid #fecaca;
-  border-radius: 0.5rem;
-  font-size: 0.7875rem; /* 1.05rem * 0.75 */
-  font-weight: 400;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.cancel-offer-btn:hover:not(:disabled) {
-  background: #fef2f2;
-  border-color: #fca5a5;
-  transform: translateY(-1px);
-}
-
-.cancel-offer-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.payment-action {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #10b981;
-}
-
-.own-message .payment-action {
-  border-top-color: rgba(255, 255, 255, 0.3);
-}
-
-.payment-btn {
-  width: 100%;
-  padding: 0.75rem 1.25rem;
-  background: #2563eb;
-  color: white;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 0.7875rem; /* 1.05rem * 0.75 */
-  font-weight: 400;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.payment-btn:hover {
-  background: #1d4ed8;
-  transform: translateY(-1px);
-}
-
-.message-form {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.message-input {
-  flex: 1;
-  padding: 0.875rem 0.85rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 1.5rem;
-  font-size: 0.9rem; /* 1.2rem * 0.75 */
-  transition: all 0.2s;
-  background-color: #f9fafb;
-}
-
-.message-input:focus {
-  outline: none;
-  border-color: #2563eb;
-  background-color: white;
-}
-
-.message-input:disabled {
-  background-color: #f3f4f6;
-  cursor: not-allowed;
-}
-
-.offer-btn {
-  padding: 0.75rem 1.25rem;
-  border-radius: 1.25rem;
-  background: #10b981;
-  color: white;
-  border: none;
-  cursor: pointer;
-  font-size: 0.975rem; /* 1.3rem * 0.75 */
-  font-weight: 300;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.offer-btn:hover:not(:disabled) {
-  background: #059669;
-  transform: translateY(-1px);
-}
-
-.offer-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-.send-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #2563eb;
-  color: white;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.send-btn:hover:not(:disabled) {
-  background: #1d4ed8;
-  transform: scale(1.05);
-}
-
-.send-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 1rem;
-  max-width: 500px;
-  width: 100%;
-  max-height: 68vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-  padding-right: 6px;
-}
-.modal-content::-webkit-scrollbar {
-  width: 6px; /* Width of the scrollbar */
-  height: 6px;
-}
-.modal-content::-webkit-scrollbar {
-  width: 6px; /* Width of the scrollbar */
-  height: 6px;
-}
-.modal-content::-webkit-scrollbar-track {
-  background: transparent; /* Make the track invisible */
-  border-radius: 1rem; /* Match modal's border-radius if possible */
-}
-
-.modal-content::-webkit-scrollbar-thumb {
-  background-color: #adb5bd; /* Color of the scrollbar thumb (the bar) */
-  border-radius: 3px; /* Rounded corners for the thumb */
-}
-
-.modal-content::-webkit-scrollbar-thumb:hover {
-  background-color: #6c757d; /* Darker color on hover */
-}
-
-/* Explicitly hide the scrollbar arrow buttons */
-.modal-content::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-  width: 0;
-}
-
-.modal-content::-webkit-scrollbar-track {
-  background: transparent; /* Make the track invisible */
-  border-radius: 1rem; /* Match modal's border-radius if possible */
-}
-
-.modal-content::-webkit-scrollbar-thumb {
-  background-color: #adb5bd; /* Color of the scrollbar thumb (the bar) */
-   border-radius: 3px; /* Rounded corners for the thumb */
-}
-
-.modal-content::-webkit-scrollbar-thumb:hover {
-  background-color: #6c757d; /* Darker color on hover */
-}
-
-/* Explicitly hide the scrollbar arrow buttons */
-.modal-content::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-  width: 0;
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-title {
-  margin: 0;
-  font-size: 1.125rem; /* 1.5rem * 0.75 */
-  font-weight: 700;
-  color: #111827;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem; /* 2rem * 0.75 */
-  color: #6b7280;
-  cursor: pointer;
-  line-height: 1;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.375rem;
-  transition: all 0.2s;
-}
-
-.close-btn:hover {
-  background: #f3f4f6;
-  color: #111827;
-}
-
-.modal-body {
-  padding: 1.5rem;
-}
-
-.current-offer-info,
-.job-info-box {
-  background: #f9fafb;
-  padding: 1rem;
-  border-radius: 0.5rem;
-  margin-bottom: 1.5rem;
-  border: 1px solid #e5e7eb;
-}
-
-.info-label {
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  color: #6b7280;
-  margin: 0 0 0.25rem 0;
-  font-weight: 500;
-}
-
-.info-value {
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
-  font-weight: 700;
-  color: #111827;
-  margin: 0;
-}
-
-.form-group {
-  margin-bottom: 1.25rem;
-}
-
-.form-label {
-  display: block;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.offer-input {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 0.5rem;
-  font-size: 0.75rem; /* 1rem * 0.75 */
-  transition: all 0.2s;
-  box-sizing: border-box;
-}
-
-.offer-input:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.offer-textarea {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 0.5rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  resize: vertical;
-  font-family: inherit;
-  transition: all 0.2s;
-  box-sizing: border-box;
-}
-
-.offer-textarea:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.modal-actions {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-}
-
-.cancel-btn,
-.submit-btn {
-  flex: 1;
-  padding: 0.875rem 1.5rem;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 0.75rem; /* 1rem * 0.75 */
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.cancel-btn {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-.cancel-btn:hover {
-  background: #e5e7eb;
-}
-
-.submit-btn {
-  background: #2563eb;
-  color: white;
-}
-
-.submit-btn:hover:not(:disabled) {
-  background: #1d4ed8;
-  transform: translateY(-1px);
-  box-shadow:  0 4px 6px rgba(37, 99, 235, 0.2);
-}
-
-.submit-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.payment-confirmed {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: #f0fdf4;
-  border: 2px solid #10b981;
-  border-radius: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.own-message .payment-confirmed {
-  background: rgba(16, 185, 129, 0.2);
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
-.confirmed-icon {
-  width: 32px;
-  height: 32px;
-  background: #10b981;
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
-  font-weight: bold;
-  flex-shrink: 0;
-}
-
-.confirmed-text {
-  margin: 0;
-  font-weight: 600;
-  color: #065f46;
-  font-size: 0.675rem; /* 0.9rem * 0.75 */
-}
-
-.own-message .confirmed-text {
-  color: white;
-}
-
-.review-action {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #8b5cf6;
-}
-
-.own-message .review-action {
-  border-top-color: rgba(255, 255, 255, 0.3);
-}
-
-.review-btn {
-  width: 100%;
-  padding: 0.75rem 1.25rem;
-  background: #8b5cf6;
-  color: white;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.review-btn:hover {
-  background: #7c3aed;
-  transform: translateY(-1px);
-}
-
-.rating-input {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.star-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem; /* 2rem * 0.75 */
-  opacity: 0.3;
-  cursor: pointer;
-  padding: 0;
-  transition: all 0.2s;
-}
-
-.star-btn.active,
-.star-btn:hover {
-  opacity: 1;
-  transform: scale(1.1);
-}
-
-@media (max-width: 768px) {
-  .message-bubble {
-    max-width: 85%;
+  <style scoped>
+  .chat-page {
+    display: flex;
+    flex-direction: column;
+    /* 
+      This is the key change. We use a dynamic viewport height unit (dvh).
+      100dvh represents 100% of the dynamic viewport height, which adjusts
+      for mobile browser UI like the address bar appearing and disappearing.
+      We then subtract the space taken by the sticky navbar.
+      'var(--navbar-height)' would be ideal, but since we don't have that,
+      we can use a reasonable estimate or set it in a parent component.
+      For now, let's assume a navbar height. A more robust solution is
+      to set this value via JavaScript if it's dynamic.
+      
+      A simpler approach that avoids calc() is to set the container that
+      holds the navbar and router-view to height: 100vh and be a flex-column,
+      but this change is self-contained to the component.
+
+      Let's go back to the most robust, self-contained Flexbox solution.
+    */
+    height: 100dvh; /* Use dynamic viewport height */
+    max-height: 100dvh;
+    padding-top: 92px; /* Navbar height: logo (60px) + padding (1rem top + 1rem bottom = 32px) = 92px */
+    box-sizing: border-box; /* Ensures padding is included in the height calculation */
+    width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
   }
-  .modal-content {
-    margin: 1rem;
-    max-height: 55vh !important; /* I limited the height so it doesnt get blocked by navbar on small screen*/
-}
 
+  .chat-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0; /* Prevents the header from shrinking */
+    position: fixed; /* Fix the header to the top of the .chat-page container */
+    top: 92px; /* Position it right below the main navbar (92px) */
+    left: 0;
+    width: 100%;
+    z-index: 20; /* Ensure it's above the messages container */
+    box-sizing: border-box;
+  }
+
+  .messages-container {
+    flex: 1;
+    overflow-y: auto;
+    background: #f9fafb;
+    min-height: 0;
+    /* Add padding to the top to avoid content being hidden by the fixed chat-header */
+    padding: 1.5rem;
+    /* We need to calculate the top padding to be the header's height */
+    padding-top: calc(1.5rem + 80px); /* Adjust 80px to your chat-header's actual height */
+  }
+
+  .message-input-container {
+    padding: 1rem 1.5rem;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    flex-shrink: 0; /* Prevents the input area from shrinking */
+  }
+  /* --- END OF FIX --- */
+
+
+  .back-btn {
+    background: none;
+    border: none;
+    color: #374151;
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+
+  .back-btn:hover {
+    background: #f3f4f6;
+  }
+
+  .header-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .header-info.clickable {
+    cursor: pointer;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    margin: -0.5rem;
+    transition: background-color 0.2s;
+  }
+
+  .header-info.clickable:hover {
+    background-color: #f9fafb;
+  }
+
+  .header-info.clickable:active {
+    background-color: #f3f4f6;
+  }
+
+  .user-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 400;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
+
+  .header-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .user-name {
+    margin: 0;
+    font-size: 1.4625rem; /* 1.95rem * 0.75 */
+    font-weight: 400;
+    color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .job-title {
+    margin: 0;
+    font-size: 0.8625rem; /* 1.15rem * 0.75 */
+    font-weight: 300;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .chevron-icon {
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+
+  .clickable .job-title {
+    color: #2563eb;
+  }
+
+  .clickable:hover .job-title {
+    color: #1d4ed8;
+  }
+
+  .clickable:hover .chevron-icon {
+    opacity: 1;
+    transform: translateX(2px);
+    transition: all 0.2s;
+  }
+
+  .loading-messages {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+  }
+
+  .spinner {
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 3px solid #e5e7eb;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .empty-messages {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    color: #6b7280;
+    text-align: center;
+  }
+
+  .messages-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .message-wrapper {
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  .message-wrapper.own-message {
+    justify-content: flex-end;
+  }
+
+  .message-bubble {
+    max-width: 70%;
+    padding: 0.75rem 1rem;
+    border-radius: 1rem;
+    background: white;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    position: relative;
+    word-wrap: break-word;
+  }
+
+  .own-message .message-bubble {
+    background: #2563eb;
+    color: white;
+  }
+
+  .message-text {
+    margin: 0 0 0.25rem 0;
+    word-wrap: break-word;
+    line-height: 1.5;
+    padding-right: 2rem;
+    font-size: 1.5rem;     /* 1.3rem * 1.15 - increased */
+    font-weight: 150;      /* 200 / 1.33 - decreased */
+  }
+
+  .message-time {
+    font-size: 0.85rem;    /* 0.75rem * 1.13 - increased */
+    opacity: 0.6;
+    white-space: nowrap;
+    margin-top: 0.25rem;
+    display: block;
+    text-align: right;
+  }
 
   .offer-bubble {
-    max-width: 90%;
+    max-width: 75%;
+    padding: 1rem;
+    background: white;
+    border: 2px solid #2563eb;
+    border-radius: 0.75rem;
   }
 
-  .offer-btn {
-    padding: 0.625rem 1rem;
-    font-size: 0.6375rem; /* 0.85rem * 0.75 */
+  .own-message .offer-bubble {
+    background: #2563eb;
+    color: white;
+    border-color: #1e40af;
+  }
+
+  .offer-bubble.offer-accepted {
+    background: #f0fdf4;
+    border-color: #10b981;
+  }
+
+  .own-message .offer-bubble.offer-accepted {
+    background: #10b981;
+    border-color: #059669;
+    color: white;
+  }
+
+  .offer-bubble.offer-countered {
+    background: #fffbeb;
+    border-color: #f59e0b;
+  }
+
+  .own-message .offer-bubble.offer-countered {
+    background: #f59e0b;
+    border-color: #d97706;
+    color: white;
+  }
+
+  .offer-bubble.offer-cancelled {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    opacity: 0.7;
+    position: relative;
+  }
+
+  .own-message .offer-bubble.offer-cancelled {
+    background: #dc2626;
+    border-color: #b91c1c;
+    color: white;
+    opacity: 0.7;
+  }
+
+  .offer-bubble.offer-cancelled::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 10%;
+    right: 10%;
+    height: 2px;
+    background: #dc2626;
+    transform: translateY(-50%);
+  }
+
+  .own-message .offer-bubble.offer-cancelled::after {
+    background: white;
+  }
+
+  .offer-content {
+    margin-bottom: 0.5rem;
+  }
+
+  .offer-type {
+    font-size: 0.9375rem; /* 1.25rem * 0.75 */
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.1rem;
+    color: #6b7280;
+  }
+
+  .own-message .offer-type {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .offer-job-title {
+    font-size: 0.975rem; /* 1.3rem * 0.75 */
+    font-weight: 400;
+    color: #1e40af;
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
+  }
+
+  .own-message .offer-job-title {
+    color: white;
   }
 
   .offer-amount {
+    font-size: 1.6875rem; /* 2.25rem * 0.75 */
+    font-weight: 400;
+    color: #1e40af;
+    margin-bottom: 0.75rem;
+  }
+
+  .own-message .offer-amount {
+    color: white;
+  }
+
+  .offer-status {
+    font-size: 0.7125rem; /* 0.95rem * 0.75 */
+    font-weight: 400;
+    text-transform: uppercase;
+    color: #6b7280;
+  }
+
+  .offer-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .own-message .offer-actions {
+    border-top-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .offer-action-btn {
+    flex: 1;
+    padding: 0.625rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.7875rem; /* 1.05rem * 0.75 */
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .accept-btn {
+    background: #10b981;
+    color: white;
+  }
+
+  .accept-btn:hover:not(:disabled) {
+    background: #059669;
+  }
+
+  .counter-btn {
+    background: #f59e0b;
+    color: white;
+  }
+
+  .counter-btn:hover:not(:disabled) {
+    background: #d97706;
+  }
+
+  .offer-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .accepted-bubble {
+    background: #f0fdf4;
+    border: 2px solid #10b981;
+    padding: 1rem;
+  }
+
+  .own-message .accepted-bubble {
+    background: #10b981;
+    border-color: #059669;
+    color: white;
+  }
+
+  .acceptance-text {
+    margin: 0 0 0.25rem 0;
+    font-weight: 600;
+    color: #065f46;
+    padding-right: 3rem;
+  }
+
+  .own-message .acceptance-text {
+    color: white;
+  }
+
+  .completed-bubble {
+    background: #ede9fe;
+    border: 2px solid #8b5cf6;
+    padding: 1rem;
+  }
+
+  .own-message .completed-bubble {
+    background: #8b5cf6;
+    border-color: #7c3aed;
+    color: white;
+  }
+
+  .completion-text {
+    margin: 0 0 0.25rem 0;
+    font-weight: 400;
+    font-size: 0.825rem; /* 1.1rem * 0.75 */
+    color: #5b21b6;
+    padding-right: 3rem;
+  }
+
+  .own-message .completion-text {
+    color: white;
+  }
+
+  .cancelled-bubble {
+    background: #fef2f2;
+    border: 2px solid #fca5a5;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .own-message .cancelled-bubble {
+    background: #dc2626;
+    border-color: #b91c1c;
+    color: white;
+  }
+
+  .cancelled-icon {
+    font-size: 1.875rem; /* 2.5rem * 0.75 */
+    margin-bottom: 0.5rem;
+  }
+
+  .cancelled-text {
+    margin: 0 0 0.5rem 0;
+    font-weight: 400;
+    font-size: 0.825rem; /* 1.1rem * 0.75 */
+    color: #991b1b;
+    line-height: 1.5;
+    white-space: pre-line;
+  }
+
+  .own-message .cancelled-text {
+    color: white;
+  }
+
+  .cancel-action {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #10b981;
+  }
+
+  .own-message .cancel-action {
+    border-top-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .cancel-offer-btn {
+    width: 100%;
+    padding: 0.75rem 1.25rem;
+    background: white;
+    color: #dc2626;
+    border: 2px solid #fecaca;
+    border-radius: 0.5rem;
+    font-size: 0.7875rem; /* 1.05rem * 0.75 */
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .cancel-offer-btn:hover:not(:disabled) {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    transform: translateY(-1px);
+  }
+
+  .cancel-offer-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .payment-action {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #10b981;
+  }
+
+  .own-message .payment-action {
+    border-top-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .payment-btn {
+    width: 100%;
+    padding: 0.75rem 1.25rem;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.7875rem; /* 1.05rem * 0.75 */
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .payment-btn:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+  }
+
+  .message-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .message-input {
+    flex: 1;
+    padding: 0.875rem 0.85rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 1.5rem;
+    font-size: 0.9rem; /* 1.2rem * 0.75 */
+    transition: all 0.2s;
+    background-color: #f9fafb;
+  }
+
+  .message-input:focus {
+    outline: none;
+    border-color: #2563eb;
+    background-color: white;
+  }
+
+  .message-input:disabled {
+    background-color: #f3f4f6;
+    cursor: not-allowed;
+  }
+
+  .offer-btn {
+    padding: 0.75rem 1.25rem;
+    border-radius: 1.25rem;
+    background: #10b981;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.975rem; /* 1.3rem * 0.75 */
+    font-weight: 300;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .offer-btn:hover:not(:disabled) {
+    background: #059669;
+    transform: translateY(-1px);
+  }
+
+  .offer-btn:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+  }
+
+  .send-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .send-btn:hover:not(:disabled) {
+    background: #1d4ed8;
+    transform: scale(1.05);
+  }
+
+  .send-btn:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+
+  .modal-content {
+    background: white;
+    border-radius: 1rem;
+    max-width: 500px;
+    width: 100%;
+    max-height: 68vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    padding-right: 6px;
+  }
+  .modal-content::-webkit-scrollbar {
+    width: 6px; /* Width of the scrollbar */
+    height: 6px;
+  }
+  .modal-content::-webkit-scrollbar {
+    width: 6px; /* Width of the scrollbar */
+    height: 6px;
+  }
+  .modal-content::-webkit-scrollbar-track {
+    background: transparent; /* Make the track invisible */
+    border-radius: 1rem; /* Match modal's border-radius if possible */
+  }
+
+  .modal-content::-webkit-scrollbar-thumb {
+    background-color: #adb5bd; /* Color of the scrollbar thumb (the bar) */
+    border-radius: 3px; /* Rounded corners for the thumb */
+  }
+
+  .modal-content::-webkit-scrollbar-thumb:hover {
+    background-color: #6c757d; /* Darker color on hover */
+  }
+
+  /* Explicitly hide the scrollbar arrow buttons */
+  .modal-content::-webkit-scrollbar-button {
+    display: none;
+    height: 0;
+    width: 0;
+  }
+
+  .modal-content::-webkit-scrollbar-track {
+    background: transparent; /* Make the track invisible */
+    border-radius: 1rem; /* Match modal's border-radius if possible */
+  }
+
+  .modal-content::-webkit-scrollbar-thumb {
+    background-color: #adb5bd; /* Color of the scrollbar thumb (the bar) */
+    border-radius: 3px; /* Rounded corners for the thumb */
+  }
+
+  .modal-content::-webkit-scrollbar-thumb:hover {
+    background-color: #6c757d; /* Darker color on hover */
+  }
+
+  /* Explicitly hide the scrollbar arrow buttons */
+  .modal-content::-webkit-scrollbar-button {
+    display: none;
+    height: 0;
+    width: 0;
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .modal-title {
+    margin: 0;
     font-size: 1.125rem; /* 1.5rem * 0.75 */
+    font-weight: 700;
+    color: #111827;
   }
 
-  /* Adjust chat positioning for mobile navbar height */
-  .chat-page {
-    padding-top: 180px !important; /* Increased to account for actual mobile navbar height */
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem; /* 2rem * 0.75 */
+    color: #6b7280;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.375rem;
+    transition: all 0.2s;
   }
 
-  .chat-header {
-    top: 180px !important; /* Position chat header right below mobile navbar */
-  }
-}
-
-@media (max-width: 480px) {
-  /* Very small screens where navbar wraps */
-  .chat-page {
-    padding-top: 200px !important; /* Account for wrapped navbar content on very small screens */
+  .close-btn:hover {
+    background: #f3f4f6;
+    color: #111827;
   }
 
-  .chat-header {
-    top: 200px !important; /* Position chat header below wrapped navbar */
+  .modal-body {
+    padding: 1.5rem;
   }
-}
 
-/* Job Cards Styling */
-.job-cards-container {
+  .current-offer-info,
+  .job-info-box {
+    background: #f9fafb;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e5e7eb;
+  }
+
+  .info-label {
+    font-size: 0.65625rem; /* 0.875rem * 0.75 */
+    color: #6b7280;
+    margin: 0 0 0.25rem 0;
+    font-weight: 500;
+  }
+
+  .info-value {
+    font-size: 0.9375rem; /* 1.25rem * 0.75 */
+    font-weight: 700;
+    color: #111827;
+    margin: 0;
+  }
+
+  .form-group {
+    margin-bottom: 1.25rem;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 0.65625rem; /* 0.875rem * 0.75 */
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.5rem;
+  }
+
+  .offer-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 0.5rem;
+    font-size: 0.75rem; /* 1rem * 0.75 */
+    transition: all 0.2s;
+    box-sizing: border-box;
+  }
+
+  .offer-input:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  .offer-textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 0.5rem;
+    font-size: 0.65625rem; /* 0.875rem * 0.75 */
+    resize: vertical;
+    font-family: inherit;
+    transition: all 0.2s;
+    box-sizing: border-box;
+  }
+
+  .offer-textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+  }
+
+  .cancel-btn,
+  .submit-btn {
+    flex: 1;
+    padding: 0.875rem 1.5rem;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.75rem; /* 1rem * 0.75 */
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .cancel-btn {
+    background: #f3f4f6;
+    color: #374151;
+  }
+
+  .cancel-btn:hover {
+    background: #e5e7eb;
+  }
+
+  .submit-btn {
+    background: #2563eb;
+    color: white;
+  }
+
+  .submit-btn:hover:not(:disabled) {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+    box-shadow:  0 4px 6px rgba(37, 99, 235, 0.2);
+  }
+
+  .submit-btn:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .payment-confirmed {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f0fdf4;
+    border: 2px solid #10b981;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .own-message .payment-confirmed {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+
+  .confirmed-icon {
+    width: 32px;
+    height: 32px;
+    background: #10b981;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9375rem; /* 1.25rem * 0.75 */
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+
+  .confirmed-text {
+    margin: 0;
+    font-weight: 600;
+    color: #065f46;
+    font-size: 0.675rem; /* 0.9rem * 0.75 */
+  }
+
+  .own-message .confirmed-text {
+    color: white;
+  }
+
+  .review-action {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #8b5cf6;
+  }
+
+  .own-message .review-action {
+    border-top-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .review-btn {
+    width: 100%;
+    padding: 0.75rem 1.25rem;
+    background: #8b5cf6;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.65625rem; /* 0.875rem * 0.75 */
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .review-btn:hover {
+    background: #7c3aed;
+    transform: translateY(-1px);
+  }
+
+  .rating-input {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .star-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem; /* 2rem * 0.75 */
+    opacity: 0.3;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.2s;
+  }
+
+  .star-btn.active,
+  .star-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+
+  @media (max-width: 768px) {
+    .message-bubble {
+      max-width: 85%;
+    }
+    .modal-content {
+      margin: 1rem;
+      max-height: 55vh !important; /* I limited the height so it doesnt get blocked by navbar on small screen*/
+  }
+
+
+    .offer-bubble {
+      max-width: 90%;
+    }
+
+    .offer-btn {
+      padding: 0.625rem 1rem;
+      font-size: 0.6375rem; /* 0.85rem * 0.75 */
+    }
+
+    .offer-amount {
+      font-size: 1.125rem; /* 1.5rem * 0.75 */
+    }
+
+    /* Adjust chat positioning for mobile navbar height */
+    .chat-page {
+      padding-top: 180px !important; /* Increased to account for actual mobile navbar height */
+    }
+
+    .chat-header {
+      top: 180px !important; /* Position chat header right below mobile navbar */
+    }
+  }
+
+  @media (max-width: 480px) {
+    /* Very small screens where navbar wraps */
+    .chat-page {
+      padding-top: 200px !important; /* Account for wrapped navbar content on very small screens */
+    }
+
+    .chat-header {
+      top: 200px !important; /* Position chat header below wrapped navbar */
+    }
+  }
+
+  /* Job Cards Styling */
+  .job-cards-container {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -2560,7 +2526,7 @@ const navigateToProfile = () => {
 .job-card {
   position: relative;
   padding: 1rem;
-  padding-left: 3rem; /* Add left padding to make room for the checkmark */
+  padding-left: 3rem;
   border: 2px solid #e5e7eb;
   border-radius: 0.75rem;
   background: white;
@@ -2610,8 +2576,8 @@ const navigateToProfile = () => {
 .job-card-check {
   position: absolute;
   top: 50%;
-  left: 0.75rem; /* Position on the left side */
-  transform: translateY(-50%); /* Center vertically */
+  left: 0.75rem;
+  transform: translateY(-50%);
   width: 24px;
   height: 24px;
   background: #2563eb;
