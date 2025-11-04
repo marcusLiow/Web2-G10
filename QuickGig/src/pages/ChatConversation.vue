@@ -164,200 +164,182 @@
         </button></div>
       </form>
     </div>
+  </div>
 
-    <!-- Make Offer Modal -->
-    <div v-if="showMakeOfferModal" class="modal-overlay" @click="closeMakeOfferModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h2 class="modal-title">{{ isHelperChat ? 'Offer Job to Adventurer' : 'Make an Offer' }}</h2>
-          <button @click="closeMakeOfferModal" class="close-btn">×</button>
-        </div>
-
-        <div class="modal-body">
-          <!-- Current Asking Price Display - Only for non-helper chats -->
-          <div v-if="!isHelperChat" class="current-price-section">
-            <div class="price-label-row">
-              <span class="price-label-text">Current Asking Price</span>
-            </div>
-            <div class="current-price-display">
-              ${{ jobInfo?.payment || '0.00' }}
-            </div>
-            <p class="price-subtext">Posted by {{ otherUser?.username }}</p>
-          </div>
-
-          <!-- Job Info for non-helper chats -->
-          <div v-if="!isHelperChat" class="job-info-box">
-            <div class="job-info-header">
-              <p class="info-label">Job Title</p>
-            </div>
-            <p class="info-value">{{ jobInfo?.title }}</p>
-          </div>
-
-          <!-- Adventurer Info for helper chats -->
-          <div v-if="isHelperChat" class="job-info-box">
-            <div class="job-info-header">
-              <p class="info-label">Offering Job To</p>
-            </div>
-            <p class="info-value">{{ otherUser?.username }}</p>
-          </div>
-
-          <!-- Job Selection Cards for Adventurer Chats -->
-          <div v-if="isHelperChat" class="form-group">
-            <label class="form-label">Select Your Job Listing *</label>
-            <div v-if="userJobListings.length > 0" class="job-cards-container">
-              <div
-                v-for="job in userJobListings"
-                :key="job.id"
-                @click="selectJob(job.id)"
-                :class="['job-card', { 'selected': selectedJobId === job.id }]"
-              >
-                <div v-if="selectedJobId === job.id" class="job-card-check">✓</div>
-                <div class="job-card-header">
-                  <h3 class="job-card-title">{{ job.title }}</h3>
-                  <div class="job-card-price">${{ job.payment }}</div>
-                </div>
-              </div>
-            </div>
-            <div v-else class="no-jobs-message">
-              <p class="no-jobs-text">You don't have any open job listings.</p>
-              <router-link to="/create-job" class="create-job-link">Create one now</router-link>
-            </div>
-          </div>
-
-          <!-- Your Offer Amount - Only for non-helper chats -->
-          <div v-if="!isHelperChat" class="form-group">
-            <label class="form-label">Your Offer Amount ($) *</label>
-            <div class="offer-amount-input-wrapper">
-              <span class="currency-prefix">$</span>
-              <input
-                v-model="offerAmount"
-                type="number"
-                placeholder="Enter your offer"
-                class="offer-input offer-amount-input"
-                min="1"
-                step="0.01"
-              />
-            </div>
-            <div v-if="offerAmount && jobInfo?.payment" class="price-difference">
-              <span v-if="parseFloat(offerAmount) < parseFloat(jobInfo.payment)" class="difference-lower">
-                ${{ (parseFloat(jobInfo.payment) - parseFloat(offerAmount)).toFixed(2) }} lower than asking price
-              </span>
-              <span v-else-if="parseFloat(offerAmount) > parseFloat(jobInfo.payment)" class="difference-higher">
-                ${{ (parseFloat(offerAmount) - parseFloat(jobInfo.payment)).toFixed(2) }} higher than asking price
-              </span>
-              <span v-else class="difference-equal">
-                Matches asking price
-              </span>
-            </div>
-          </div>
-
-          <!-- Optional Message -->
-          <div class="form-group">
-            <label class="form-label">Message (Optional)</label>
-            <textarea
-              v-model="offerMessage"
-              placeholder="Add a message to explain your offer or ask questions..."
-              class="offer-textarea"
-              rows="3"
-            ></textarea>
-          </div>
-
-          <div class="modal-actions">
-            <button @click="closeMakeOfferModal" class="cancel-btn">Cancel</button>
-            <button @click="submitOffer" class="submit-btn" :disabled="!canSubmitOffer || isProcessing">
-              {{ isProcessing ? 'Sending...' : 'Send Offer' }}
-            </button>
-          </div>
-        </div>
+  <!-- ✅ ALL MODALS MOVED OUTSIDE chat-page -->
+  
+  <!-- Make Offer Modal -->
+  <div v-if="showMakeOfferModal" class="modal-overlay" @click="closeMakeOfferModal">
+    <div class="modal-content" @click.stop>
+      <div class="modal-header">
+        <h2 class="modal-title">Make an Offer</h2>
+        <button @click="closeMakeOfferModal" class="close-btn">×</button>
       </div>
-    </div>
 
-    <!-- Counter Offer Modal -->
-    <div v-if="showCounterModal" class="modal-overlay" @click="closeCounterModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h2 class="modal-title">Counter Offer</h2>
-          <button @click="closeCounterModal" class="close-btn">×</button>
+      <div class="modal-body">
+        <!-- Current Asking Price Display - Only for non-helper chats -->
+        <div v-if="!isHelperChat" class="current-price-section">
+          <div class="price-label-row">
+            <span class="price-label-text">Current Asking Price</span>
+          </div>
+          <div class="current-price-display">
+            ${{ jobInfo?.payment || '0.00' }}
+          </div>
+          <p class="price-subtext">Posted by {{ otherUser?.username }}</p>
         </div>
 
-        <div class="modal-body">
-          <div class="current-offer-info">
-            <p class="info-label">Current Offer</p>
-            <p class="info-value">${{ selectedOffer?.offer_amount }}</p>
+        <!-- Job Info -->
+        <div class="job-info-box">
+          <div class="job-info-header">
+            <p class="info-label">{{ isHelperChat ? 'Adventurer Service' : 'Job Title' }}</p>
           </div>
+          <p class="info-value">{{ isHelperChat ? otherUser?.username : jobInfo?.title }}</p>
+        </div>
 
-          <div class="form-group">
-            <label class="form-label">Your Counter Offer Amount *</label>
+        <!-- Adventurer Chat Job Title Input -->
+        <div v-if="isHelperChat" class="form-group">
+          <label class="form-label">Job Title *</label>
+          <input
+            v-model="offerJobTitle"
+            type="text"
+            placeholder="e.g., Dog Walking, House Cleaning"
+            class="offer-input"
+          />
+        </div>
+
+        <!-- Your Offer Amount -->
+        <div class="form-group">
+          <label class="form-label">Your Offer Amount ($) *</label>
+          <div class="offer-amount-input-wrapper">
+            <span class="currency-prefix">$</span>
             <input
-              v-model="counterAmount"
+              v-model="offerAmount"
               type="number"
-              placeholder="Enter your counter offer"
-              class="offer-input"
+              placeholder="Enter your offer"
+              class="offer-input offer-amount-input"
               min="1"
               step="0.01"
             />
           </div>
-
-          <div class="form-group">
-            <label class="form-label">Message (Optional)</label>
-            <textarea
-              v-model="counterMessage"
-              placeholder="Add a message to explain your counter offer..."
-              class="offer-textarea"
-              rows="3"
-            ></textarea>
+          <div v-if="offerAmount && jobInfo?.payment" class="price-difference">
+            <span v-if="parseFloat(offerAmount) < parseFloat(jobInfo.payment)" class="difference-lower">
+              ${{ (parseFloat(jobInfo.payment) - parseFloat(offerAmount)).toFixed(2) }} lower than asking price
+            </span>
+            <span v-else-if="parseFloat(offerAmount) > parseFloat(jobInfo.payment)" class="difference-higher">
+              ${{ (parseFloat(offerAmount) - parseFloat(jobInfo.payment)).toFixed(2) }} higher than asking price
+            </span>
+            <span v-else class="difference-equal">
+              Matches asking price
+            </span>
           </div>
+        </div>
 
-          <div class="modal-actions">
-            <button @click="closeCounterModal" class="cancel-btn">Cancel</button>
-            <button @click="submitCounterOffer" class="submit-btn" :disabled="!counterAmount || isProcessing">
-              Send Counter Offer
-            </button>
-          </div>
+        <!-- Optional Message -->
+        <div class="form-group">
+          <label class="form-label">Message (Optional)</label>
+          <textarea
+            v-model="offerMessage"
+            placeholder="Add a message to explain your offer or ask questions..."
+            class="offer-textarea"
+            rows="3"
+          ></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button @click="closeMakeOfferModal" class="cancel-btn">Cancel</button>
+          <button @click="submitOffer" class="submit-btn" :disabled="!canSubmitOffer || isProcessing">
+            {{ isProcessing ? 'Sending...' : 'Send Offer' }}
+          </button>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Review Modal -->
-    <div v-if="showReviewModal" class="modal-overlay" @click="closeReviewModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h2 class="modal-title">Leave a Review for {{ otherUser?.username }}</h2>
-          <button @click="closeReviewModal" class="close-btn">×</button>
+  <!-- Counter Offer Modal -->
+  <div v-if="showCounterModal" class="modal-overlay" @click="closeCounterModal">
+    <div class="modal-content" @click.stop>
+      <div class="modal-header">
+        <h2 class="modal-title">Counter Offer</h2>
+        <button @click="closeCounterModal" class="close-btn">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="current-offer-info">
+          <p class="info-label">Current Offer</p>
+          <p class="info-value">${{ selectedOffer?.offer_amount }}</p>
         </div>
 
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Rating *</label>
-            <div class="rating-input">
-              <button
-                v-for="star in 5"
-                :key="star"
-                @click="reviewRating = star"
-                :class="['star-btn', { active: star <= reviewRating }]"
-                type="button"
-              >
-                ⭐
-              </button>
-            </div>
-          </div>
+        <div class="form-group">
+          <label class="form-label">Your Counter Offer Amount *</label>
+          <input
+            v-model="counterAmount"
+            type="number"
+            placeholder="Enter your counter offer"
+            class="offer-input"
+            min="1"
+            step="0.01"
+          />
+        </div>
 
-          <div class="form-group">
-            <label class="form-label">Your Review *</label>
-            <textarea
-              v-model="reviewComment"
-              placeholder="Share your experience..."
-              class="offer-textarea"
-              rows="4"
-            ></textarea>
-          </div>
+        <div class="form-group">
+          <label class="form-label">Message (Optional)</label>
+          <textarea
+            v-model="counterMessage"
+            placeholder="Add a message to explain your counter offer..."
+            class="offer-textarea"
+            rows="3"
+          ></textarea>
+        </div>
 
-          <div class="modal-actions">
-            <button @click="closeReviewModal" class="cancel-btn">Cancel</button>
-            <button @click="submitReview" class="submit-btn" :disabled="!reviewRating || !reviewComment.trim() || isProcessing">
-              Submit Review
+        <div class="modal-actions">
+          <button @click="closeCounterModal" class="cancel-btn">Cancel</button>
+          <button @click="submitCounterOffer" class="submit-btn" :disabled="!counterAmount || isProcessing">
+            Send Counter Offer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Review Modal -->
+  <div v-if="showReviewModal" class="modal-overlay" @click="closeReviewModal">
+    <div class="modal-content" @click.stop>
+      <div class="modal-header">
+        <h2 class="modal-title">Leave a Review for {{ otherUser?.username }}</h2>
+        <button @click="closeReviewModal" class="close-btn">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Rating *</label>
+          <div class="rating-input">
+            <button
+              v-for="star in 5"
+              :key="star"
+              @click="reviewRating = star"
+              :class="['star-btn', { active: star <= reviewRating }]"
+              type="button"
+            >
+              ⭐
             </button>
           </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Your Review *</label>
+          <textarea
+            v-model="reviewComment"
+            placeholder="Share your experience..."
+            class="offer-textarea"
+            rows="4"
+          ></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button @click="closeReviewModal" class="cancel-btn">Cancel</button>
+          <button @click="submitReview" class="submit-btn" :disabled="!reviewRating || !reviewComment.trim() || isProcessing">
+            Submit Review
+          </button>
         </div>
       </div>
     </div>
