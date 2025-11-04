@@ -7,7 +7,7 @@
         </svg>
       </button>
 
-      <div class="header-info" @click="navigateToProfile" :class="{ 'clickable': true }">
+      <div class="header-info" @click="navigateToJobDetails" :class="{ 'clickable': !isHelperChat }">
         <div class="user-avatar">
           <img 
             v-if="otherUser?.avatar_url" 
@@ -59,8 +59,6 @@
                }">
             <div class="offer-content">
               <div class="offer-type">{{ message.message_type === 'counter_offer' ? 'Counter Offer' : 'Offer' }}</div>
-              <!-- Show job title for helper chats -->
-              <div v-if="isHelperChat && message.job_title" class="offer-job-title">{{ message.job_title }}</div>
               <div class="offer-amount">${{ message.offer_amount }}</div>
               <div v-if="message.offer_status === 'accepted'" class="offer-status">✓ Accepted</div>
               <div v-else-if="message.offer_status === 'countered'" class="offer-status">Countered</div>
@@ -147,7 +145,7 @@
           @click="openMakeOfferModal"
           :disabled="isSending"
         >
-          {{ isHelperChat ? 'Offer Job' : 'Make Offer' }}
+          Make Offer
         </button>
         </div>
 
@@ -174,8 +172,8 @@
         </div>
 
         <div class="modal-body">
-          <!-- Current Asking Price Display - Only for non-helper chats -->
-          <div v-if="!isHelperChat" class="current-price-section">
+          <!-- Current Asking Price Display -->
+          <div class="current-price-section">
             <div class="price-label-row">
               <span class="price-label-text">Current Asking Price</span>
             </div>
@@ -780,11 +778,6 @@ const submitOffer = async () => {
       read: false
     };
 
-    // Add job_title for helper chats
-    if (isHelperChat.value && offerJobTitle.value) {
-      offerData.job_title = offerJobTitle.value;
-    }
-
     const { data: offerMsg, error: offerError } = await supabase
       .from(messagesTable.value)
       .insert([offerData])
@@ -792,6 +785,11 @@ const submitOffer = async () => {
       .single();
 
     if (offerError) throw offerError;
+
+    // optional: store job title locally for UI use
+    if (isHelperChat.value) {
+      offerMsg.jobTitle = offerJobTitle.value;
+    }
 
     let lastMessage = offerText;
 
@@ -845,7 +843,15 @@ const submitOffer = async () => {
 const acceptOffer = async (offerMessage) => {
   if (isProcessing.value) return;
 
-  if (!confirm(`Accept offer of $${offerMessage.offer_amount}?`)) {
+  const confirmed = await toast.confirm({
+    message: `Accept offer of $${offerMessage.offer_amount}?`,
+    title: 'Confirm Offer',
+    confirmText: 'Accept',
+    cancelText: 'Cancel',
+    type: 'info'
+  });
+
+  if (!confirmed) {
     return;
   }
 
@@ -939,7 +945,7 @@ const acceptOffer = async (offerMessage) => {
     const { data: acceptanceMsg, error: msgError } = await supabase
       .from(messagesTable.value)
       .insert([{
-        [chatIdColumn.value]: chatId,
+        chat_id: chatId,
         sender_id: currentUserId.value,
         message: acceptanceText,
         message_type: 'offer_accepted',
@@ -982,15 +988,24 @@ const acceptOffer = async (offerMessage) => {
 };
 
 // Cancel Offer Functions
-const confirmCancelOffer = (acceptanceMessage) => {
+const confirmCancelOffer = async (acceptanceMessage) => {
   const isJobPoster = !isHelperChat.value && currentUserId.value === chatInfo.value?.job_poster_id;
   const confirmMessage = isJobPoster 
     ? 'Are you sure you want to cancel this accepted offer?\nThe adventurer will be notified and this position will become available again.'
     : 'Are you sure you want to withdraw from this job?\nThe job poster will be notified and this position will become available again.';
   
-  if (!confirm(confirmMessage)) {
+  const confirmed = await toast.confirm({
+    message: confirmMessage,
+    title: isJobPoster ? 'Cancel Offer' : 'Withdraw from Job',
+    confirmText: isJobPoster ? 'Cancel Offer' : 'Withdraw',
+    cancelText: 'Go Back',
+    type: 'danger'
+  });
+
+  if (!confirmed) {
     return;
   }
+
   cancelOffer(acceptanceMessage);
 };
 
@@ -1446,17 +1461,6 @@ const navigateToJobDetails = () => {
     router.push(`/job/${chatInfo.value.job_id}`);
   }
 };
-
-// New function to handle navigation for both job details and helper profiles
-const navigateToProfile = () => {
-  if (isHelperChat.value && otherUserId.value) {
-    // For helper chats, navigate to the helper's profile
-    router.push(`/helper/${otherUserId.value}`);
-  } else if (!isHelperChat.value && chatInfo.value?.job_id) {
-    // For job chats, navigate to job details
-    router.push(`/job/${chatInfo.value.job_id}`);
-  }
-};
 </script>
 
 <style scoped>
@@ -1576,8 +1580,8 @@ const navigateToProfile = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-  font-weight: 400;
+  font-size: 1.25rem;
+  font-weight: 600;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -1596,8 +1600,8 @@ const navigateToProfile = () => {
 
 .user-name {
   margin: 0;
-  font-size: 1.4625rem; /* 1.95rem * 0.75 */
-  font-weight: 400;
+  font-size: 1.125rem;
+  font-weight: 600;
   color: #111827;
   white-space: nowrap;
   overflow: hidden;
@@ -1606,8 +1610,7 @@ const navigateToProfile = () => {
 
 .job-title {
   margin: 0;
-  font-size: 0.8625rem; /* 1.15rem * 0.75 */
-  font-weight: 300;
+  font-size: 0.875rem;
   color: #6b7280;
   white-space: nowrap;
   overflow: hidden;
@@ -1699,13 +1702,11 @@ const navigateToProfile = () => {
   margin: 0 0 0.25rem 0;
   word-wrap: break-word;
   line-height: 1.5;
-  padding-right: 2rem;
-  font-size: 1.5rem;     /* 1.3rem * 1.15 - increased */
-  font-weight: 150;      /* 200 / 1.33 - decreased */
+  padding-right: 3rem;
 }
 
 .message-time {
-  font-size: 0.85rem;    /* 0.75rem * 1.13 - increased */
+  font-size: 0.7rem;
   opacity: 0.6;
   white-space: nowrap;
   margin-top: 0.25rem;
@@ -1783,11 +1784,11 @@ const navigateToProfile = () => {
 }
 
 .offer-type {
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
-  font-weight: 400;
+  font-size: 0.75rem;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 0.1rem;
+  margin-bottom: 0.5rem;
   color: #6b7280;
 }
 
@@ -1795,23 +1796,11 @@ const navigateToProfile = () => {
   color: rgba(255, 255, 255, 0.8);
 }
 
-.offer-job-title {
-  font-size: 0.975rem; /* 1.3rem * 0.75 */
-  font-weight: 400;
-  color: #1e40af;
-  margin-bottom: 0.5rem;
-  line-height: 1.4;
-}
-
-.own-message .offer-job-title {
-  color: white;
-}
-
 .offer-amount {
-  font-size: 1.6875rem; /* 2.25rem * 0.75 */
-  font-weight: 400;
+  font-size: 1.75rem;
+  font-weight: 700;
   color: #1e40af;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.25rem;
 }
 
 .own-message .offer-amount {
@@ -1819,8 +1808,8 @@ const navigateToProfile = () => {
 }
 
 .offer-status {
-  font-size: 0.7125rem; /* 0.95rem * 0.75 */
-  font-weight: 400;
+  font-size: 0.75rem;
+  font-weight: 600;
   text-transform: uppercase;
   color: #6b7280;
 }
@@ -1842,8 +1831,8 @@ const navigateToProfile = () => {
   padding: 0.625rem 1rem;
   border: none;
   border-radius: 0.5rem;
-  font-size: 0.7875rem; /* 1.05rem * 0.75 */
-  font-weight: 400;
+  font-size: 0.875rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -1908,8 +1897,7 @@ const navigateToProfile = () => {
 
 .completion-text {
   margin: 0 0 0.25rem 0;
-  font-weight: 400;
-  font-size: 0.825rem; /* 1.1rem * 0.75 */
+  font-weight: 600;
   color: #5b21b6;
   padding-right: 3rem;
 }
@@ -1935,14 +1923,13 @@ const navigateToProfile = () => {
 }
 
 .cancelled-icon {
-  font-size: 1.875rem; /* 2.5rem * 0.75 */
+  font-size: 2rem;
   margin-bottom: 0.5rem;
 }
 
 .cancelled-text {
   margin: 0 0 0.5rem 0;
-  font-weight: 400;
-  font-size: 0.825rem; /* 1.1rem * 0.75 */
+  font-weight: 600;
   color: #991b1b;
   line-height: 1.5;
   white-space: pre-line;
@@ -1969,8 +1956,8 @@ const navigateToProfile = () => {
   color: #dc2626;
   border: 2px solid #fecaca;
   border-radius: 0.5rem;
-  font-size: 0.7875rem; /* 1.05rem * 0.75 */
-  font-weight: 400;
+  font-size: 0.875rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -2003,8 +1990,8 @@ const navigateToProfile = () => {
   color: white;
   border: none;
   border-radius: 0.5rem;
-  font-size: 0.7875rem; /* 1.05rem * 0.75 */
-  font-weight: 400;
+  font-size: 0.875rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -2022,10 +2009,10 @@ const navigateToProfile = () => {
 
 .message-input {
   flex: 1;
-  padding: 0.875rem 0.85rem;
+  padding: 0.875rem 1rem;
   border: 2px solid #e5e7eb;
   border-radius: 1.5rem;
-  font-size: 0.9rem; /* 1.2rem * 0.75 */
+  font-size: 1rem;
   transition: all 0.2s;
   background-color: #f9fafb;
 }
@@ -2043,13 +2030,13 @@ const navigateToProfile = () => {
 
 .offer-btn {
   padding: 0.75rem 1.25rem;
-  border-radius: 1.25rem;
+  border-radius: 1.5rem;
   background: #10b981;
   color: white;
   border: none;
   cursor: pointer;
-  font-size: 0.975rem; /* 1.3rem * 0.75 */
-  font-weight: 300;
+  font-size: 0.9rem;
+  font-weight: 600;
   transition: all 0.2s;
   white-space: nowrap;
 }
@@ -2172,7 +2159,7 @@ const navigateToProfile = () => {
 
 .modal-title {
   margin: 0;
-  font-size: 1.125rem; /* 1.5rem * 0.75 */
+  font-size: 1.5rem;
   font-weight: 700;
   color: #111827;
 }
@@ -2180,7 +2167,7 @@ const navigateToProfile = () => {
 .close-btn {
   background: none;
   border: none;
-  font-size: 1.5rem; /* 2rem * 0.75 */
+  font-size: 2rem;
   color: #6b7280;
   cursor: pointer;
   line-height: 1;
@@ -2213,14 +2200,14 @@ const navigateToProfile = () => {
 }
 
 .info-label {
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
+  font-size: 0.875rem;
   color: #6b7280;
   margin: 0 0 0.25rem 0;
   font-weight: 500;
 }
 
 .info-value {
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
+  font-size: 1.25rem;
   font-weight: 700;
   color: #111827;
   margin: 0;
@@ -2232,7 +2219,7 @@ const navigateToProfile = () => {
 
 .form-label {
   display: block;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
+  font-size: 0.875rem;
   font-weight: 600;
   color: #374151;
   margin-bottom: 0.5rem;
@@ -2243,7 +2230,7 @@ const navigateToProfile = () => {
   padding: 0.75rem 1rem;
   border: 2px solid #e5e7eb;
   border-radius: 0.5rem;
-  font-size: 0.75rem; /* 1rem * 0.75 */
+  font-size: 1rem;
   transition: all 0.2s;
   box-sizing: border-box;
 }
@@ -2259,7 +2246,7 @@ const navigateToProfile = () => {
   padding: 0.75rem 1rem;
   border: 2px solid #e5e7eb;
   border-radius: 0.5rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
+  font-size: 0.875rem;
   resize: vertical;
   font-family: inherit;
   transition: all 0.2s;
@@ -2284,7 +2271,7 @@ const navigateToProfile = () => {
   padding: 0.875rem 1.5rem;
   border: none;
   border-radius: 0.5rem;
-  font-size: 0.75rem; /* 1rem * 0.75 */
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -2307,7 +2294,7 @@ const navigateToProfile = () => {
 .submit-btn:hover:not(:disabled) {
   background: #1d4ed8;
   transform: translateY(-1px);
-  box-shadow:  0 4px 6px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
 }
 
 .submit-btn:disabled {
@@ -2341,7 +2328,7 @@ const navigateToProfile = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
+  font-size: 1.25rem;
   font-weight: bold;
   flex-shrink: 0;
 }
@@ -2350,7 +2337,7 @@ const navigateToProfile = () => {
   margin: 0;
   font-weight: 600;
   color: #065f46;
-  font-size: 0.675rem; /* 0.9rem * 0.75 */
+  font-size: 0.9rem;
 }
 
 .own-message .confirmed-text {
@@ -2377,11 +2364,11 @@ const navigateToProfile = () => {
 
   .offer-btn {
     padding: 0.625rem 1rem;
-    font-size: 0.6375rem; /* 0.85rem * 0.75 */
+    font-size: 0.85rem;
   }
 
   .offer-amount {
-    font-size: 1.125rem; /* 1.5rem * 0.75 */
+    font-size: 1.5rem;
   }
 }
 
@@ -2398,7 +2385,7 @@ const navigateToProfile = () => {
   color: white;
   border: none;
   border-radius: 0.5rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -2417,7 +2404,7 @@ const navigateToProfile = () => {
 .star-btn {
   background: none;
   border: none;
-  font-size: 1.5rem; /* 2rem * 0.75 */
+  font-size: 2rem;
   opacity: 0.3;
   cursor: pointer;
   padding: 0;
@@ -2449,7 +2436,7 @@ const navigateToProfile = () => {
 }
 
 .price-label-text {
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
+  font-size: 0.875rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -2457,14 +2444,14 @@ const navigateToProfile = () => {
 }
 
 .current-price-display {
-  font-size: 1.875rem; /* 2.5rem * 0.75 */
+  font-size: 2.5rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
   color: #111827;
 }
 
 .price-subtext {
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
+  font-size: 0.875rem;
   margin: 0;
   color: #6b7280;
 }
@@ -2485,7 +2472,7 @@ const navigateToProfile = () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
+  font-size: 0.875rem;
   font-weight: 600;
   color: #374151;
   margin-bottom: 0.5rem;
@@ -2500,7 +2487,7 @@ const navigateToProfile = () => {
 .currency-prefix {
   position: absolute;
   left: 1rem;
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
+  font-size: 1.25rem;
   font-weight: 600;
   color: #6b7280;
   pointer-events: none;
@@ -2508,7 +2495,7 @@ const navigateToProfile = () => {
 
 .offer-amount-input {
   padding-left: 2.5rem !important;
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
+  font-size: 1.25rem;
   font-weight: 600;
 }
 
@@ -2516,7 +2503,7 @@ const navigateToProfile = () => {
   margin-top: 0.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: 0.375rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
+  font-size: 0.875rem;
   font-weight: 500;
   text-align: center;
   border: 1px solid;
@@ -2586,7 +2573,7 @@ const navigateToProfile = () => {
 
 @media (max-width: 768px) {
   .current-price-display {
-    font-size: 1.5rem; /* 2rem * 0.75 */
+    font-size: 2rem;
   }
   
   .current-price-section {
