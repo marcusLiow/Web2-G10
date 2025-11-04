@@ -1477,6 +1477,8 @@ async function saveProfile() {
         experience: Array.isArray(editForm.experience) ? editForm.experience : [],
         location: finalHelperLocation || null,
         is_active: editForm.is_listed,
+        helper_tier: 'Silver',  // ✅ Set initial tier to Silver
+        helper_xp: 0,           // ✅ Set initial XP to 0
         updated_at: new Date().toISOString()
       };
 
@@ -1682,7 +1684,7 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 
 .tab-button {
   padding: 0.75rem 1rem;
-  font-size: 0.875rem;
+  font-size: 1.5rem;
   font-weight: 500;
   border: none;
   background: transparent;
@@ -1719,7 +1721,7 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 .avatar-placeholder-small { color:#9ca3af; font-weight:700; }
 .review-body { flex:1; }
 .review-header { display:flex; justify-content:space-between; align-items:start; gap:.5rem; }
-.review-author { font-weight:600; }
+.review-author { font-weight:600; font-size: 1.75rem; }
 .service-badge { display:inline-block; padding:.25rem .5rem; background:#eff6ff; color:#2563eb; border-radius:9999px; margin:.5rem 0; }
 
 .jobs-list, .listings-list { display:flex; flex-direction:column; gap:1rem; }
@@ -2189,4 +2191,78 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
   font-size: 0.875rem;
   margin-top: 0.25rem;
 }
+
+/* Review section - Date */
+.review-date {
+  font-size: 1rem;  /* Increased from default ~0.875rem */
+  color: #6b7280;
+}
+
+/* Review section - Comment text */
+.review-text {
+  font-size: 1.125rem;  /* Increased from default ~0.95rem */
+  color: #374151;
+  line-height: 1.5;
+}
+
+/* Job History - Filter buttons */
+.filter-btn {
+  padding: 0.5rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: white;
+  color: #6b7280;
+  font-weight: 500;
+  font-size: 1.35rem;  /* Increased from 0.875rem */
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* Job History - Job titles */
+.job-card h3 {
+  font-size: 1.5rem;  /* Increased from default ~1.125rem */
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+/* Job History - "Job completed by" / "Client" text */
+.completed-by {
+  font-size: 1.25rem;  /* Increased from 0.875rem */
+  color: #6b7280;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Job History - "Completed: date" text */
+.job-date {
+  font-size: 1.25rem;  /* Increased from default */
+  color: #6b7280;
+  margin: 0.25rem 0;
+}
+
+/* Filter section titles (FILTER BY ROLE, FILTER BY DATE) */
+.filter-section-title {
+  font-size: 1rem;  /* Increased from 0.875rem */
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Date Filter Dropdown */
+.date-filter-dropdown {
+  width: 100%;
+  max-width: 250px;
+  padding: 0.625rem 0.875rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: white;
+  color: #374151;
+  font-weight: 500;
+  font-size: 1.35rem;  /* Increased from 0.875rem */
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
 </style>
