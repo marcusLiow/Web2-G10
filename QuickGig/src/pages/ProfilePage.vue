@@ -738,14 +738,14 @@ async function loadCompletedJobs(uid) {
           job_title: job.job_title,
           agreed_amount: job.agreed_amount,
           created_at: job.created_at,
-          role: 'Helper',
+          role: 'Adventurer',
           otherPartyName: clientMap.get(job.client_id) || 'Unknown Poster'
         };
         
         const uniqueKey = createUniqueKey(jobObj);
         if (!jobsMap.has(uniqueKey)) {
           jobsMap.set(uniqueKey, jobObj);
-          console.log('✅ Added helper job:', job.job_title);
+          console.log('✅ Added adventurer job:', job.job_title);
         } else {
           console.log('⚠️ Duplicate skipped (helper_jobs):', job.job_title);
         }
@@ -787,7 +787,7 @@ async function loadCompletedJobs(uid) {
             job_title: job.title,
             agreed_amount: chat?.payment_amount || 0,
             created_at: chat?.created_at || job.created_at,
-            role: 'Helper',
+            role: 'Adventurer',
             otherPartyName: posterMap.get(job.user_id) || 'Unknown Poster'
           };
           
@@ -816,7 +816,7 @@ async function loadCompletedJobs(uid) {
 
     if (posterJobsData && posterJobsData.length > 0) {
       for (const job of posterJobsData) {
-        let helperNames = [];
+        let adventurerNames = [];
         let actualPaidAmount = job.payment;
         
         const { data: chatData, error: chatError } = await supabase
@@ -826,15 +826,15 @@ async function loadCompletedJobs(uid) {
           .eq('offer_accepted', true);
 
         if (!chatError && chatData && chatData.length > 0) {
-          const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+          const adventurerIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
           
-          const { data: helpersData, error: helpersError } = await supabase
+          const { data: adventurersData, error: adventurersError } = await supabase
             .from('users')
             .select('username')
-            .in('id', helperIds);
+            .in('id', adventurerIds);
 
-          if (!helpersError && helpersData) {
-            helperNames = helpersData.map(u => u.username || 'Unknown');
+          if (!adventurersError && adventurersData) {
+            adventurerNames = adventurersData.map(u => u.username || 'Unknown');
           }
           
           if (chatData[0]?.payment_amount) {
@@ -850,7 +850,7 @@ async function loadCompletedJobs(uid) {
           agreed_amount: actualPaidAmount,
           created_at: job.created_at,
           role: 'Job Poster',
-          otherPartyName: helperNames.join(', ') || 'Unknown Helper'
+          otherPartyName: adventurerNames.join(', ') || 'Unknown Adventurer'
         };
         
         const uniqueKey = createUniqueKey(jobObj);
@@ -1170,19 +1170,19 @@ async function loadUserListings(uid) {
         if (chatError) throw chatError;
 
         if (chatData && chatData.length > 0) {
-          const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+          const adventurerIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
           
           const { data: usersData, error: userError } = await supabase
             .from('users')
             .select('username')
-            .in('id', helperIds);
+            .in('id', adventurerIds);
 
           if (userError) throw userError;
           completedBy = usersData ? usersData.map(u => u.username || 'Unknown') : [];
         }
       } catch (enrichError) {
-        console.error(`Error fetching helper for listing ${listing.id}:`, enrichError);
-        completedBy = ['Error fetching helper'];
+        console.error(`Error fetching adventurer for listing ${listing.id}:`, enrichError);
+        completedBy = ['Error fetching adventurer'];
       }
 
       return {
@@ -1206,7 +1206,7 @@ async function markAsCompleted(jobId) {
   }
 
   const confirmed = await toast.confirm({
-    message: 'Are you sure you want to mark this job as completed? This will notify the helper(s) and move the job to history.',
+    message: 'Are you sure you want to mark this job as completed? This will notify the adventurer(s) and move the job to history.',
     title: 'Mark Job as Completed',
     confirmText: 'Yes, Mark Completed',
     cancelText: 'Cancel',
@@ -1231,8 +1231,8 @@ async function markAsCompleted(jobId) {
     if (updateError) throw updateError;
     const jobTitle = updatedJob.title || 'your recent job';
 
-    let helperNames = [];
-    let helperIds = [];
+    let adventurerNames = [];
+    let adventurerIds = [];
     const { data: chatData, error: chatError } = await supabase
       .from('chats')
       .select('job_seeker_id')
@@ -1242,20 +1242,20 @@ async function markAsCompleted(jobId) {
     if (chatError) throw chatError;
 
     if (chatData && chatData.length > 0) {
-      helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+      adventurerIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
 
       const { data: usersData, error: userError } = await supabase
         .from('users')
         .select('username')
-        .in('id', helperIds);
+        .in('id', adventurerIds);
       
       if (userError) throw userError;
-      helperNames = usersData ? usersData.map(u => u.username || 'Unknown') : [];
+      adventurerNames = usersData ? usersData.map(u => u.username || 'Unknown') : [];
     }
 
-    if (helperIds.length > 0) {
-      const notifications = helperIds.map(helperId => ({
-        user_id: helperId,
+    if (adventurerIds.length > 0) {
+      const notifications = adventurerIds.map(adventurerId => ({
+        user_id: adventurerId,
         message: `Job '${jobTitle}' has been marked as completed. Payment should be processed shortly.`,
         link: '/wallet'
       }));
@@ -1273,10 +1273,10 @@ async function markAsCompleted(jobId) {
     
     if (jobIndex !== -1) {
       userListings.value[jobIndex].status = 'completed';
-      userListings.value[jobIndex].completedBy = helperNames;
+      userListings.value[jobIndex].completedBy = adventurerNames;
     }
 
-    toast.success('Job marked as completed successfully! Helper(s) notified.', 'Job Completed', 8000);
+    toast.success('Job marked as completed successfully! Adventurer(s) notified.', 'Job Completed', 8000);
 
     await loadUserListings(userId);
     await loadCompletedJobs(userId);

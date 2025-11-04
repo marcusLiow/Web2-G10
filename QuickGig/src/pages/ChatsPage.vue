@@ -10,10 +10,10 @@
       <div v-if="!isLoading && allChats.length === 0" class="empty-state">
         <div class="empty-icon">💬</div>
         <h2>No messages yet</h2>
-        <p>Start a conversation by chatting with job posters or helpers</p>
+        <p>Start a conversation by chatting with job posters or adventurers</p>
         <div class="empty-actions">
           <router-link to="/jobs" class="browse-btn">Browse Jobs</router-link>
-          <router-link to="/helpers" class="browse-btn">Browse Helpers</router-link>
+          <router-link to="/helpers" class="browse-btn">Browse Adventurers</router-link>
         </div>
       </div>
 
@@ -49,7 +49,7 @@
               
               <div class="chat-details">
                 <p class="job-title">
-                  <span v-if="chat.type === 'helper'" class="chat-type-badge">Helper</span>
+                  <span v-if="chat.type === 'helper'" class="chat-type-badge">Adventurer</span>
                   {{ chat.jobTitle }}
                 </p>
                 <p class="last-message" :class="{ unread: chat.unreadCount > 0 }">
@@ -207,7 +207,7 @@ const fetchHelperChats = async () => {
   try {
     const currentUserId = localStorage.getItem('userId');
     
-    console.log('Fetching helper chats for user:', currentUserId);
+    console.log('Fetching adventurer chats for user:', currentUserId);
     
     // Fetch all helper chats where user is either helper or client
     const { data: chatsData, error: chatsError } = await supabase
@@ -224,12 +224,12 @@ const fetchHelperChats = async () => {
       .order('last_message_time', { ascending: false });
     
     if (chatsError) {
-      console.warn('Error fetching helper chats:', chatsError);
+      console.warn('Error fetching adventurer chats:', chatsError);
       helperChats.value = [];
       return;
     }
     
-    console.log('Helper chats fetched:', chatsData?.length || 0);
+    console.log('Adventurer chats fetched:', chatsData?.length || 0);
     
     // For each chat, get the other user's info
     const enrichedChats = await Promise.all((chatsData || []).map(async (chat) => {
@@ -260,7 +260,7 @@ const fetchHelperChats = async () => {
         type: 'helper',
         otherUserName: userData?.username || 'Unknown User',
         avatarUrl: userData?.avatar_url || null,
-        jobTitle: isHelper ? 'Client Request' : 'Helper Service',
+        jobTitle: isHelper ? 'Client Request' : 'Adventurer Service',
         lastMessage: chat.last_message || 'No messages yet',
         lastMessageTime: formatTime(chat.last_message_time),
         lastMessageTimeRaw: chat.last_message_time,
@@ -269,10 +269,10 @@ const fetchHelperChats = async () => {
     }));
     
     helperChats.value = enrichedChats;
-    console.log('Enriched helper chats:', helperChats.value.length);
+    console.log('Enriched adventurer chats:', helperChats.value.length);
     
   } catch (error) {
-    console.error('Error fetching helper chats:', error);
+    console.error('Error fetching adventurer chats:', error);
     helperChats.value = [];
   }
 };

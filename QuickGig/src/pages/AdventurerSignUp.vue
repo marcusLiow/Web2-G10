@@ -171,12 +171,18 @@
             <label class="section-label">
               Location <span class="required">*</span>
             </label>
+            <select v-model="formData.location" class="text-input location-select">
+              <option value="">-- Select neighbourhood --</option>
+              <option v-for="n in sortedNeighbourhoods" :key="n" :value="n">{{ n }}</option>
+              <option value="Other">Other...</option>
+            </select>
             <input 
+              v-if="formData.location === 'Other'"
+              v-model="formData.locationCustom"
               type="text"
-              v-model="formData.location"
               class="text-input"
-              placeholder="City, Country"
-              required
+              placeholder="Enter neighbourhood"
+              style="margin-top: 0.75rem;"
             />
           </div>
 
@@ -199,6 +205,50 @@
                 />
                 <span>Remote Services</span>
               </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="section-label">
+              Availability (Days) <span class="required">*</span>
+            </label>
+            <p class="section-hint">Select the days you're available to work</p>
+            <div class="days-selector">
+              <button 
+                v-for="day in availabilityDayOptions" 
+                :key="day.value"
+                type="button"
+                :class="['day-btn', { active: isDaySelected(day.value) }]"
+                @click="toggleDay(day.value)"
+              >
+                {{ day.label }}
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="section-label">
+              Availability (Time) <span class="required">*</span>
+            </label>
+            <p class="section-hint">Set your available working hours</p>
+            <div class="time-inputs">
+              <div class="time-input-group">
+                <label>From</label>
+                <input 
+                  type="time" 
+                  v-model="formData.availability_time_from"
+                  class="text-input time-input"
+                />
+              </div>
+              <span class="time-separator">to</span>
+              <div class="time-input-group">
+                <label>To</label>
+                <input 
+                  type="time" 
+                  v-model="formData.availability_time_to"
+                  class="text-input time-input"
+                />
+              </div>
             </div>
           </div>
 
@@ -257,16 +307,37 @@ export default {
         password: '',
         confirmPassword: '',
         location: '',
+        locationCustom: '',
         serviceTypes: {
           inPerson: false,
           remote: false
         },
+        availability_days: [],
+        availability_time_from: '',
+        availability_time_to: '',
         bio: ''
       },
       isLoading: false,
       errorMessage: '',
       successMessage: '',
       skillErrorMessage: '',
+      sgNeighbourhoods: [
+        'Alexandra','Ang Mo Kio','Bedok','Bishan','Bugis','Bukit Merah','Bukit Timah',
+        'Changi','Chinatown','Clementi','Downtown','Geylang','Holland Village','Hougang',
+        'Jurong East','Jurong West','Kallang','Marina Bay','Newton','Orchard','Outram',
+        'Pasir Ris','Punggol','Queenstown','Redhill','Rochor','Sengkang','Serangoon',
+        'Tampines','Tanglin','Tanjong Pagar','Tiong Bahru','Toa Payoh','Upper Bukit Timah',
+        'Upper East Coast','West Coast'
+      ],
+      availabilityDayOptions: [
+        { label: 'Mon', value: 'Monday' },
+        { label: 'Tue', value: 'Tuesday' },
+        { label: 'Wed', value: 'Wednesday' },
+        { label: 'Thu', value: 'Thursday' },
+        { label: 'Fri', value: 'Friday' },
+        { label: 'Sat', value: 'Saturday' },
+        { label: 'Sun', value: 'Sunday' }
+      ],
       experienceLevels: [
         {
           value: 'Beginner',
@@ -290,8 +361,21 @@ export default {
     };
   },
   computed: {
+    sortedNeighbourhoods() {
+      return [...this.sgNeighbourhoods].sort();
+    },
     isFormValid() {
       const hasServiceType = this.formData.serviceTypes.inPerson || this.formData.serviceTypes.remote;
+      
+      let locationValid = false;
+      if (this.formData.location === 'Other') {
+        locationValid = this.formData.locationCustom.trim() !== '';
+      } else {
+        locationValid = this.formData.location.trim() !== '';
+      }
+      
+      const hasAvailabilityDays = this.formData.availability_days.length > 0;
+      const hasAvailabilityTime = this.formData.availability_time_from && this.formData.availability_time_to;
       
       return (
         this.formData.email.trim() !== '' &&
@@ -301,8 +385,10 @@ export default {
         this.formData.password === this.formData.confirmPassword &&
         this.formData.password.length >= 6 &&
         this.skills.length >= 1 &&
-        this.formData.location.trim() !== '' &&
+        locationValid &&
         hasServiceType &&
+        hasAvailabilityDays &&
+        hasAvailabilityTime &&
         this.formData.bio.trim().length > 0
       );
     }
@@ -314,6 +400,17 @@ export default {
     checkPasswordMatch() {
       if (this.formData.confirmPassword) {
         this.passwordMismatch = this.formData.password !== this.formData.confirmPassword;
+      }
+    },
+    isDaySelected(day) {
+      return this.formData.availability_days.includes(day);
+    },
+    toggleDay(day) {
+      const index = this.formData.availability_days.indexOf(day);
+      if (index > -1) {
+        this.formData.availability_days.splice(index, 1);
+      } else {
+        this.formData.availability_days.push(day);
       }
     },
     addSkill() {
@@ -385,11 +482,54 @@ export default {
         return;
       }
 
+      if (this.formData.availability_days.length === 0) {
+        this.errorMessage = 'Please select at least one day of availability.';
+        this.scrollToTop();
+        return;
+      }
+
+      if (!this.formData.availability_time_from || !this.formData.availability_time_to) {
+        this.errorMessage = 'Please set your availability time.';
+        this.scrollToTop();
+        return;
+      }
+
       if (this.formData.bio.trim().length === 0) {
         this.errorMessage = 'Please enter a bio.';
         this.scrollToTop();
         return;
       }
+
+      // Determine final location
+      let finalLocation = '';
+      if (this.formData.location === 'Other') {
+        finalLocation = (this.formData.locationCustom || '').trim();
+      } else {
+        finalLocation = this.formData.location || '';
+      }
+
+      if (!finalLocation) {
+        this.errorMessage = 'Please select or enter a location.';
+        this.scrollToTop();
+        return;
+      }
+
+      // Build availability string
+      const availabilityParts = [];
+      
+      if (this.formData.availability_days.length > 0) {
+        const sortedDays = this.formData.availability_days.sort((a, b) => {
+          const order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+          return order.indexOf(a) - order.indexOf(b);
+        });
+        availabilityParts.push(sortedDays.join(', '));
+      }
+      
+      if (this.formData.availability_time_from && this.formData.availability_time_to) {
+        availabilityParts.push(`${this.formData.availability_time_from} - ${this.formData.availability_time_to}`);
+      }
+      
+      const availabilityCombined = availabilityParts.join(' • ') || null;
 
       this.isLoading = true;
 
@@ -425,10 +565,10 @@ export default {
             username: this.formData.username,
             user_role: 'adventurer',
             skills: this.skills,
-            location: this.formData.location,
+            location: finalLocation,
             bio: this.formData.bio,
             service_types: serviceTypes,
-            is_helper: true, // ← Mark them as a helper
+            is_helper: true,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }, {
@@ -444,19 +584,21 @@ export default {
           .from('helper_profiles')
           .insert({
             user_id: userId,
-            title: this.formData.username, // Use username as their title
+            title: this.formData.username,
             description: this.formData.bio || 'Available to help with various tasks',
             skills: this.skills.map(s => ({ 
               name: s.name, 
               level: s.level || 'Beginner', 
               jobs: 0 
             })),
-            availability: 'Contact for availability', // Default availability
-            response_time: 'Usually responds within 24 hours', // Default response time
+            availability: availabilityCombined,
+            response_time: 'Usually responds within 24 hours',
             bio: this.formData.bio,
-            experience: ['New adventurer'], // Default experience
-            location: this.formData.location,
-            is_active: true, // ← This makes them visible in HelpersPage
+            experience: ['New adventurer'],
+            location: finalLocation,
+            is_active: true,
+            helper_tier: 'Silver',
+            helper_xp: 0,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           });
@@ -633,6 +775,70 @@ export default {
   border-radius: 10px;
   transition: all 0.3s ease;
   font-family: inherit;
+}
+
+.location-select {
+  cursor: pointer;
+}
+
+.days-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.day-btn {
+  padding: 0.75rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: white;
+  color: #4a5568;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1.525rem;
+}
+
+.day-btn:hover {
+  border-color: #667eea;
+  color: #667eea;
+  transform: translateY(-2px);
+}
+
+.day-btn.active {
+  background: #667eea;
+  border-color: #667eea;
+  color: white;
+}
+
+.time-inputs {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.time-input-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.time-input-group label {
+  font-size: 1.525rem;
+  color: #4a5568;
+  font-weight: 600;
+}
+
+.time-input {
+  padding: 0.875rem 1rem;
+}
+
+.time-separator {
+  color: #4a5568;
+  font-weight: 600;
+  margin-top: 1.75rem;
+  font-size: 1.525rem;
 }
 
 .text-input:focus, .bio-textarea:focus {
@@ -994,6 +1200,25 @@ export default {
 
   .exp-button {
     min-width: 100%;
+  }
+
+  .days-selector {
+    gap: 0.5rem;
+  }
+
+  .day-btn {
+    flex: 1;
+    min-width: calc(50% - 0.25rem);
+  }
+
+  .time-inputs {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .time-separator {
+    margin-top: 0;
+    text-align: center;
   }
 }
 </style>

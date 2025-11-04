@@ -169,7 +169,7 @@
     <div v-if="showMakeOfferModal" class="modal-overlay" @click="closeMakeOfferModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h2 class="modal-title">Make an Offer</h2>
+          <h2 class="modal-title">{{ isHelperChat ? 'Offer Job to Adventurer' : 'Make an Offer' }}</h2>
           <button @click="closeMakeOfferModal" class="close-btn">×</button>
         </div>
 
@@ -185,27 +185,47 @@
             <p class="price-subtext">Posted by {{ otherUser?.username }}</p>
           </div>
 
-          <!-- Job Info -->
-          <div class="job-info-box">
+          <!-- Job Info for non-helper chats -->
+          <div v-if="!isHelperChat" class="job-info-box">
             <div class="job-info-header">
-              <p class="info-label">{{ isHelperChat ? 'Adventurer Service' : 'Job Title' }}</p>
+              <p class="info-label">Job Title</p>
             </div>
-            <p class="info-value">{{ isHelperChat ? otherUser?.username : jobInfo?.title }}</p>
+            <p class="info-value">{{ jobInfo?.title }}</p>
           </div>
 
-          <!-- Adventurer Chat Job Title Input -->
+          <!-- Adventurer Info for helper chats -->
+          <div v-if="isHelperChat" class="job-info-box">
+            <div class="job-info-header">
+              <p class="info-label">Offering Job To</p>
+            </div>
+            <p class="info-value">{{ otherUser?.username }}</p>
+          </div>
+
+          <!-- Job Selection Cards for Adventurer Chats -->
           <div v-if="isHelperChat" class="form-group">
-            <label class="form-label">Job Title *</label>
-            <input
-              v-model="offerJobTitle"
-              type="text"
-              placeholder="e.g., Dog Walking, House Cleaning"
-              class="offer-input"
-            />
+            <label class="form-label">Select Your Job Listing *</label>
+            <div v-if="userJobListings.length > 0" class="job-cards-container">
+              <div
+                v-for="job in userJobListings"
+                :key="job.id"
+                @click="selectJob(job.id)"
+                :class="['job-card', { 'selected': selectedJobId === job.id }]"
+              >
+                <div v-if="selectedJobId === job.id" class="job-card-check">✓</div>
+                <div class="job-card-header">
+                  <h3 class="job-card-title">{{ job.title }}</h3>
+                  <div class="job-card-price">${{ job.payment }}</div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="no-jobs-message">
+              <p class="no-jobs-text">You don't have any open job listings.</p>
+              <router-link to="/create-job" class="create-job-link">Create one now</router-link>
+            </div>
           </div>
 
-          <!-- Your Offer Amount -->
-          <div class="form-group">
+          <!-- Your Offer Amount - Only for non-helper chats -->
+          <div v-if="!isHelperChat" class="form-group">
             <label class="form-label">Your Offer Amount ($) *</label>
             <div class="offer-amount-input-wrapper">
               <span class="currency-prefix">$</span>
@@ -443,7 +463,7 @@ const canCancelOffer = computed(() => {
 
 const canSubmitOffer = computed(() => {
   if (!offerAmount.value || offerAmount.value <= 0) return false;
-  if (isHelperChat.value && !offerJobTitle.value) return false;
+  if (isHelperChat.value && !selectedJobId.value) return false; // Updated: check if a job is selected
   return true;
 });
 
@@ -519,6 +539,10 @@ onMounted(async () => {
   await checkJobCompleted();
   await markMessagesAsRead();
   await checkIfReviewed();
+  // New: load job listings for adventurer chats
+  if (isHelperChat.value) {
+    await loadUserJobListings();
+  }
   scrollToBottom();
   subscribeToMessages();
 });
@@ -718,11 +742,32 @@ const showMakeOfferModal = ref(false);
 const offerAmount = ref('');
 const offerMessage = ref('');
 const offerJobTitle = ref('');
+const userJobListings = ref([]); // New: store user's job listings
+const selectedJobId = ref(null); // New: track selected job
+
+// New: Load user's job listings for adventurer chats
+const loadUserJobListings = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('User-Job-Request')
+      .select('id, title, payment, status')
+      .eq('user_id', currentUserId.value)
+      .eq('status', 'open')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    userJobListings.value = data || [];
+  } catch (error) {
+    console.error('Error loading job listings:', error);
+    userJobListings.value = [];
+  }
+};
 
 const openMakeOfferModal = () => {
   offerAmount.value = '';
   offerMessage.value = '';
   offerJobTitle.value = '';
+  selectedJobId.value = null; // New: reset selected job
   showMakeOfferModal.value = true;
 };
 
@@ -731,6 +776,24 @@ const closeMakeOfferModal = () => {
   offerAmount.value = '';
   offerMessage.value = '';
   offerJobTitle.value = '';
+};
+
+// New: Handle job selection
+const onJobSelect = () => {
+  const selectedJob = userJobListings.value.find(job => job.id === selectedJobId.value);
+  if (selectedJob) {
+    offerJobTitle.value = selectedJob.title;
+    offerAmount.value = selectedJob.payment;
+  } else {
+    offerJobTitle.value = '';
+    offerAmount.value = '';
+  }
+};
+
+// New: Handle job selection from cards
+const selectJob = (jobId) => {
+  selectedJobId.value = jobId;
+  onJobSelect();
 };
 
 const submitOffer = async () => {
@@ -1332,7 +1395,6 @@ const subscribeToMessages = () => {
           window.dispatchEvent(new Event('chat-read'));
         }
         
-        // --- MODIFICATION START ---
         // Reload chat data if a system message about payment comes in,
         // or if an offer is accepted, to get the latest payment_status.
         if (payload.new.message_type === 'system' && payload.new.message.includes('Payment')) {
@@ -1341,7 +1403,6 @@ const subscribeToMessages = () => {
         if (payload.new.message_type === 'offer_accepted') {
           await loadChatData();
         }
-        // --- MODIFICATION END ---
       }
     )
     .on(
@@ -1816,7 +1877,7 @@ const navigateToProfile = () => {
   font-size: 0.975rem; /* 1.3rem * 0.75 */
   font-weight: 400;
   color: #1e40af;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
   line-height: 1.4;
 }
 
@@ -2166,7 +2227,7 @@ const navigateToProfile = () => {
 
 .modal-content::-webkit-scrollbar-thumb {
   background-color: #adb5bd; /* Color of the scrollbar thumb (the bar) */
-  border-radius: 3px; /* Rounded corners for the thumb */
+   border-radius: 3px; /* Rounded corners for the thumb */
 }
 
 .modal-content::-webkit-scrollbar-thumb:hover {
@@ -2402,212 +2463,111 @@ const navigateToProfile = () => {
   }
 }
 
-.review-action {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #8b5cf6;
-}
-
-.review-btn {
-  width: 100%;
-  padding: 0.75rem 1.25rem;
-  background: #8b5cf6;
-  color: white;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.review-btn:hover {
-  background: #7c3aed;
-  transform: translateY(-1px);
-}
-
-.rating-input {
+/* Job Cards Styling */
+.job-cards-container {
   display: flex;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 0.25rem;
 }
 
-.star-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem; /* 2rem * 0.75 */
-  opacity: 0.3;
-  cursor: pointer;
-  padding: 0;
-  transition: all 0.2s;
-}
-
-.star-btn.active,
-.star-btn:hover {
-  opacity: 1;
-  transform: scale(1.1);
-}
-
-/* Simplified Make Offer Modal Styles */
-.current-price-section {
-  background: #f9fafb;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  margin-bottom: 1.5rem;
-  text-align: center;
-  border: 1px solid #e5e7eb;
-}
-
-.price-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.price-label-text {
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #6b7280;
-}
-
-.current-price-display {
-  font-size: 1.875rem; /* 2.5rem * 0.75 */
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-  color: #111827;
-}
-
-.price-subtext {
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  margin: 0;
-  color: #6b7280;
-}
-
-.job-info-box {
-  background: #f9fafb;
-  padding: 1rem;
-  border-radius: 0.5rem;
-  margin-bottom: 1.5rem;
-  border: 1px solid #e5e7eb;
-}
-
-.job-info-header {
-  margin-bottom: 0.5rem;
-}
-
-.form-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.offer-amount-input-wrapper {
+.job-card {
   position: relative;
-  display: flex;
-  align-items: center;
+  padding: 1rem;
+  padding-left: 3rem; /* Add left padding to make room for the checkmark */
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.currency-prefix {
-  position: absolute;
-  left: 1rem;
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
-  font-weight: 600;
-  color: #6b7280;
-  pointer-events: none;
+.job-card:hover {
+  border-color: #2563eb;
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.1);
+  transform: translateY(-2px);
 }
 
-.offer-amount-input {
-  padding-left: 2.5rem !important;
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
-  font-weight: 600;
-}
-
-.price-difference {
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.375rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  font-weight: 500;
-  text-align: center;
-  border: 1px solid;
-}
-
-.difference-lower {
-  display: block;
-  background: #f0fdf4;
-  color: #166534;
-  border-color: #86efac;
-}
-
-.difference-higher {
-  display: block;
-  background: #fef3c7;
-  color: #92400e;
-  border-color: #fcd34d;
-}
-
-.difference-equal {
-  display: block;
+.job-card.selected {
+  border-color: #2563eb;
   background: #eff6ff;
-  color: #1e40af;
-  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
 }
 
-.submit-btn {
+.job-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.job-card-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #111827;
+  flex: 1;
+  line-height: 1.4;
+}
+
+.job-card.selected .job-card-title {
+  color: #1e40af;
+}
+
+.job-card-price {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #2563eb;
+  white-space: nowrap;
+}
+
+.job-card-check {
+  position: absolute;
+  top: 50%;
+  left: 0.75rem; /* Position on the left side */
+  transform: translateY(-50%); /* Center vertically */
+  width: 24px;
+  height: 24px;
+  background: #2563eb;
+  color: white;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: bold;
 }
 
-/* Simplified modal header */
-.modal-content {
-  animation: modalSlideUp 0.3s ease;
+.no-jobs-message {
+  text-align: center;
+  padding: 2rem 1rem;
+  background: #f9fafb;
+  border-radius: 0.75rem;
+  border: 2px dashed #e5e7eb;
 }
 
-/* Simplified modal header */
-.modal-content {
-  animation: modalSlideUp 0.3s ease;
+.no-jobs-text {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.875rem;
+  color: #6b7280;
 }
 
-@keyframes modalSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.create-job-link {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: #2563eb;
+  color: white;
+  text-decoration: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.2s;
 }
 
-.modal-header {
-  background: #f3f4f6;
-  color: #111827;
-  border-radius: 1rem 1rem 0 0;
-  /* Added a border line based on the 'olid #e5e7eb;' fragment */
-  border-bottom: 1px solid #e5e7eb; 
-}
-
-/* Selector that seemed incomplete/misplaced in the original */
-.modal-header .close-btn:hover {
-  background: #f3f4f6;
-}
-
-@media (max-width: 768px) {
-  .current-price-display {
-    font-size: 1.5rem; /* 2rem * 0.75 */
-  }
-  
-  .current-price-section {
-    padding: 1.25rem;
-  }
+.create-job-link:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
 }
 </style>
