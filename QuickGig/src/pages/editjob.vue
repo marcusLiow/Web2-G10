@@ -331,45 +331,19 @@
         </div>
       </div>
     </section>
-
-    <!-- Toast Notifications -->
-    <div class="toast-container">
-      <transition-group name="toast">
-        <div 
-          v-for="toast in toasts" 
-          :key="toast.id"
-          :class="['toast', `toast-${toast.type}`]"
-          @click="removeToast(toast.id)"
-        >
-          <div class="toast-icon">
-            <svg v-if="toast.type === 'success'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-            <svg v-else-if="toast.type === 'error'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="15" y1="9" x2="9" y2="15"></line>
-              <line x1="9" y1="9" x2="15" y2="15"></line>
-            </svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x="12" y1="16" x2="12" y2="12"></line>
-              <line x="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-          </div>
-          <span class="toast-message">{{ toast.message }}</span>
-          <button class="toast-close" @click.stop="removeToast(toast.id)">✕</button>
-        </div>
-      </transition-group>
-    </div>
   </div>
 </template>
 
 <script>
 import { supabase } from '../supabase/config'
+import { useToast } from '../composables/useToast'
 
 export default {
   name: 'EditJobPage',
+  setup() {
+    const toast = useToast();
+    return { toast };
+  },
   data() {
     return {
       jobId: null,
@@ -412,11 +386,7 @@ export default {
       locationValidated: false,
       locationStatus: 'Start typing to search for a location',
       locationError: false,
-      debounceTimer: null,
-      
-      // Toast notifications
-      toasts: [],
-      toastId: 0
+      debounceTimer: null
     };
   },
   computed: {
@@ -650,23 +620,6 @@ export default {
       this.locationStatus = 'Start typing to search for a location';
     },
     
-    // Toast notification methods
-    showToast(message, type = 'info') {
-      const id = this.toastId++;
-      this.toasts.push({ id, message, type });
-      
-      setTimeout(() => {
-        this.removeToast(id);
-      }, 4000);
-    },
-    
-    removeToast(id) {
-      const index = this.toasts.findIndex(t => t.id === id);
-      if (index > -1) {
-        this.toasts.splice(index, 1);
-      }
-    },
-    
     async loadJobData() {
       try {
         const currentUserId = localStorage.getItem('userId');
@@ -733,7 +686,7 @@ export default {
       } catch (error) {
         console.error('Error loading job:', error);
         this.loadError = error.message || 'Failed to load job data';
-        this.showToast(this.loadError, 'error');
+        this.toast.error(this.loadError, 'Error Loading Job', 8000);
       } finally {
         this.loading = false;
       }
@@ -855,8 +808,16 @@ export default {
       return uploadedUrls;
     },
     
-    cancelEdit() {
-      if (confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+    async cancelEdit() {
+      const confirmed = await this.toast.confirm({
+        message: 'Are you sure you want to cancel? Any unsaved changes will be lost.',
+        title: 'Cancel Editing',
+        confirmText: 'Yes, Cancel',
+        cancelText: 'Continue Editing',
+        type: 'warning'
+      });
+      
+      if (confirmed) {
         this.$router.back();
       }
     },
@@ -894,7 +855,7 @@ export default {
     async handleSubmit() {
       if (!this.locationValidated) {
         this.submitError = 'Please select a valid location from the suggestions';
-        this.showToast('Please select a valid location from the suggestions', 'error');
+        this.toast.error('Please select a valid location from the suggestions', 'Location Required', 8000);
         return;
       }
       
@@ -942,7 +903,7 @@ export default {
         if (error) throw error;
         
         console.log('Job updated:', data);
-        this.showToast('Listing updated successfully!', 'success');
+        this.toast.success('Listing updated successfully!', 'Success', 8000);
         
         // Navigate back after a short delay
         setTimeout(() => {
@@ -952,7 +913,7 @@ export default {
       } catch (error) {
         console.error('Error updating job:', error);
         this.submitError = error.message || 'Failed to update listing. Please try again.';
-        this.showToast(this.submitError, 'error');
+        this.toast.error(this.submitError, 'Update Failed', 8000);
       } finally {
         this.isSubmitting = false;
       }
@@ -1584,128 +1545,6 @@ select.form-input {
   text-align: center;
 }
 
-/* Toast Notifications */
-.toast-container {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  pointer-events: none;
-}
-
-.toast {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  background: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  min-width: 300px;
-  max-width: 400px;
-  pointer-events: auto;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.toast:hover {
-  transform: translateX(-4px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-}
-
-.toast-success {
-  border-left: 4px solid #10b981;
-}
-
-.toast-error {
-  border-left: 4px solid #ef4444;
-}
-
-.toast-info {
-  border-left: 4px solid #3b82f6;
-}
-
-.toast-icon {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.toast-success .toast-icon {
-  color: #10b981;
-}
-
-.toast-error .toast-icon {
-  color: #ef4444;
-}
-
-.toast-info .toast-icon {
-  color: #3b82f6;
-}
-
-.toast-message {
-  flex: 1;
-  color: #374151;
-  font-size: 0.875rem;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.toast-close {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  color: #9ca3af;
-  font-size: 1.125rem;
-  cursor: pointer;
-  padding: 0;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.2s;
-}
-
-.toast-close:hover {
-  color: #6b7280;
-}
-
-/* Toast Animations */
-.toast-enter-active {
-  animation: toastSlideIn 0.3s ease;
-}
-
-.toast-leave-active {
-  animation: toastSlideOut 0.3s ease;
-}
-
-@keyframes toastSlideIn {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes toastSlideOut {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-}
-
 /* Responsive Design */
 @media (max-width: 768px) {
   .container {
@@ -1739,17 +1578,6 @@ select.form-input {
   
   .button-group {
     grid-template-columns: 1fr;
-  }
-  
-  .toast-container {
-    top: 0.5rem;
-    right: 0.5rem;
-    left: 0.5rem;
-  }
-  
-  .toast {
-    min-width: auto;
-    max-width: none;
   }
 }
 
