@@ -195,7 +195,22 @@ const fetchHelpers = async () => {
 
 // Navigate directly to helper profile page
 const viewHelperProfile = (helper) => {
-  router.push(`/helper/${helper.userId}`);
+  console.log('Navigating to helper profile:', {
+    userId: helper.userId,
+    username: helper.username,
+    fullHelper: helper
+  });
+  
+  if (!helper.userId) {
+    console.error('No userId found for helper:', helper);
+    return;
+  }
+  
+  // Use named route for more reliable navigation
+  router.push({ 
+    name: 'HelperProfile', 
+    params: { id: helper.userId } 
+  });
 };
 
 const filteredHelpers = computed(() => {
@@ -385,7 +400,11 @@ onUnmounted(() => {
         </div>
 
         <!-- View Profile Button -->
-        <button @click="viewHelperProfile(helper)" class="view-profile-btn">
+        <button 
+          @click="viewHelperProfile(helper)" 
+          class="view-profile-btn"
+          type="button"
+        >
           View Profile
         </button>
       </div>

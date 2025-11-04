@@ -48,87 +48,123 @@ const fetchHelperProfile = async () => {
     isLoading.value = true;
     const helperId = route.params.id;
 
+    console.log('Fetching helper profile for ID:', helperId);
+
     if (!helperId) {
       throw new Error('No helper ID provided');
     }
 
-    // Fetch user data and helper profile simultaneously
-    const [userResponse, profileResponse, statsResponse] = await Promise.all([
-      // Basic user info
-      supabase
-        .from('users')
-        .select('*')
-        .eq('id', helperId)
-        .single(),
-      
-      // Helper profile
-      supabase
-        .from('helper_profiles')
-        .select('*')
-        .eq('user_id', helperId)
-        .eq('is_active', true)
-        .single(),
+    // Fetch user data
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', helperId)
+      .single();
 
-      // Helper stats
-      supabase.rpc('get_helper_stats_for', { helper_uuid: helperId })
-    ]);
+    if (userError) {
+      console.error('User fetch error:', userError);
+      throw userError;
+    }
 
-    if (userResponse.error) throw userResponse.error;
-    if (profileResponse.error && profileResponse.error.code !== 'PGRST116') throw profileResponse.error;
-    if (statsResponse.error) throw statsResponse.error;
+    console.log('User data:', userData);
 
-    const userData = userResponse.data;
-    const profileData = profileResponse.data || {};
-    const statsData = Array.isArray(statsResponse.data) ? statsResponse.data[0] : statsResponse.data;
+    // Fetch helper profile
+    const { data: profileData, error: profileError } = await supabase
+      .from('helper_profiles')
+      .select('*')
+      .eq('user_id', helperId)
+      .eq('is_active', true)
+      .maybeSingle();
 
-    // Fetch reviews
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.error('Profile fetch error:', profileError);
+    }
+
+    console.log('Profile data:', profileData);
+
+    // Fetch reviews with reviewer info
     const { data: reviewsData, error: reviewsError } = await supabase
       .from('reviews')
-      .select(`
-        id,
-        rating,
-        comment,
-        created_at,
-        reviewer:reviewer_id (
-          id,
-          username,
-          avatar_url
-        )
-      `)
+      .select('id, rating, comment, created_at, reviewer_id')
       .eq('helper_id', helperId)
       .order('created_at', { ascending: false });
 
-    if (reviewsError) throw reviewsError;
+    if (reviewsError) {
+      console.warn('Reviews fetch error:', reviewsError);
+    }
+
+    console.log('Reviews data:', reviewsData);
+
+    // Calculate stats from reviews
+    let avgRating = 0;
+    let reviewCount = 0;
+    if (reviewsData && reviewsData.length > 0) {
+      reviewCount = reviewsData.length;
+      const totalRating = reviewsData.reduce((sum, r) => sum + (r.rating || 0), 0);
+      avgRating = totalRating / reviewCount;
+    }
+
+    // Fetch reviewer details
+    let reviewsWithReviewers = [];
+    if (reviewsData && reviewsData.length > 0) {
+      const reviewerIds = [...new Set(reviewsData.map(r => r.reviewer_id).filter(Boolean))];
+      
+      if (reviewerIds.length > 0) {
+        const { data: reviewersData } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', reviewerIds);
+        
+        const reviewersMap = Object.fromEntries(
+          (reviewersData || []).map(u => [u.id, u])
+        );
+
+        reviewsWithReviewers = reviewsData.map(review => ({
+          ...review,
+          reviewer: reviewersMap[review.reviewer_id] || {
+            id: review.reviewer_id,
+            username: 'Anonymous',
+            avatar_url: ''
+          }
+        }));
+      }
+    }
 
     // Combine all data
     helper.value = {
       userId: userData.id,
       username: userData.username || 'Anonymous',
       avatarUrl: userData.avatar_url,
-      title: profileData.title || userData.helper_title || 'Helper',
-      bio: profileData.bio || userData.helper_bio || 'Available to help with various tasks',
-      skills: normalizeSkills(profileData.skills || userData.skills || []),
-      location: profileData.location || userData.location || 'Not specified',
-      availability: profileData.availability || 'Contact for availability',
-      responseTime: profileData.response_time || 'Usually responds within 24 hours',
-      experience: profileData.experience || ['Contact for details'],
-      rating: Math.round(Number(statsData?.avg_rating || 0) * 10) / 10,
-      reviewCount: Number(statsData?.review_count || 0),
-      completedJobs: Number(profileData.jobs_completed || 0),
-      reviews: reviewsData || [],
+      title: profileData?.title || userData.helper_title || 'Helper',
+      bio: profileData?.bio || userData.helper_bio || 'Available to help with various tasks',
+      skills: normalizeSkills(profileData?.skills || userData.skills || []),
+      location: profileData?.location || userData.location || 'Not specified',
+      availability: profileData?.availability || 'Contact for availability',
+      responseTime: profileData?.response_time || 'Usually responds within 24 hours',
+      experience: profileData?.experience || ['Contact for details'],
+      rating: Math.round(avgRating * 10) / 10,
+      reviewCount: reviewCount,
+      completedJobs: Number(profileData?.jobs_completed || 0),
+      reviews: reviewsWithReviewers,
       joinedDate: new Date(userData.created_at).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long'
       }),
       canLeaveReview: false,
-      hasReviewed: false
+      hasReviewed: false,
+      tier: profileData?.helper_tier || 'Silver',
+      tierXP: profileData?.helper_xp || 0
     };
     
+    console.log('Helper profile loaded:', helper.value);
     await checkReviewEligibility(helperId);
 
   } catch (error) {
     console.error('Error fetching helper profile:', error);
-    router.push('/helpers');
+    toast.error('Failed to load helper profile', 'Error', 8000);
+    setTimeout(() => {
+      router.push('/helpers');
+    }, 2000);
   } finally {
     isLoading.value = false;
   }
@@ -288,10 +324,9 @@ onMounted(async () => {
                 :src="helper.avatarUrl" 
                 :alt="helper.username"
                 class="avatar-image"
-                @error="$event.target.style.display='none'"
+                @error="helper.avatarUrl = ''"
               />
-              <div v-if="!helper.avatarUrl || $event?.target?.style?.display === 'none'" 
-                   class="avatar-placeholder">
+              <div v-else class="avatar-placeholder">
                 {{ helper.username.charAt(0).toUpperCase() }}
               </div>
             </div>
@@ -406,9 +441,9 @@ onMounted(async () => {
                         <img v-if="review.reviewer.avatar_url" 
                              :src="review.reviewer.avatar_url" 
                              :alt="review.reviewer.username"
-                             @error="$event.target.style.display='none'"
+                             @error="review.reviewer.avatar_url = ''"
                         />
-                        <span v-if="!review.reviewer.avatar_url || $event?.target?.style?.display === 'none'">
+                        <span v-else>
                           {{ review.reviewer.username.charAt(0).toUpperCase() }}
                         </span>
                       </div>
