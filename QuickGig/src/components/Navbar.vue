@@ -85,6 +85,7 @@
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { supabase } from '../supabase/config';
 import { useRouter, useRoute } from 'vue-router';
+import { useToast } from '../composables/useToast';
 import logoImage from '../assets/logo.png';
 
 export default {
@@ -92,6 +93,7 @@ export default {
   setup() {
     const router = useRouter();
     const route = useRoute();
+    const toast = useToast();
 
     // Existing refs
     const isLoggedIn = ref(false);
@@ -339,7 +341,16 @@ export default {
     };
 
     const handleLogout = async () => {
-      if (!confirm('Are you sure you want to log out?')) return;
+      const confirmed = await toast.confirm({
+        message: 'Are you sure you want to log out?',
+        title: 'Confirm Logout',
+        confirmText: 'Log Out',
+        cancelText: 'Cancel',
+        type: 'warning'
+      });
+
+      if (!confirmed) return;
+
       try {
         await supabase.auth.signOut();
         logoutCleanup();
@@ -347,7 +358,7 @@ export default {
         router.push('/');
       } catch (error) {
         console.error('Error logging out:', error);
-        alert('Error logging out. Please try again.');
+        toast.error('Error logging out. Please try again.', 'Logout Error');
       }
     };
 

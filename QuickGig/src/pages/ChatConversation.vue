@@ -915,7 +915,15 @@ const submitOffer = async () => {
 const acceptOffer = async (offerMessage) => {
   if (isProcessing.value) return;
 
-  if (!confirm(`Accept offer of $${offerMessage.offer_amount}?`)) {
+  const confirmed = await toast.confirm({
+    message: `Accept offer of $${offerMessage.offer_amount}?`,
+    title: 'Confirm Offer',
+    confirmText: 'Accept',
+    cancelText: 'Cancel',
+    type: 'info'
+  });
+
+  if (!confirmed) {
     return;
   }
 
@@ -1068,15 +1076,24 @@ const acceptOffer = async (offerMessage) => {
 };
 
 // Cancel Offer Functions
-const confirmCancelOffer = (acceptanceMessage) => {
+const confirmCancelOffer = async (acceptanceMessage) => {
   const isJobPoster = !isHelperChat.value && currentUserId.value === chatInfo.value?.job_poster_id;
   const confirmMessage = isJobPoster 
     ? 'Are you sure you want to cancel this accepted offer?\nThe adventurer will be notified and this position will become available again.'
     : 'Are you sure you want to withdraw from this job?\nThe job poster will be notified and this position will become available again.';
   
-  if (!confirm(confirmMessage)) {
+  const confirmed = await toast.confirm({
+    message: confirmMessage,
+    title: isJobPoster ? 'Cancel Offer' : 'Withdraw from Job',
+    confirmText: isJobPoster ? 'Cancel Offer' : 'Withdraw',
+    cancelText: 'Go Back',
+    type: 'danger'
+  });
+
+  if (!confirmed) {
     return;
   }
+
   cancelOffer(acceptanceMessage);
 };
 
