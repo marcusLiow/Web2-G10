@@ -118,44 +118,71 @@
               </select>
             </div>
 
-            <!-- Location Fields - Both Postal Code and Address -->
+            <!-- GOOGLE PLACES AUTOCOMPLETE LOCATION FIELD -->
             <div class="location-section">
               <h3 class="section-header">Location Details</h3>
               
-              <div class="location-grid">
-                <div class="form-group">
-                  <label for="postalCode" class="form-label">Postal Code</label>
+              <div class="form-group">
+                <label for="locationSearch" class="form-label">
+                  Search Location
+                  <span class="label-hint">Address, postal code, or landmark</span>
+                </label>
+                
+                <div class="location-search-wrapper">
+                  <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
                   <input 
                     type="text" 
-                    id="postalCode" 
-                    v-model="formData.postalCode"
-                    @blur="validatePostalCode"
-                    class="form-input"
-                    :class="{ 'validated': postalCodeValidated }"
-                    placeholder="e.g., 238823"
-                    maxlength="6"
-                    pattern="[0-9]{6}"
+                    id="locationSearch" 
+                    ref="locationInput"
+                    v-model="locationSearchText"
+                    @input="onLocationInput"
+                    @focus="showSuggestions = true"
+                    @blur="handleBlur"
+                    class="form-input location-search-input"
+                    :class="{ 'validated': locationValidated, 'has-error': locationError }"
+                    placeholder="Start typing an address or postal code..."
                     required
+                    autocomplete="off"
                   />
-                  <small class="helper-text" :class="{ 'success': postalCodeValidated }">
-                    {{ postalCodeStatus }}
-                  </small>
+                  <button 
+                    v-if="locationSearchText" 
+                    type="button" 
+                    class="clear-location-btn"
+                    @mousedown.prevent="clearLocation"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
                 </div>
-
-                <div class="form-group">
-                  <label for="location" class="form-label">Street Address</label>
-                  <input 
-                    type="text" 
-                    id="location" 
-                    v-model="formData.location"
-                    class="form-input"
-                    placeholder="e.g., Blk 123 Bedok North Street 1"
-                    required
-                  />
-                  <small class="helper-text">
-                    Enter your full address for display (map will use postal code for accuracy)
-                  </small>
+                
+                <!-- Suggestions dropdown -->
+                <div v-if="showSuggestions && suggestions.length > 0" class="suggestions-dropdown">
+                  <div 
+                    v-for="(suggestion, index) in suggestions" 
+                    :key="index"
+                    class="suggestion-item"
+                    @mousedown.prevent="selectSuggestion(suggestion)"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                      <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                    <div class="suggestion-text">
+                      <div class="suggestion-main">{{ suggestion.structured_formatting.main_text }}</div>
+                      <div class="suggestion-secondary">{{ suggestion.structured_formatting.secondary_text }}</div>
+                    </div>
+                  </div>
                 </div>
+                
+                <!-- Only show helper text if location is not validated or there's an error -->
+                <small v-if="!locationValidated || locationError" class="helper-text" :class="{ 'error': locationError }">
+                  {{ locationStatus }}
+                </small>
               </div>
             </div>
 
@@ -279,13 +306,13 @@
               <button type="button" @click="cancelEdit" class="cancel-button">
                 Cancel
               </button>
-              <button type="submit" class="submit-button" :disabled="isSubmitting || !postalCodeValidated">
+              <button type="submit" class="submit-button" :disabled="isSubmitting || !locationValidated">
                 {{ isSubmitting ? 'Updating...' : 'Update Listing' }}
               </button>
             </div>
             
-            <small v-if="!postalCodeValidated" class="submit-hint">
-              Please enter a valid postal code to continue
+            <small v-if="!locationValidated" class="submit-hint">
+              Please select a valid location to continue
             </small>
           </form>
 
@@ -365,8 +392,6 @@ export default {
       expirationOption: 'never',
       minDate: new Date().toISOString().split('T')[0],
       coordinates: null,
-      postalCodeValidated: false,
-      postalCodeStatus: 'Required for accurate map location',
       isSubmitting: false,
       submitError: null,
       apiKey: import.meta.env.VITE_GOOGLE_GEOCODING_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
@@ -376,6 +401,18 @@ export default {
       isDragging: false,
       imageError: null,
       existingImageUrls: [],
+      
+      // Google Places Autocomplete data
+      locationSearchText: '',
+      suggestions: [],
+      showSuggestions: false,
+      autocompleteService: null,
+      placesService: null,
+      sessionToken: null,
+      locationValidated: false,
+      locationStatus: 'Start typing to search for a location',
+      locationError: false,
+      debounceTimer: null,
       
       // Toast notifications
       toasts: [],
@@ -430,6 +467,7 @@ export default {
     }
     
     await this.loadJobData();
+    this.initGooglePlaces();
   },
   methods: {
     handleMultiplePositionsChange() {
@@ -438,6 +476,178 @@ export default {
         this.formData.positions_available = 2;
         this.formData.payment_type = 'per_person';
       }
+    },
+    
+    // Initialize Google Places API
+    initGooglePlaces() {
+      if (!window.google) {
+        // Load Google Maps API script
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${this.apiKey}&libraries=places&region=sg`;
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+          this.setupPlacesServices();
+        };
+        script.onerror = () => {
+          console.error('Failed to load Google Maps API');
+          this.locationStatus = '⚠️ Unable to load location services. Please check your API key.';
+          this.locationError = true;
+        };
+        document.head.appendChild(script);
+      } else {
+        this.setupPlacesServices();
+      }
+    },
+    
+    setupPlacesServices() {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        this.autocompleteService = new window.google.maps.places.AutocompleteService();
+        
+        // Create a hidden div for PlacesService (required)
+        const div = document.createElement('div');
+        this.placesService = new window.google.maps.places.PlacesService(div);
+        
+        // Create a new session token
+        this.sessionToken = new window.google.maps.places.AutocompleteSessionToken();
+        
+        console.log('Google Places services initialized');
+      } else {
+        console.error('Google Maps Places library not available');
+        this.locationStatus = '⚠️ Location services unavailable';
+        this.locationError = true;
+      }
+    },
+    
+    onLocationInput() {
+      this.locationValidated = false;
+      this.locationError = false;
+      this.locationStatus = 'Searching...';
+      this.showSuggestions = true;
+      
+      // Clear previous debounce timer
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+      
+      // Don't search if input is too short
+      if (this.locationSearchText.length < 2) {
+        this.suggestions = [];
+        this.locationStatus = 'Start typing to search for a location';
+        return;
+      }
+      
+      // Debounce the API call
+      this.debounceTimer = setTimeout(() => {
+        this.searchPlaces();
+      }, 300);
+    },
+    
+    searchPlaces() {
+      if (!this.autocompleteService) {
+        console.error('Autocomplete service not initialized');
+        return;
+      }
+      
+      const request = {
+        input: this.locationSearchText,
+        componentRestrictions: { country: 'sg' }, // Restrict to Singapore
+        sessionToken: this.sessionToken
+      };
+      
+      this.autocompleteService.getPlacePredictions(request, (predictions, status) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+          this.suggestions = predictions;
+          this.locationStatus = `${predictions.length} location(s) found`;
+        } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+          this.suggestions = [];
+          this.locationStatus = 'No locations found. Try a different search term.';
+        } else {
+          console.error('Places API error:', status);
+          this.suggestions = [];
+          this.locationStatus = '⚠️ Unable to search locations';
+        }
+      });
+    },
+    
+    handleBlur() {
+      // Delay hiding to allow click events to fire
+      setTimeout(() => {
+        this.showSuggestions = false;
+      }, 200);
+    },
+    
+    selectSuggestion(suggestion) {
+      this.locationSearchText = suggestion.description;
+      this.showSuggestions = false;
+      this.locationStatus = 'Retrieving location details...';
+      
+      // Get place details including geometry
+      const request = {
+        placeId: suggestion.place_id,
+        fields: ['address_components', 'formatted_address', 'geometry', 'name'],
+        sessionToken: this.sessionToken
+      };
+      
+      this.placesService.getDetails(request, (place, status) => {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+          this.extractLocationData(place);
+          
+          // Create a new session token for the next search
+          this.sessionToken = new window.google.maps.places.AutocompleteSessionToken();
+        } else {
+          console.error('Place details error:', status);
+          this.locationStatus = '⚠️ Failed to retrieve location details';
+          this.locationError = true;
+        }
+      });
+    },
+    
+    extractLocationData(place) {
+      // Extract postal code from address components
+      let postalCode = '';
+      if (place.address_components) {
+        for (const component of place.address_components) {
+          if (component.types.includes('postal_code')) {
+            postalCode = component.long_name;
+            break;
+          }
+        }
+      }
+      
+      // Extract coordinates
+      if (place.geometry && place.geometry.location) {
+        this.coordinates = {
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng()
+        };
+      }
+      
+      // Set form data
+      this.formData.location = place.formatted_address || place.name;
+      this.formData.postalCode = postalCode;
+      
+      this.locationValidated = true;
+      this.locationError = false;
+      this.locationStatus = '✓ Location confirmed';
+      
+      console.log('Location data extracted:', {
+        address: this.formData.location,
+        postalCode: this.formData.postalCode,
+        coordinates: this.coordinates
+      });
+    },
+    
+    clearLocation() {
+      this.locationSearchText = '';
+      this.formData.location = '';
+      this.formData.postalCode = '';
+      this.coordinates = null;
+      this.suggestions = [];
+      this.showSuggestions = false;
+      this.locationValidated = false;
+      this.locationError = false;
+      this.locationStatus = 'Start typing to search for a location';
     },
     
     // Toast notification methods
@@ -490,6 +700,9 @@ export default {
           payment_type: data.payment_type || 'per_person'
         };
         
+        // Set location search text to existing location
+        this.locationSearchText = data.location || '';
+        
         // Set expiration option based on existing data
         if (!data.expiration_date) {
           this.expirationOption = 'never';
@@ -500,8 +713,8 @@ export default {
         // Load coordinates if available
         if (data.coordinates) {
           this.coordinates = data.coordinates;
-          this.postalCodeValidated = true;
-          this.postalCodeStatus = '✓ Valid postal code - map location confirmed';
+          this.locationValidated = true;
+          this.locationStatus = '✓ Location confirmed';
         }
         
         // Load existing images
@@ -642,61 +855,6 @@ export default {
       return uploadedUrls;
     },
     
-    async validatePostalCode() {
-      const postalCode = this.formData.postalCode;
-      
-      if (!postalCode || postalCode.length !== 6 || !/^\d{6}$/.test(postalCode)) {
-        this.postalCodeValidated = false;
-        this.coordinates = null;
-        this.postalCodeStatus = 'Please enter a valid 6-digit postal code';
-        return;
-      }
-      
-      this.postalCodeStatus = 'Validating postal code...';
-      await this.geocodePostalCode(postalCode);
-    },
-    
-    async geocodePostalCode(postalCode) {
-      if (!this.apiKey) {
-        this.postalCodeStatus = '⚠️ Map location may not be accurate (API key missing)';
-        this.postalCodeValidated = true;
-        return;
-      }
-      
-      try {
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?` +
-          `address=${postalCode}+Singapore&` +
-          `region=sg&` +
-          `key=${this.apiKey}`
-        );
-        
-        const data = await response.json();
-        
-        if (data.status === 'OK' && data.results.length > 0) {
-          const result = data.results[0];
-          
-          this.coordinates = {
-            lat: result.geometry.location.lat,
-            lng: result.geometry.location.lng
-          };
-          
-          this.postalCodeValidated = true;
-          this.postalCodeStatus = '✓ Valid postal code - map location confirmed';
-          
-          console.log('Postal code validated with coordinates:', this.coordinates);
-        } else {
-          this.postalCodeStatus = '⚠️ Postal code not recognized - please verify';
-          this.postalCodeValidated = false;
-          this.coordinates = null;
-        }
-      } catch (error) {
-        console.error('Geocoding error:', error);
-        this.postalCodeStatus = '⚠️ Could not validate postal code - you may continue';
-        this.postalCodeValidated = true;
-      }
-    },
-    
     cancelEdit() {
       if (confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
         this.$router.back();
@@ -733,22 +891,11 @@ export default {
       }
     },
     
-    handleMultiplePositionsChange() {
-      if (!this.formData.multiple_positions) {
-        // Reset to defaults when unchecked
-        this.formData.positions_available = 2;
-        this.formData.payment_type = 'per_person';
-      }
-    },
-    
     async handleSubmit() {
-      if (!this.postalCodeValidated) {
-        await this.validatePostalCode();
-        if (!this.postalCodeValidated) {
-          this.submitError = 'Please enter a valid postal code';
-          this.showToast('Please enter a valid postal code', 'error');
-          return;
-        }
+      if (!this.locationValidated) {
+        this.submitError = 'Please select a valid location from the suggestions';
+        this.showToast('Please select a valid location from the suggestions', 'error');
+        return;
       }
       
       this.isSubmitting = true;
@@ -811,19 +958,16 @@ export default {
       }
     }
   },
-  watch: {
-    'formData.postalCode': function(newVal) {
-      if (this.postalCodeValidated && newVal !== this.originalJobData?.postal_code) {
-        this.postalCodeValidated = false;
-        this.postalCodeStatus = 'Required for accurate map location';
-      }
+  beforeUnmount() {
+    // Clear debounce timer
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
     }
   }
 };
 </script>
 
 <style scoped>
-/* All styles from request-form.vue */
 * {
   margin: 0;
   padding: 0;
@@ -951,6 +1095,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  position: relative;
 }
 
 .form-label {
@@ -1115,7 +1260,7 @@ export default {
   font-weight: 500;
 }
 
-/* Location section styles */
+/* LOCATION SEARCH STYLES */
 .location-section {
   background: #f9fafb;
   padding: 1.5rem;
@@ -1132,21 +1277,109 @@ export default {
   border-bottom: 2px solid #e5e7eb;
 }
 
-.location-grid {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 1.5rem;
+.location-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
 }
 
-@media (max-width: 640px) {
-  .location-grid {
-    grid-template-columns: 1fr;
-  }
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  color: #6b7280;
+  pointer-events: none;
+  z-index: 1;
 }
 
-.form-input.validated {
+.location-search-input {
+  padding-left: 3rem !important;
+  padding-right: 3rem !important;
+  width: 100%;
+}
+
+.location-search-input.validated {
   border-color: #10b981;
   background-color: #f0fdf4;
+}
+
+.location-search-input.has-error {
+  border-color: #ef4444;
+  background-color: #fef2f2;
+}
+
+.clear-location-btn {
+  position: absolute;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 0.25rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 1;
+}
+
+.clear-location-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.suggestions-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.suggestion-item {
+  padding: 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background: #f9fafb;
+}
+
+.suggestion-item svg {
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+  color: #2563EB;
+}
+
+.suggestion-text {
+  flex: 1;
+}
+
+.suggestion-main {
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 0.25rem;
+}
+
+.suggestion-secondary {
+  font-size: 0.875rem;
+  color: #6b7280;
 }
 
 .helper-text {
@@ -1156,9 +1389,76 @@ export default {
   display: block;
 }
 
-.helper-text.success {
-  color: #059669;
+.helper-text.error {
+  color: #dc2626;
   font-weight: 500;
+}
+
+/* MULTIPLE POSITIONS SECTION */
+.multiple-positions-section {
+  background: #f9fafb;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-input {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #2563EB;
+}
+
+.checkbox-text {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+.positions-config {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 2px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Slide fade animation */
+.slide-fade-enter-active {
+  transition: all 0.3s ease;
+}
+
+.slide-fade-leave-active {
+  transition: all 0.2s ease;
+}
+
+.slide-fade-enter-from {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.slide-fade-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.payment-summary {
+  background: #eff6ff;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 2px solid #2563EB;
+  color: #1e40af;
+  font-weight: 600;
+  margin-top: 0.5rem;
 }
 
 .submit-hint {
@@ -1282,73 +1582,6 @@ select.form-input {
   border-radius: 8px;
   font-size: 0.95rem;
   text-align: center;
-}
-
-/* MULTIPLE POSITIONS SECTION */
-.multiple-positions-section {
-  background: #f9fafb;
-  padding: 1.5rem;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  cursor: pointer;
-  user-select: none;
-}
-
-.checkbox-input {
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  accent-color: #2563EB;
-}
-
-.checkbox-text {
-  font-size: 1rem;
-  font-weight: 500;
-  color: #1a1a1a;
-}
-
-.positions-config {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 2px solid #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-/* Slide fade animation */
-.slide-fade-enter-active {
-  transition: all 0.3s ease;
-}
-
-.slide-fade-leave-active {
-  transition: all 0.2s ease;
-}
-
-.slide-fade-enter-from {
-  transform: translateY(-10px);
-  opacity: 0;
-}
-
-.slide-fade-leave-to {
-  transform: translateY(-10px);
-  opacity: 0;
-}
-
-.payment-summary {
-  background: #eff6ff;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  border: 2px solid #2563EB;
-  color: #1e40af;
-  font-weight: 600;
-  margin-top: 0.5rem;
 }
 
 /* Toast Notifications */
@@ -1554,8 +1787,14 @@ select.form-input {
     font-size: 1rem;
   }
   
-  .multiple-positions-section {
+  .multiple-positions-section,
+  .location-section {
     padding: 1rem;
+  }
+  
+  .image-preview-grid {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 0.75rem;
   }
 }
 </style>
