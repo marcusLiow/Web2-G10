@@ -1,5 +1,14 @@
 <template>
-  <div class="map-page">
+  <div class="map-page-wrapper">
+    <div class="map-page">
+    
+    <!-- Overlay for mobile (when sidebar is open) - MOVED BEFORE SIDEBAR -->
+    <div 
+      v-if="!isSidebarCollapsed"
+      class="sidebar-overlay"
+      @click="toggleSidebar"
+    ></div>
+    
     <!-- Left Sidebar -->
     <div 
       class="sidebar" 
@@ -156,13 +165,6 @@
       <span class="open-btn-text">Jobs</span>
     </button>
 
-    <!-- Overlay for mobile (when sidebar is open) -->
-    <div 
-      v-if="!isSidebarCollapsed"
-      class="sidebar-overlay"
-      @click="toggleSidebar"
-    ></div>
-
     <!-- Map Container -->
     <div class="map-container">
       <GoogleMap
@@ -238,6 +240,7 @@
         🔍 Search this area
       </button>
     </div>
+  </div>
   </div>
 </template>
 
@@ -689,10 +692,21 @@ export default {
 </script>
 
 <style scoped>
-.map-page {
-  display: flex;
+.map-page-wrapper {
   height: 100vh;
   width: 100vw;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding-top: 92px; /* Navbar height: 60px logo + 2rem padding */
+}
+
+.map-page {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  max-width: 100vw;
   overflow: hidden;
   position: relative;
 }
@@ -701,7 +715,7 @@ export default {
 .sidebar {
   min-width: 0;
   max-width: 600px;
-  height: 100vh;
+  height: 100%;
   background: white;
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.1);
   display: flex;
@@ -835,7 +849,8 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Search Bar */
@@ -903,6 +918,7 @@ export default {
   padding: 1rem 1.25rem;
   border-bottom: 1px solid #e5e7eb;
   background: #fafafa;
+  flex-shrink: 0;
 }
 
 .filter-group {
@@ -997,9 +1013,11 @@ export default {
 
 /* Jobs List */
 .jobs-list {
-  flex: 1;
+  flex: 0 0 auto;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 1rem 0;
+  max-height: 600px;
 }
 
 .job-card {
@@ -1158,7 +1176,7 @@ export default {
 .map-container {
   flex: 1;
   position: relative;
-  height: 100vh;
+  height: 100%;
 }
 
 .google-map {
@@ -1332,19 +1350,23 @@ export default {
 
 @media (max-width: 768px) {
   .sidebar {
-    position: fixed;
+    position: fixed !important;
     width: 85% !important;
     max-width: 400px;
-    height: 100vh;
+    height: 100vh !important;
     left: 0;
-    top: 0;
+    top: 0 !important;
     z-index: 100;
     transform: translateX(0);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+    padding-top: 130px;
   }
   
   .sidebar-collapsed {
     transform: translateX(-100%) !important;
     width: 85% !important;
+    box-shadow: none;
   }
   
   .sidebar-overlay {
@@ -1354,9 +1376,10 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.5);
     z-index: 99;
     animation: fadeIn 0.3s ease;
+    backdrop-filter: blur(2px);
   }
   
   @keyframes fadeIn {
@@ -1371,21 +1394,51 @@ export default {
   .sidebar-open-btn {
     position: fixed;
     left: 1rem;
-    top: 1rem;
+    top: calc(130px + 1rem);
     transform: none;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    padding: 0.875rem 1.25rem;
     flex-direction: row;
-    gap: 0.5rem;
+    gap: 0.625rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    z-index: 101;
+    animation: slideIn 0.3s ease;
+  }
+  
+  @keyframes slideIn {
+    from {
+      transform: translateX(-100px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  
+  .sidebar-open-btn:hover {
+    padding: 0.875rem 1.25rem;
+    transform: scale(1.05);
   }
   
   .sidebar-open-btn span:first-child {
-    font-size: 1.2rem;
+    font-size: 1.25rem;
   }
   
   .open-btn-text {
     writing-mode: horizontal-tb;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  
+  .sidebar-close-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+  }
+  
+  .sidebar-header {
+    padding: 1.5rem 1.25rem;
   }
   
   .resize-handle {
@@ -1399,6 +1452,26 @@ export default {
   .search-area-btn {
     top: auto;
     bottom: 5.5rem;
+    left: 1rem;
+    transform: none;
+    font-size: 0.85rem;
+    padding: 0.625rem 1.25rem;
+  }
+  
+  /* Improve touch targets for mobile */
+  .job-card {
+    padding: 1.25rem;
+  }
+  
+  .filter-select,
+  .filter-input,
+  .budget-input {
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+  }
+  
+  .search-box {
+    padding: 0.875rem 1.25rem;
   }
 }
 
@@ -1406,10 +1479,21 @@ export default {
   .sidebar {
     width: 100% !important;
     max-width: 100%;
+    height: 100vh;
+    top: 0;
+    padding-top: 200px;
   }
   
   .sidebar-collapsed {
     width: 100% !important;
+  }
+  
+  .sidebar-overlay {
+    top: 0;
+  }
+  
+  .sidebar-open-btn {
+    top: calc(200px + 1rem);
   }
   
   .job-card {
