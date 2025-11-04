@@ -2435,6 +2435,55 @@ const navigateToProfile = () => {
   color: white;
 }
 
+.review-action {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #8b5cf6;
+}
+
+.own-message .review-action {
+  border-top-color: rgba(255, 255, 255, 0.3);
+}
+
+.review-btn {
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.65625rem; /* 0.875rem * 0.75 */
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.review-btn:hover {
+  background: #7c3aed;
+  transform: translateY(-1px);
+}
+
+.rating-input {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem; /* 2rem * 0.75 */
+  opacity: 0.3;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s;
+}
+
+.star-btn.active,
+.star-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
 @media (max-width: 768px) {
   .message-bubble {
     max-width: 85%;
