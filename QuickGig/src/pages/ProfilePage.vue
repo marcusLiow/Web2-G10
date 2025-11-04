@@ -1477,6 +1477,8 @@ async function saveProfile() {
         experience: Array.isArray(editForm.experience) ? editForm.experience : [],
         location: finalHelperLocation || null,
         is_active: editForm.is_listed,
+        helper_tier: 'Silver',  // ✅ Set initial tier to Silver
+        helper_xp: 0,           // ✅ Set initial XP to 0
         updated_at: new Date().toISOString()
       };
 

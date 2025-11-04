@@ -169,7 +169,7 @@
     <div v-if="showMakeOfferModal" class="modal-overlay" @click="closeMakeOfferModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h2 class="modal-title">Make an Offer</h2>
+          <h2 class="modal-title">{{ isHelperChat ? 'Offer Job' : 'Make an Offer' }}</h2>
           <button @click="closeMakeOfferModal" class="close-btn">×</button>
         </div>
 
@@ -185,27 +185,49 @@
             <p class="price-subtext">Posted by {{ otherUser?.username }}</p>
           </div>
 
-          <!-- Job Info -->
-          <div class="job-info-box">
+          <!-- Job Info for non-helper chats -->
+          <div v-if="!isHelperChat" class="job-info-box">
             <div class="job-info-header">
-              <p class="info-label">{{ isHelperChat ? 'Adventurer Service' : 'Job Title' }}</p>
+              <p class="info-label">Job Title</p>
             </div>
-            <p class="info-value">{{ isHelperChat ? otherUser?.username : jobInfo?.title }}</p>
+            <p class="info-value">{{ jobInfo?.title }}</p>
           </div>
 
-          <!-- Adventurer Chat Job Title Input -->
+          <!-- Job Selection for Helper Chats -->
           <div v-if="isHelperChat" class="form-group">
-            <label class="form-label">Job Title *</label>
-            <input
-              v-model="offerJobTitle"
-              type="text"
-              placeholder="e.g., Dog Walking, House Cleaning"
-              class="offer-input"
-            />
+            <label class="form-label">Select Job Listing *</label>
+            
+            <div v-if="isLoadingJobs" class="loading-jobs">
+              <div class="spinner-small"></div>
+              <span>Loading your jobs...</span>
+            </div>
+            
+            <div v-else-if="availableJobs.length === 0" class="no-jobs-message">
+              <p>You don't have any open job listings.</p>
+              <p class="no-jobs-hint">Create a job listing first to offer work to adventurers.</p>
+            </div>
+            
+            <div v-else class="job-select-list">
+              <div
+                v-for="job in availableJobs"
+                :key="job.id"
+                @click="selectedJobId = job.id"
+                :class="['job-select-item', { 'selected': selectedJobId === job.id }]"
+              >
+                <div class="job-select-radio">
+                  <div v-if="selectedJobId === job.id" class="radio-dot"></div>
+                </div>
+                <div class="job-select-info">
+                  <div class="job-select-title">{{ job.title }}</div>
+                  <div class="job-select-description">{{ job.description }}</div>
+                  <div class="job-select-payment">${{ job.payment }}</div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <!-- Your Offer Amount -->
-          <div class="form-group">
+          <!-- Your Offer Amount - Only for non-helper chats -->
+          <div v-if="!isHelperChat" class="form-group">
             <label class="form-label">Your Offer Amount ($) *</label>
             <div class="offer-amount-input-wrapper">
               <span class="currency-prefix">$</span>
@@ -442,9 +464,12 @@ const canCancelOffer = computed(() => {
 });
 
 const canSubmitOffer = computed(() => {
-  if (!offerAmount.value || offerAmount.value <= 0) return false;
-  if (isHelperChat.value && !offerJobTitle.value) return false;
-  return true;
+  // For helper chats, just need a selected job (no offer amount needed)
+  if (isHelperChat.value) {
+    return selectedJobId.value !== null;
+  }
+  // For regular chats, need an offer amount
+  return offerAmount.value && offerAmount.value > 0;
 });
 
 // computed other user id based on chat type
@@ -718,12 +743,45 @@ const showMakeOfferModal = ref(false);
 const offerAmount = ref('');
 const offerMessage = ref('');
 const offerJobTitle = ref('');
+const availableJobs = ref([]);
+const selectedJobId = ref(null);
+const isLoadingJobs = ref(false);
 
-const openMakeOfferModal = () => {
+const openMakeOfferModal = async () => {
   offerAmount.value = '';
   offerMessage.value = '';
   offerJobTitle.value = '';
+  selectedJobId.value = null;
+  
+  // Fetch available jobs for helper chats
+  if (isHelperChat.value) {
+    await fetchAvailableJobs();
+  }
+  
   showMakeOfferModal.value = true;
+};
+
+const fetchAvailableJobs = async () => {
+  try {
+    isLoadingJobs.value = true;
+    
+    // Fetch user's job listings that are open with description
+    const { data, error } = await supabase
+      .from('User-Job-Request')
+      .select('id, title, description, payment, status')
+      .eq('user_id', currentUserId.value)
+      .eq('status', 'open')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    availableJobs.value = data || [];
+  } catch (error) {
+    console.error('Error fetching jobs:', error);
+    toast.error('Failed to load your job listings.', '', 5000);
+  } finally {
+    isLoadingJobs.value = false;
+  }
 };
 
 const closeMakeOfferModal = () => {
@@ -763,9 +821,20 @@ const submitOffer = async () => {
       }
     }
 
-    const offerText = isHelperChat.value
-      ? `Offer: $${offerAmount.value} for ${offerJobTitle.value}`
-      : `Offer: $${offerAmount.value}`;
+    let offerText = '';
+    let jobTitle = '';
+    let finalOfferAmount = '';
+    
+    if (isHelperChat.value) {
+      // Get selected job details
+      const selectedJob = availableJobs.value.find(job => job.id === selectedJobId.value);
+      jobTitle = selectedJob?.title || 'Job Service';
+      finalOfferAmount = selectedJob?.payment || '0';
+      offerText = `Offer: $${finalOfferAmount} for ${jobTitle}`;
+    } else {
+      finalOfferAmount = offerAmount.value;
+      offerText = `Offer: $${finalOfferAmount}`;
+    }
 
     // ✅ Determine if this is a counter offer or initial offer
     const messageType = pendingOfferFromOther ? 'counter_offer' : 'offer';
@@ -775,14 +844,15 @@ const submitOffer = async () => {
       sender_id: currentUserId.value,
       message: offerText,
       message_type: messageType,
-      offer_amount: offerAmount.value,
+      offer_amount: finalOfferAmount,
       offer_status: 'pending',
       read: false
     };
 
-    // Add job_title for helper chats
-    if (isHelperChat.value && offerJobTitle.value) {
-      offerData.job_title = offerJobTitle.value;
+    // Add job_title and job_id for helper chats
+    if (isHelperChat.value) {
+      offerData.job_title = jobTitle;
+      offerData.job_id = selectedJobId.value;
     }
 
     const { data: offerMsg, error: offerError } = await supabase
@@ -841,7 +911,7 @@ const submitOffer = async () => {
   }
 };
 
-// Accept Offer Function - UPDATED to handle multiple helpers
+// Accept Offer Function - UPDATED to handle both regular jobs and helper jobs
 const acceptOffer = async (offerMessage) => {
   if (isProcessing.value) return;
 
@@ -853,7 +923,7 @@ const acceptOffer = async (offerMessage) => {
     isProcessing.value = true;
     const chatId = route.params.id;
 
-    console.log('Accepting offer:', offerMessage.id);
+    console.log('Accepting offer:', offerMessage.id, 'isHelperChat:', isHelperChat.value);
 
     // ✅ 1. Update the offer message status
     const { error: updateError } = await supabase
@@ -862,76 +932,87 @@ const acceptOffer = async (offerMessage) => {
       .eq('id', offerMessage.id);
     if (updateError) throw updateError;
 
-    // --- MODIFICATION START ---
     // ✅ 2. Mark chat as accepted and store the final payment amount
     const { error: chatUpdateError } = await supabase
-      .from('chats')
+      .from(chatTable.value)
       .update({ 
         offer_accepted: true,
         accepted_at: new Date().toISOString(),
-        payment_amount: offerMessage.offer_amount // Store the accepted amount
+        payment_amount: offerMessage.offer_amount
       })
       .eq('id', chatId);
     if (chatUpdateError) throw chatUpdateError;
-    // --- MODIFICATION END ---
 
+    // ✅ 3. Handle helper chat specific logic
+    if (isHelperChat.value) {
+      // For helper chats, create a helper_jobs entry
+      const helperJobData = {
+        helper_chat_id: chatId,
+        helper_id: chatInfo.value.helper_id,
+        client_id: chatInfo.value.client_id,
+        job_title: offerMessage.job_title || 'Adventurer Service',
+        agreed_amount: offerMessage.offer_amount,
+        status: 'in-progress'
+      };
 
-    // ✅ 3. Get job details to check if it requires multiple helpers
-    const { data: jobData, error: jobFetchError } = await supabase
-      .from('User-Job-Request')
-      .select('multiple_positions, positions_available, positions_filled')
-      .eq('id', chatInfo.value.job_id)
-      .single();
-    
-    if (jobFetchError) throw jobFetchError;
+      const { error: helperJobError } = await supabase
+        .from('helper_jobs')
+        .insert([helperJobData]);
 
-    // Check if this job requires multiple helpers
-    const requiresMultipleHelpers = jobData?.multiple_positions || false;
-    const positionsAvailable = jobData?.positions_available || 1;
-    const positionsFilled = jobData?.positions_filled || 0;
-
-    console.log('Job data:', { requiresMultipleHelpers, positionsAvailable, positionsFilled });
-
-    if (requiresMultipleHelpers) {
-      // Increment positions_filled
-      const newPositionsFilled = positionsFilled + 1;
-
-      console.log(`Positions filled: ${newPositionsFilled}/${positionsAvailable}`);
-
-      // Check if all positions are now filled
-      if (newPositionsFilled >= positionsAvailable) {
-        // All positions filled - mark as in-progress
-        const { error: jobUpdateError } = await supabase
-          .from('User-Job-Request')
-          .update({ 
-            status: 'in-progress',
-            positions_filled: newPositionsFilled
-          })
-          .eq('id', chatInfo.value.job_id);
-        if (jobUpdateError) throw jobUpdateError;
-        
-        console.log('All positions filled - job marked as in-progress');
-      } else {
-        // Still need more helpers - keep status as 'open' but increment counter
-        const { error: jobUpdateError } = await supabase
-          .from('User-Job-Request')
-          .update({ 
-            positions_filled: newPositionsFilled
-          })
-          .eq('id', chatInfo.value.job_id);
-        if (jobUpdateError) throw jobUpdateError;
-        
-        console.log('Job still needs more helpers - keeping status as open');
+      if (helperJobError) {
+        console.error('Error creating helper job:', helperJobError);
+        throw helperJobError;
       }
+
+      console.log('Helper job created successfully');
     } else {
-      // Single helper job - mark as in-progress immediately
-      const { error: jobUpdateError } = await supabase
+      // ✅ 4. Handle regular job chat logic
+      const { data: jobData, error: jobFetchError } = await supabase
         .from('User-Job-Request')
-        .update({ status: 'in-progress' })
-        .eq('id', chatInfo.value.job_id);
-      if (jobUpdateError) throw jobUpdateError;
+        .select('multiple_positions, positions_available, positions_filled')
+        .eq('id', chatInfo.value.job_id)
+        .single();
       
-      console.log('Single helper job - marked as in-progress');
+      if (jobFetchError) throw jobFetchError;
+
+      const requiresMultipleHelpers = jobData?.multiple_positions || false;
+      const positionsAvailable = jobData?.positions_available || 1;
+      const positionsFilled = jobData?.positions_filled || 0;
+
+      console.log('Job data:', { requiresMultipleHelpers, positionsAvailable, positionsFilled });
+
+      if (requiresMultipleHelpers) {
+        const newPositionsFilled = positionsFilled + 1;
+        console.log(`Positions filled: ${newPositionsFilled}/${positionsAvailable}`);
+
+        if (newPositionsFilled >= positionsAvailable) {
+          const { error: jobUpdateError } = await supabase
+            .from('User-Job-Request')
+            .update({ 
+              status: 'in-progress',
+              positions_filled: newPositionsFilled
+            })
+            .eq('id', chatInfo.value.job_id);
+          if (jobUpdateError) throw jobUpdateError;
+          console.log('All positions filled - job marked as in-progress');
+        } else {
+          const { error: jobUpdateError } = await supabase
+            .from('User-Job-Request')
+            .update({ 
+              positions_filled: newPositionsFilled
+            })
+            .eq('id', chatInfo.value.job_id);
+          if (jobUpdateError) throw jobUpdateError;
+          console.log('Job still needs more helpers - keeping status as open');
+        }
+      } else {
+        const { error: jobUpdateError } = await supabase
+          .from('User-Job-Request')
+          .update({ status: 'in-progress' })
+          .eq('id', chatInfo.value.job_id);
+        if (jobUpdateError) throw jobUpdateError;
+        console.log('Single helper job - marked as in-progress');
+      }
     }
 
     // ✅ 5. Send acceptance message WITH offer_amount stored
@@ -968,14 +1049,19 @@ const acceptOffer = async (offerMessage) => {
       messages.value.push(acceptanceMsg);
     }
     
-    offerAcceptedInThisChat.value = true; // ✅ Set state to hide "Make Offer" button
-    chatInfo.value.payment_amount = offerMessage.offer_amount; // Update local chat info
+    offerAcceptedInThisChat.value = true;
+    chatInfo.value.payment_amount = offerMessage.offer_amount;
 
     await nextTick();
     scrollToBottom();
     await checkJobCompleted();
     await checkIfReviewed();
 
+    toast.success('Offer accepted successfully!', 'Success', 5000);
+
+  } catch (error) {
+    console.error('Error accepting offer:', error);
+    toast.error('Failed to accept offer. Please try again.', 'Error', 5000);
   } finally {
     isProcessing.value = false;
   }
@@ -1799,7 +1885,7 @@ const navigateToProfile = () => {
   font-size: 0.975rem; /* 1.3rem * 0.75 */
   font-weight: 400;
   color: #1e40af;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
   line-height: 1.4;
 }
 
@@ -2142,26 +2228,6 @@ const navigateToProfile = () => {
   width: 0;
 }
 
-.modal-content::-webkit-scrollbar-track {
-  background: transparent; /* Make the track invisible */
-  border-radius: 1rem; /* Match modal's border-radius if possible */
-}
-
-.modal-content::-webkit-scrollbar-thumb {
-  background-color: #adb5bd; /* Color of the scrollbar thumb (the bar) */
-  border-radius: 3px; /* Rounded corners for the thumb */
-}
-
-.modal-content::-webkit-scrollbar-thumb:hover {
-  background-color: #6c757d; /* Darker color on hover */
-}
-
-/* Explicitly hide the scrollbar arrow buttons */
-.modal-content::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-  width: 0;
-}
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -2225,6 +2291,8 @@ const navigateToProfile = () => {
   color: #111827;
   margin: 0;
 }
+
+
 
 .form-group {
   margin-bottom: 1.25rem;
@@ -2357,240 +2425,130 @@ const navigateToProfile = () => {
   color: white;
 }
 
-@media (max-width: 768px) {
-  .message-bubble {
-    max-width: 85%;
-  }
-  .modal-content {
-  max-height: 60vh; /* I limited the height so it doesnt get blocked by navbar on small screen*/
-}
-
-
-  .offer-bubble {
-    max-width: 90%;
-  }
-
-  .modal-content {
-    margin: 1rem;
-    max-height: 60vh; /* I limited the height so it doesnt get blocked by navbar on small screen*/
-  }
-
-  .offer-btn {
-    padding: 0.625rem 1rem;
-    font-size: 0.6375rem; /* 0.85rem * 0.75 */
-  }
-
-  .offer-amount {
-    font-size: 1.125rem; /* 1.5rem * 0.75 */
-  }
-}
-
-.review-action {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #8b5cf6;
-}
-
-.review-btn {
-  width: 100%;
-  padding: 0.75rem 1.25rem;
-  background: #8b5cf6;
-  color: white;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.review-btn:hover {
-  background: #7c3aed;
-  transform: translateY(-1px);
-}
-
-.rating-input {
+.loading-jobs {
   display: flex;
-  gap: 0.5rem;
-}
-
-.star-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem; /* 2rem * 0.75 */
-  opacity: 0.3;
-  cursor: pointer;
-  padding: 0;
-  transition: all 0.2s;
-}
-
-.star-btn.active,
-.star-btn:hover {
-  opacity: 1;
-  transform: scale(1.1);
-}
-
-/* Simplified Make Offer Modal Styles */
-.current-price-section {
-  background: #f9fafb;
+  align-items: center;
+  gap: 0.75rem;
   padding: 1.5rem;
-  border-radius: 0.5rem;
-  margin-bottom: 1.5rem;
-  text-align: center;
-  border: 1px solid #e5e7eb;
-}
-
-.price-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.price-label-text {
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #6b7280;
-}
-
-.current-price-display {
-  font-size: 1.875rem; /* 2.5rem * 0.75 */
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-  color: #111827;
-}
-
-.price-subtext {
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  margin: 0;
-  color: #6b7280;
-}
-
-.job-info-box {
   background: #f9fafb;
-  padding: 1rem;
   border-radius: 0.5rem;
-  margin-bottom: 1.5rem;
-  border: 1px solid #e5e7eb;
-}
-
-.job-info-header {
-  margin-bottom: 0.5rem;
-}
-
-.form-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.offer-amount-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.currency-prefix {
-  position: absolute;
-  left: 1rem;
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
-  font-weight: 600;
   color: #6b7280;
-  pointer-events: none;
+  font-size: 0.875rem;
 }
 
-.offer-amount-input {
-  padding-left: 2.5rem !important;
-  font-size: 0.9375rem; /* 1.25rem * 0.75 */
-  font-weight: 600;
+.spinner-small {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
-.price-difference {
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.375rem;
-  font-size: 0.65625rem; /* 0.875rem * 0.75 */
-  font-weight: 500;
-  text-align: center;
-  border: 1px solid;
-}
-
-.difference-lower {
-  display: block;
-  background: #f0fdf4;
-  color: #166534;
-  border-color: #86efac;
-}
-
-.difference-higher {
-  display: block;
+.no-jobs-message {
+  padding: 1.5rem;
   background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 0.5rem;
+  text-align: center;
+}
+
+.no-jobs-message p {
+  margin: 0;
   color: #92400e;
-  border-color: #fcd34d;
+  font-size: 0.875rem;
 }
 
-.difference-equal {
-  display: block;
+.no-jobs-hint {
+  margin-top: 0.5rem !important;
+  font-size: 0.75rem !important;
+  opacity: 0.8;
+}
+
+.job-select-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.job-select-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.job-select-item:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.job-select-item.selected {
   background: #eff6ff;
-  color: #1e40af;
-  border-color: #93c5fd;
+  border-color: #2563eb;
 }
 
-.submit-btn {
+.job-select-radio {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #d1d5db;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  flex-shrink: 0;
+  transition: all 0.2s;
 }
 
-/* Simplified modal header */
-.modal-content {
-  animation: modalSlideUp 0.3s ease;
+.job-select-item.selected .job-select-radio {
+  border-color: #2563eb;
 }
 
-/* Simplified modal header */
-.modal-content {
-  animation: modalSlideUp 0.3s ease;
+.radio-dot {
+  width: 10px;
+  height: 10px;
+  background: #2563eb;
+  border-radius: 50%;
 }
 
-@keyframes modalSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.job-select-info {
+  flex: 1;
+  min-width: 0;
 }
 
-.modal-header {
-  background: #f3f4f6;
+.job-select-title {
+  font-weight: 600;
   color: #111827;
-  border-radius: 1rem 1rem 0 0;
-  /* Added a border line based on the 'olid #e5e7eb;' fragment */
-  border-bottom: 1px solid #e5e7eb; 
+  font-size: 0.9375rem;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Selector that seemed incomplete/misplaced in the original */
-.modal-header .close-btn:hover {
-  background: #f3f4f6;
+.job-select-description {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-@media (max-width: 768px) {
-  .current-price-display {
-    font-size: 1.5rem; /* 2rem * 0.75 */
-  }
-  
-  .current-price-section {
-    padding: 1.25rem;
-  }
+.job-select-payment {
+  font-weight: 700;
+  color: #2563eb;
+  font-size: 0.875rem;
 }
 </style>
