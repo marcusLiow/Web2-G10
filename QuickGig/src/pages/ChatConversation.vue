@@ -2186,7 +2186,7 @@ const navigateToProfile = () => {
   border-radius: 1rem;
   max-width: 500px;
   width: 100%;
-  max-height: 80vh;
+  max-height: 68vh;
   overflow-y: auto;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
   padding-right: 6px;
@@ -2440,17 +2440,13 @@ const navigateToProfile = () => {
     max-width: 85%;
   }
   .modal-content {
-  max-height: 60vh; /* I limited the height so it doesnt get blocked by navbar on small screen*/
+    margin: 1rem;
+    max-height: 55vh !important; /* I limited the height so it doesnt get blocked by navbar on small screen*/
 }
 
 
   .offer-bubble {
     max-width: 90%;
-  }
-
-  .modal-content {
-    margin: 1rem;
-    max-height: 60vh; /* I limited the height so it doesnt get blocked by navbar on small screen*/
   }
 
   .offer-btn {
