@@ -3,7 +3,7 @@
 -- Step 1: Add new columns to helper_profiles table
 ALTER TABLE helper_profiles 
 ADD COLUMN IF NOT EXISTS helper_xp INTEGER DEFAULT 0,
-ADD COLUMN IF NOT EXISTS helper_tier TEXT DEFAULT 'Emerald';
+ADD COLUMN IF NOT EXISTS helper_tier TEXT DEFAULT 'Silver';
 
 -- Step 2: Create or replace the function to calculate tier based on XP
 CREATE OR REPLACE FUNCTION calculate_helper_tier(xp INTEGER)
@@ -12,11 +12,11 @@ BEGIN
   IF xp >= 1800 THEN
     RETURN 'Diamond';
   ELSIF xp >= 1200 THEN
-    RETURN 'Sapphire';
-  ELSIF xp >= 600 THEN
-    RETURN 'Ruby';
-  ELSE
     RETURN 'Emerald';
+  ELSIF xp >= 600 THEN
+    RETURN 'Gold';
+  ELSE
+    RETURN 'Silver';
   END IF;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
@@ -140,7 +140,7 @@ CREATE INDEX IF NOT EXISTS idx_earnings_user_created
 ON "Earnings"(user_id, created_at);
 
 COMMENT ON COLUMN helper_profiles.helper_xp IS 'Rolling 30-day XP based on net earnings from last 30 days';
-COMMENT ON COLUMN helper_profiles.helper_tier IS 'Current tier: Emerald (0-599), Ruby (600-1199), Sapphire (1200-1799), Diamond (1800+)';
+COMMENT ON COLUMN helper_profiles.helper_tier IS 'Current tier: Silver (0-599), Gold (600-1199), Emerald (1200-1799), Diamond (1800+)';
 COMMENT ON FUNCTION update_helper_tier_on_earnings() IS 'Automatically updates helper XP and tier based on last 30 days earnings';
 COMMENT ON FUNCTION recalculate_all_helper_xp() IS 'Recalculates all helper XP based on rolling 30-day window (call daily via cron job)';
 

@@ -65,13 +65,14 @@
             <div class="tier-details">
               <div class="tier-header">
                 <h3 class="tier-name">{{ tierInfo.name }}</h3>
-                <span class="tier-xp">{{ tierInfo.currentXP }} / {{ tierInfo.nextTierXP }} XP</span>
+                <span class="tier-xp">{{ tierInfo.currentXP }} XP{{ tierInfo.nextTier !== 'Max Tier' ? ' / ' + tierInfo.nextTierXP + ' XP' : '' }}</span>
               </div>
               <div class="tier-progress-container">
                 <div class="tier-progress-bar">
                   <div class="tier-progress-fill" :style="{ width: tierInfo.progress + '%' }"></div>
                 </div>
-                <p class="tier-next">{{ tierInfo.xpToNext }} XP to {{ tierInfo.nextTier }}</p>
+                <p class="tier-next" v-if="tierInfo.nextTier !== 'Max Tier'">{{ tierInfo.xpToNext }} XP to {{ tierInfo.nextTier }}</p>
+                <p class="tier-next" v-else>Maximum Tier Achieved! 🎉</p>
               </div>
             </div>
           </div>
@@ -612,9 +613,8 @@ const tierInfo = reactive({
 const tiers = [
   { name: 'Silver', min: 0, max: 600, image: '/src/assets/silver.png' },
   { name: 'Gold', min: 600, max: 1200, image: '/src/assets/gold.png' },
-  { name: 'Diamond', min: 1200, max: 1800, image: '/src/assets/diamond.png' },
-  { name: 'Emerald', min: 1800, max: 2400, image: '/src/assets/emerald.png' },
-  { name: 'Ruby', min: 2400, max: Infinity, image: '/src/assets/ruby.png' }
+  { name: 'Emerald', min: 1200, max: 1800, image: '/src/assets/emerald.png' },
+  { name: 'Diamond', min: 1800, max: Infinity, image: '/src/assets/diamond.png' }
 ];
 
 const activeListings = computed(() => userListings.value.filter(l => l.status === 'open'));
@@ -928,13 +928,22 @@ async function calculateTierInfo(uid) {
 
     tierInfo.name = currentTier.name;
     tierInfo.image = currentTier.image;
-    tierInfo.nextTierXP = nextTier ? nextTier.min : currentTier.max;
     tierInfo.nextTier = nextTier ? nextTier.name : 'Max Tier';
     
-    const xpInCurrentTier = tierInfo.currentXP - currentTier.min;
-    const xpNeededForTier = currentTier.max - currentTier.min;
-    tierInfo.progress = Math.min(100, (xpInCurrentTier / xpNeededForTier) * 100);
-    tierInfo.xpToNext = nextTier ? (nextTier.min - tierInfo.currentXP) : 0;
+    // Handle max tier (Ruby) differently
+    if (!nextTier || currentTier.max === Infinity) {
+      // User is at max tier
+      tierInfo.progress = 100;
+      tierInfo.xpToNext = 0;
+      tierInfo.nextTierXP = tierInfo.currentXP; // Show current XP as the max
+    } else {
+      // Normal tier progression
+      const xpInCurrentTier = tierInfo.currentXP - currentTier.min;
+      const xpNeededForTier = nextTier.min - currentTier.min;
+      tierInfo.progress = Math.min(100, (xpInCurrentTier / xpNeededForTier) * 100);
+      tierInfo.xpToNext = Math.max(0, nextTier.min - tierInfo.currentXP);
+      tierInfo.nextTierXP = nextTier.min;
+    }
 
   } catch (e) {
     console.error('calculateTierInfo error', e);
