@@ -937,6 +937,28 @@ async function loadCompletedJobs(uid) {
         let adventurerNames = [];
         let actualPaidAmount = job.payment;
         
+        // First, check helper_jobs table
+        const { data: helperJobData, error: helperJobError } = await supabase
+          .from('helper_jobs')
+          .select('helper_id')
+          .eq('job_title', job.title)
+          .eq('client_id', uid)
+          .eq('status', 'completed');
+
+        if (!helperJobError && helperJobData && helperJobData.length > 0) {
+          const helperIds = [...new Set(helperJobData.map(hj => hj.helper_id))];
+          
+          const { data: helpersData, error: helpersError } = await supabase
+            .from('users')
+            .select('username')
+            .in('id', helperIds);
+
+          if (!helpersError && helpersData) {
+            adventurerNames.push(...helpersData.map(u => u.username || 'Unknown'));
+          }
+        }
+        
+        // Then check chats table
         const { data: chatData, error: chatError } = await supabase
           .from('chats')
           .select('job_seeker_id, payment_amount')
@@ -952,13 +974,16 @@ async function loadCompletedJobs(uid) {
             .in('id', adventurerIds);
 
           if (!adventurersError && adventurersData) {
-            adventurerNames = adventurersData.map(u => u.username || 'Unknown');
+            adventurerNames.push(...adventurersData.map(u => u.username || 'Unknown'));
           }
           
           if (chatData[0]?.payment_amount) {
             actualPaidAmount = chatData[0].payment_amount;
           }
         }
+
+        // Remove duplicates
+        adventurerNames = [...new Set(adventurerNames)];
 
         const jobObj = {
           id: `poster-${job.id}`,
@@ -968,7 +993,7 @@ async function loadCompletedJobs(uid) {
           agreed_amount: actualPaidAmount,
           created_at: job.created_at,
           role: 'Job Poster',
-          otherPartyName: adventurerNames.join(', ') || 'Unknown Adventurer'
+          otherPartyName: adventurerNames.length > 0 ? adventurerNames.join(', ') : 'Unknown Adventurer'
         };
         
         const uniqueKey = createUniqueKey(jobObj);
@@ -980,6 +1005,8 @@ async function loadCompletedJobs(uid) {
         }
       }
     }
+
+// ...existing code...
 
     const deduplicatedJobs = Array.from(jobsMap.values());
     deduplicatedJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -1364,89 +1391,58 @@ async function loadUserListings(uid) {
 }
 
 async function markAsCompleted(jobId) {
-  if (!jobId) {
-    toast.error('Invalid job ID', 'Error', 8000);
-    return;
-  }
-  const confirmed = await toast.confirm({
-    message: 'Are you sure you want to mark this job as completed? This will notify the adventurer(s) and move the job to history.',
-    title: 'Mark Job as Completed',
-    confirmText: 'Yes, Mark Completed',
-    cancelText: 'Cancel',
-    type: 'warning'
-  });
-
-  if (!confirmed) {
-    return;
-  }
-
   try {
-    const userId = currentUserId.value;
-
-    const { data: updatedJob, error: updateError } = await supabase
+    console.log('🔄 Marking job as completed:', jobId);
+    
+    // Step 1: Update User-Job-Request table
+    const { error: jobError } = await supabase
       .from('User-Job-Request')
       .update({ status: 'completed' })
-      .eq('id', jobId)
-      .eq('user_id', userId)
+      .eq('id', jobId);
+
+    if (jobError) throw jobError;
+
+    // Step 2: Get the job title to match in helper_jobs
+    const { data: jobData, error: fetchError } = await supabase
+      .from('User-Job-Request')
       .select('title')
+      .eq('id', jobId)
       .single();
 
-    if (updateError) throw updateError;
-    const jobTitle = updatedJob.title || 'your recent job';
+    if (fetchError) throw fetchError;
 
-    let adventurerNames = [];
-    let adventurerIds = [];
-    const { data: chatData, error: chatError } = await supabase
+    // Step 3: Update helper_jobs table using job_title
+    const { error: helperJobError } = await supabase
+      .from('helper_jobs')
+      .update({ status: 'completed' })
+      .eq('job_title', jobData.title)
+      .eq('client_id', currentUserId.value);
+
+    if (helperJobError) {
+      console.warn('⚠️ Could not update helper_jobs:', helperJobError);
+      // Don't throw - job might not be in helper_jobs table
+    } else {
+      console.log('✅ Updated helper_jobs status to completed');
+    }
+
+    // Step 4: Also update any associated chats
+    const { error: chatError } = await supabase
       .from('chats')
-      .select('job_seeker_id')
+      .update({ payment_status: 'paid' })
       .eq('job_id', jobId)
       .eq('offer_accepted', true);
 
-    if (chatError) throw chatError;
-
-    if (chatData && chatData.length > 0) {
-      adventurerIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
-
-      const { data: usersData, error: userError } = await supabase
-        .from('users')
-        .select('username')
-        .in('id', adventurerIds);
-      
-      if (userError) throw userError;
-      adventurerNames = usersData ? usersData.map(u => u.username || 'Unknown') : [];
+    if (chatError) {
+      console.warn('⚠️ Could not update chats:', chatError);
+    } else {
+      console.log('✅ Updated chat payment_status to paid');
     }
 
-    if (adventurerIds.length > 0) {
-      const notifications = adventurerIds.map(adventurerId => ({
-        user_id: adventurerId,
-        message: `Job '${jobTitle}' has been marked as completed. Payment should be processed shortly.`,
-        link: '/wallet'
-      }));
-
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert(notifications);
-
-      if (notificationError) {
-        console.error('Error sending notifications:', notificationError);
-      }
-    }
-
-    const jobIndex = userListings.value.findIndex(job => job.id === jobId);
-    
-    if (jobIndex !== -1) {
-      userListings.value[jobIndex].status = 'completed';
-      userListings.value[jobIndex].completedBy = adventurerNames;
-    }
-
-    toast.success('Job marked as completed successfully! Adventurer(s) notified.', 'Job Completed', 8000);
-
-    await loadUserListings(userId);
-    await loadCompletedJobs(userId);
-
-  } catch (error) {
-    console.error('Unexpected error marking job as completed:', error);
-    toast.error('An unexpected error occurred. Please try again.', 'Error', 8000);
+    toast.success('Job marked as completed!');
+    await loadAll();
+  } catch (err) {
+    console.error('❌ Error marking job as completed:', err);
+    toast.error('Failed to mark job as completed');
   }
 }
 
