@@ -712,12 +712,12 @@ async function loadCompletedJobs(uid) {
     console.log('📋 Querying helper_jobs table...');
     // ✅ FIXED: Only query for completed jobs
     const { data: helperJobsData, error: helperJobsError } = await supabase
-      .from('helper_jobs')
-      .select('id, job_title, agreed_amount, client_id, created_at, status, payment_status')
-      .eq('helper_id', uid)
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false });
-
+  .from('helper_jobs')
+  .select('id, job_title, agreed_amount, client_id, created_at, status, payment_status')
+  .eq('helper_id', uid)
+  .in('status', ['completed', 'in-progress'])  // ← SHOW BOTH COMPLETED AND IN-PROGRESS
+  .eq('payment_status', 'paid')  // ← ONLY SHOW PAID JOBS
+  .order('created_at', { ascending: false });
     console.log('📊 helper_jobs query result:', { count: helperJobsData?.length || 0 });
 
     if (helperJobsError) throw helperJobsError;
