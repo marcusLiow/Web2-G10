@@ -1113,7 +1113,7 @@ const acceptOffer = async (offerMessage) => {
         .update({ 
           offer_accepted: true,
           accepted_at: new Date().toISOString(),
-          payment_amount: offerMessage.offer_amount
+          payment_amount: parseFloat(offerMessage.offer_amount)
         })
         .eq('id', chatId);
       if (error) throw error;
