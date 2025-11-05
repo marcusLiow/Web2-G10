@@ -576,22 +576,26 @@ const loadChatData = async () => {
     
     // For helper chats, check helper_jobs table instead of chat.offer_accepted
     if (isHelperChat.value) {
-      const { data: helperJobs, error: hjError } = await supabase
-        .from('helper_jobs')
-        .select('id, status, payment_status')
-        .eq('helper_chat_id', chatId)
-        .in('status', ['accepted', 'in-progress', 'completed']);
-      
-      if (!hjError && helperJobs && helperJobs.length > 0) {
-        // At least one job is accepted in this chat
-        offerAcceptedInThisChat.value = true;
-        // Check if any job is paid
-        isPaymentCompleted.value = helperJobs.some(job => job.payment_status === 'paid');
-      } else {
-        offerAcceptedInThisChat.value = false;
-        isPaymentCompleted.value = false;
-      }
-    } else {
+  // Get the MOST RECENT helper_job for this chat
+  const { data: helperJobs, error: hjError } = await supabase
+    .from('helper_jobs')
+    .select('id, status, payment_status, created_at')
+    .eq('helper_chat_id', chatId)
+    .in('status', ['accepted', 'in-progress', 'completed'])
+    .order('created_at', { ascending: false }) // ✅ Get most recent first
+    .limit(1); // ✅ Only get the latest one
+  
+  if (!hjError && helperJobs && helperJobs.length > 0) {
+    const latestJob = helperJobs[0];
+    offerAcceptedInThisChat.value = true;
+    // ✅ Check payment status of ONLY the latest job
+    isPaymentCompleted.value = latestJob.payment_status === 'paid';
+  } else {
+    offerAcceptedInThisChat.value = false;
+    isPaymentCompleted.value = false;
+  }
+}
+     else {
       // For regular job chats, use the old logic
       offerAcceptedInThisChat.value = chat.offer_accepted === true;
       isPaymentCompleted.value = chat.payment_status === 'paid';
