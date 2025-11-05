@@ -216,8 +216,7 @@
             <!-- Show message if no jobs available -->
             <div v-else class="no-jobs-message">
               <p class="no-jobs-text">You don't have any open jobs to offer.</p>
-              <router-link to="/create-job" class="create-job-link">Create a Job</router-link>
-            </div>
+              <router-link to="/request" class="create-job-link">Create a Job</router-link>            </div>
           </div>
 
           <!-- Your Offer Amount -->
