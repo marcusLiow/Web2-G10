@@ -1017,79 +1017,73 @@ const acceptOffer = async (offerMessage) => {
     if (updateError) throw updateError;
 
     // 2. Mark chat as accepted and handle job updates
+
     if (isHelperChat.value) {
-      // For helper chats, ONLY create helper_jobs entry, DON'T update helper_chats
       const jobTitle = offerMessage.job_title;
+      
       if (jobTitle) {
-        // Get the job ID based on the title and client
+        // Find the job ID
         const { data: jobData, error: jobFetchError } = await supabase
           .from('User-Job-Request')
           .select('id, multiple_positions, positions_available, positions_filled')
           .eq('user_id', chatInfo.value.client_id)
           .eq('title', jobTitle)
-          .eq('status', 'open')
+          .in('status', ['open', 'in-progress'])
           .single();
-
-        if (jobFetchError) {
-          console.error('Error fetching job:', jobFetchError);
-          throw new Error('Job not found or no longer available');
-        }
         
-        if (jobData) {
-          // Create helper_jobs entry
-          const { error: helperJobError } = await supabase
-            .from('helper_jobs')
-            .insert([{
-              helper_chat_id: chatId,
-              job_id: jobData.id,
-              helper_id: chatInfo.value.helper_id,
-              client_id: chatInfo.value.client_id,
-              status: 'accepted',
-              payment_amount: offerMessage.offer_amount,
-              agreed_amount: offerMessage.offer_amount,
-              job_title: jobTitle,
-              accepted_at: new Date().toISOString()
-            }]);
+        if (jobFetchError || !jobData) {
+          throw new Error(`Could not find job with title "${jobTitle}"`);
+        }
 
-          if (helperJobError) throw helperJobError;
+        // Create helper_jobs entry FIRST
+        const { error: helperJobError } = await supabase
+          .from('helper_jobs')
+          .insert([{
+            helper_chat_id: chatId,
+            job_id: jobData.id,
+            helper_id: chatInfo.value.helper_id,
+            client_id: chatInfo.value.client_id,
+            status: 'accepted',
+            payment_amount: offerMessage.offer_amount,
+            agreed_amount: offerMessage.offer_amount,
+            job_title: jobTitle,
+            accepted_at: new Date().toISOString()
+          }]);
+        
+        if (helperJobError) throw helperJobError;
 
-          // Update job positions in User-Job-Request
-          const requiresMultipleHelpers = jobData.multiple_positions || false;
-          const positionsAvailable = jobData.positions_available || 1;
-          const positionsFilled = jobData.positions_filled || 0;
+        // Now update the job - SAME LOGIC AS NORMAL CHATS
+        const requiresMultipleHelpers = jobData.multiple_positions || false;
+        const positionsAvailable = jobData.positions_available || 1;
+        const positionsFilled = jobData.positions_filled || 0;
 
-          if (requiresMultipleHelpers) {
-            const newPositionsFilled = positionsFilled + 1;
+        if (requiresMultipleHelpers) {
+          const newPositionsFilled = positionsFilled + 1;
 
-            if (newPositionsFilled >= positionsAvailable) {
-              const { error: jobUpdateError } = await supabase
-                .from('User-Job-Request')
-                .update({ 
-                  status: 'in-progress',
-                  positions_filled: newPositionsFilled
-                })
-                .eq('id', jobData.id);
-              if (jobUpdateError) throw jobUpdateError;
-            } else {
-              const { error: jobUpdateError } = await supabase
-                .from('User-Job-Request')
-                .update({ 
-                  positions_filled: newPositionsFilled
-                })
-                .eq('id', jobData.id);
-              if (jobUpdateError) throw jobUpdateError;
-            }
-          } else {
-            // Single position job
-            const { error: jobUpdateError } = await supabase
+          if (newPositionsFilled >= positionsAvailable) {
+            await supabase
               .from('User-Job-Request')
               .update({ 
                 status: 'in-progress',
-                positions_filled: 1
+                positions_filled: newPositionsFilled
               })
               .eq('id', jobData.id);
-            if (jobUpdateError) throw jobUpdateError;
+          } else {
+            await supabase
+              .from('User-Job-Request')
+              .update({ 
+                positions_filled: newPositionsFilled
+              })
+              .eq('id', jobData.id);
           }
+        } else {
+          await supabase
+            .from('User-Job-Request')
+            .update({ 
+              status: 'in-progress',
+              positions_filled: 1
+            })
+            .eq('id', jobData.id);
         }
       }
     } else {
