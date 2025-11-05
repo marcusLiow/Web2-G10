@@ -132,37 +132,59 @@ export default {
     };
 
     const checkSupabaseSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        isLoggedIn.value = true;
-        localStorage.setItem('isLoggedIn', 'true');
-        await loadUserData();
-        await fetchUnreadChatsCount();
-        await fetchNotifications();
-        subscribeToNotifications();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    isLoggedIn.value = true;
+    localStorage.setItem('isLoggedIn', 'true');
+    
+    // Fetch fresh user data from database
+    try {
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('username, email, avatar_url')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (!error && userData) {
+        // Update localStorage with fresh data
+        localStorage.setItem('username', userData.username || 'User');
+        localStorage.setItem('userEmail', userData.email || '');
+        localStorage.setItem('avatarUrl', userData.avatar_url || '');
+        localStorage.setItem('userId', session.user.id);
+        
+        // Load into component
+        username.value = userData.username || 'User';
+        userEmail.value = userData.email || '';
+        avatarUrl.value = userData.avatar_url || '';
+        
+        console.log('✅ Navbar - User data loaded:', {
+          username: username.value,
+          avatar: avatarUrl.value
+        });
       } else {
-        logoutCleanup();
-      }
-    };
-
-    const checkLoginStatus = () => {
-      const loggedInStatus = localStorage.getItem('isLoggedIn') === 'true';
-      if (loggedInStatus && !isLoggedIn.value) {
-        isLoggedIn.value = true;
         loadUserData();
-        fetchUnreadChatsCount();
-        fetchNotifications();
-        subscribeToNotifications();
-      } else if (!loggedInStatus && isLoggedIn.value) {
-        logoutCleanup();
       }
-    };
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      loadUserData();
+    }
+    
+    await fetchUnreadChatsCount();
+    await fetchNotifications();
+    subscribeToNotifications();
+  } else {
+    logoutCleanup();
+  }
+};
 
     const loadUserData = () => {
-      username.value = localStorage.getItem('username') || 'User';
-      userEmail.value = localStorage.getItem('userEmail') || '';
-      avatarUrl.value = localStorage.getItem('avatarUrl') || '';
-    };
+  const storedUsername = localStorage.getItem('username');
+  console.log('🔍 Navbar - Loading username from localStorage:', storedUsername);
+  username.value = storedUsername || 'User';
+  userEmail.value = localStorage.getItem('userEmail') || '';
+  avatarUrl.value = localStorage.getItem('avatarUrl') || '';
+  console.log('✅ Navbar - Username set to:', username.value);
+};
 
     const fetchUnreadChatsCount = async () => {
       if (!isLoggedIn.value) return;
@@ -365,6 +387,18 @@ export default {
           isNotificationDropdownOpen.value = false;
       }
     };
+
+    const checkLoginStatus = async () => {
+  const loggedInStatus = localStorage.getItem('isLoggedIn') === 'true';
+  if (loggedInStatus && !isLoggedIn.value) {
+    isLoggedIn.value = true;
+    // Wait a bit for localStorage to be fully updated by AuthCallback
+    await new Promise(resolve => setTimeout(resolve, 150));
+    await checkSupabaseSession(); // Fetch fresh data from database
+  } else if (!loggedInStatus && isLoggedIn.value) {
+    logoutCleanup();
+  }
+};
 
     const handleLogout = async () => {
       const confirmed = await toast.confirm({
