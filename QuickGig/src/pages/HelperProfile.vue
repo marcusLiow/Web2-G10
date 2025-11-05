@@ -430,36 +430,7 @@ onMounted(async () => {
                 <small>Complete a job with this helper to leave a review</small>
               </div>
               
-              <!-- Reviews List -->
-              <div v-if="helper.reviews.length > 0" class="reviews-list">
-                <div v-for="review in helper.reviews" 
-                     :key="review.id" 
-                     class="review-card">
-                  <div class="review-header">
-                    <div class="reviewer-info">
-                      <div class="reviewer-avatar">
-                        <img v-if="review.reviewer.avatar_url" 
-                             :src="review.reviewer.avatar_url" 
-                             :alt="review.reviewer.username"
-                             @error="review.reviewer.avatar_url = ''"
-                        />
-                        <span v-else>
-                          {{ review.reviewer.username.charAt(0).toUpperCase() }}
-                        </span>
-                      </div>
-                      <div class="reviewer-details">
-                        <span class="reviewer-name">{{ review.reviewer.username }}</span>
-                        <span class="review-date">{{ formatDate(review.created_at) }}</span>
-                      </div>
-                    </div>
-                    <div class="review-rating">
-                      <div class="stars">{{ renderStars(review.rating) }}</div>
-                      <div class="rating">{{ review.rating }}/5</div>
-                    </div>
-                  </div>
-                  <p class="review-text">{{ review.comment }}</p>
-                </div>
-              </div>
+            
             </div>
           </div>
         </div>

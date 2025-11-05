@@ -57,11 +57,9 @@ onMounted(async () => {
     console.log('Processing payment for:', isHelper ? 'Helper Job' : 'Regular Job');
 
     if (isHelper) {
-      // Handle helper job payment
       await handleHelperJobPayment(chatId, numericAmount, decodedJobTitle);
     } else {
-      // Handle regular job payment
-      await handleRegularJobPayment(jobId, chatId, numericAmount, decodedJobTitle);
+      await handleRegularJobPayment(jobId, chatId, numericAmount, decodedJobTitle);  
     }
 
     console.log('✅ Payment processing complete');
@@ -81,6 +79,11 @@ onMounted(async () => {
 });
 
 const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
+  console.log('🔍 DEBUG - Regular Job Payment');
+  console.log('jobId:', jobId, 'Type:', typeof jobId, 'Value:', jobId);
+  console.log('chatId:', chatId, 'Type:', typeof chatId, 'Value:', chatId);
+  console.log('amount:', amount, 'Type:', typeof amount, 'Value:', amount);
+  
   console.log('Updating regular job:', jobId);
   
   // Get job details to check for multi-helper
@@ -91,6 +94,10 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
     .single();
   
   if (jobFetchError) throw jobFetchError;
+  
+  console.log('✅ Job data fetched:', jobData);
+  console.log('jobData.user_id type:', typeof jobData.user_id);
+  
   
   let newStatus = 'in-progress';
   if (jobData.multiple_positions) {
@@ -127,7 +134,16 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
   
   if (currentChatError) throw currentChatError;
   
-  // 2. Create helper_jobs record for this paid job (so it shows in helper's job history)
+  console.log('✅ Chat data fetched:', currentChatData);
+  console.log('job_seeker_id:', currentChatData.job_seeker_id, 'Type:', typeof currentChatData.job_seeker_id);
+  console.log('job_poster_id:', currentChatData.job_poster_id, 'Type:', typeof currentChatData.job_poster_id);
+  
+  // 2. Create helper_jobs record
+  console.log('🔍 About to INSERT into helper_jobs with:');
+  console.log('  helper_id:', currentChatData.job_seeker_id, 'Type:', typeof currentChatData.job_seeker_id);
+  console.log('  client_id:', currentChatData.job_poster_id, 'Type:', typeof currentChatData.job_poster_id);
+  console.log('  agreed_amount:', Number(amount), 'Type:', typeof Number(amount));
+  
   const { error: helperJobError } = await supabase
     .from('helper_jobs')
     .insert({
@@ -140,36 +156,41 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
     });
   
   if (helperJobError) {
-    console.error('Error creating helper_jobs record:', helperJobError);
+    console.error('❌ ERROR in helper_jobs INSERT:', helperJobError);
+    throw helperJobError;
   } else {
     console.log('✅ Helper job record created for job history');
   }
   
- 
-  // 3. Create Earnings record for the helper (status: 'paid' - will be 'completed' when job poster marks job complete)
-const platformFee = Number(amount) * 0.10; // 10% platform fee
-const netAmount = Number(amount) - platformFee;
+  // 3. Create Earnings record
+  const platformFee = Number(amount) * 0.10;
+  const netAmount = Number(amount) - platformFee;
+  
+  console.log('🔍 About to INSERT into Earnings with:');
+  console.log('  user_id:', currentChatData.job_seeker_id, 'Type:', typeof currentChatData.job_seeker_id);
+  console.log('  gross_amount:', Number(amount), 'Type:', typeof Number(amount));
+  
+  const { error: earningsError } = await supabase
+    .from('Earnings')
+    .insert({
+      user_id: currentChatData.job_seeker_id,
+      gross_amount: Number(amount),
+      platform_fee: platformFee,
+      net_amount: netAmount,
+      job_title: jobTitle || 'Job',
+      status: 'completed'
+    });
 
-const { error: earningsError } = await supabase
-  .from('Earnings')
-  .insert({
-    user_id: currentChatData.job_seeker_id,
-    gross_amount: Number(amount),
-    platform_fee: platformFee,
-    net_amount: netAmount,
-    job_title: jobTitle || 'Job',
-    job_id: jobId,
-    status: 'paid'  // Changed from 'completed' - will be updated when job poster marks job complete
-    // Removed payment_date - it doesn't exist in the table
-  });
-
-if (earningsError) {
-  console.error('Error creating Earnings record:', earningsError);
-} else {
-  console.log('✅ Earnings record created for helper with status: paid');
-}
+  if (earningsError) {
+    console.error('❌ ERROR in Earnings INSERT:', earningsError);
+    throw earningsError;
+  } else {
+    console.log('✅ Earnings record created for helper');
+  }
   
   // 4. Update chat payment status
+  console.log('🔍 About to UPDATE chats where id =', chatId, 'Type:', typeof chatId);
+  
   const { error: chatPaymentError } = await supabase
     .from('chats')
     .update({ 
@@ -177,8 +198,11 @@ if (earningsError) {
       payment_amount: Number(amount)
     })
     .eq('id', chatId);
-  if (chatPaymentError) throw chatPaymentError;
-  console.log('✅ Chat payment status updated to paid');
+    
+  if (chatPaymentError) {
+    console.error('❌ ERROR in chats UPDATE:', chatPaymentError);
+    throw chatPaymentError;
+  }
 
   // 5. Update job status
   const { error: updateError } = await supabase
@@ -250,7 +274,7 @@ const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
   if (chatError) throw chatError;
 
   // 2. Create helper_jobs record
-  const { data: helperJobData, error: jobError } = await supabase
+  const { error: jobError } = await supabase
     .from('helper_jobs')
     .insert([{
       helper_chat_id: chatId,
@@ -260,13 +284,11 @@ const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
       agreed_amount: amount,
       status: 'in-progress',
       payment_status: 'paid'
-    }])
-    .select('id')
-    .single();
+    }]);
   if (jobError) throw jobError;
 
  
-  // 3. Create Earnings record for the helper (status: 'paid' - will be 'completed' when client marks job complete)
+  // 3. Create Earnings record for the helper
 const platformFee = Number(amount) * 0.10; // 10% platform fee
 const netAmount = Number(amount) - platformFee;
 
@@ -278,15 +300,14 @@ const { error: earningsError } = await supabase
     platform_fee: platformFee,
     net_amount: netAmount,
     job_title: jobTitle || 'Helper Service',
-    job_id: helperJobData?.id,  // Reference to helper_jobs record
-    status: 'paid'  // Changed from 'completed' - will be updated when client marks job complete
+    status: 'completed'
     // Removed payment_date - it doesn't exist in the table
   });
 
 if (earningsError) {
   console.error('Error creating Earnings record:', earningsError);
 } else {
-  console.log('✅ Earnings record created for helper with status: paid');
+  console.log('✅ Earnings record created for helper');
 }
 
   // 4. Send payment confirmation message *to the chat*

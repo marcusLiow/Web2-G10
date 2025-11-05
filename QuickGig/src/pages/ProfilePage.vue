@@ -1296,7 +1296,6 @@ async function markAsCompleted(jobId) {
     toast.error('Invalid job ID', 'Error', 8000);
     return;
   }
-
   const confirmed = await toast.confirm({
     message: 'Are you sure you want to mark this job as completed? This will notify the adventurer(s) and move the job to history.',
     title: 'Mark Job as Completed',
