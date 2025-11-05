@@ -360,7 +360,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, computed, onActivated } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
 import { useToast } from '../composables/useToast';
@@ -532,6 +532,23 @@ onMounted(async () => {
   subscribeToMessages();
 });
 
+// Add this new function after the existing onMounted
+onActivated(async () => {
+  // Reload chat data when component becomes active again
+  await loadChatData();
+  await checkJobCompleted();
+});
+
+// Add this to detect when user returns from payment page
+const handleVisibilityChange = async () => {
+  if (!document.hidden) {
+    // Page became visible again - reload chat data
+    console.log('Page visible - reloading chat data');
+    await loadChatData();
+    await checkJobCompleted();
+  }
+};
+
 onUnmounted(() => {
   if (messageChannel) {
     supabase.removeChannel(messageChannel);
@@ -563,7 +580,7 @@ const loadChatData = async () => {
         .from('helper_jobs')
         .select('id, status, payment_status')
         .eq('helper_chat_id', chatId)
-        .in('status', ['accepted', 'completed']);
+        .in('status', ['accepted', 'in-progress', 'completed']);
       
       if (!hjError && helperJobs && helperJobs.length > 0) {
         // At least one job is accepted in this chat
@@ -1665,6 +1682,8 @@ const navigateToProfile = () => {
     router.push(`/job/${chatInfo.value.job_id}`);
   }
 };
+
+
 </script>
 
   <style scoped>
