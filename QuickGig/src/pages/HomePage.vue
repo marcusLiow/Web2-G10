@@ -273,84 +273,42 @@ export default {
           text: "Found someone to fix my sink in minutes! The whole process was so smooth and easy.",
           name: "Sarah M.",
           rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=1"
+          avatar: "https://cdna.artstation.com/p/assets/images/images/040/053/326/large/dot-megachx.jpg?1627714754"
         },
         {
           id: 2,
           text: "Amazing service! The photographer was professional and delivered exactly what I needed.",
           name: "James L.",
           rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=12"
+          avatar: "https://static-cse.canva.com/blob/1842077/create_pixel-art-generator_hero4x.jpg"
         },
         {
           id: 3,
           text: "Best decision ever! Got my furniture assembled quickly and the helper was super friendly.",
           name: "Maria K.",
           rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=5"
+          avatar: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSo-PZx3UOXMxP4BOMz0Dhi6f0VLbc0_iDjptWFBR77ga53f0Z_QHx-W0NwIDSWTWsrdZE&usqp=CAU"
         },
         {
           id: 4,
-          text: "I needed someone to walk my dog while I was at work. Found a reliable person in no time!",
-          name: "David R.",
-          rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=13"
-        },
-        {
-          id: 5,
           text: "The gardener transformed my backyard into a paradise. Highly recommend this platform!",
           name: "Lisa T.",
           rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=9"
+          avatar: "https://pbs.twimg.com/media/FJ9-iMHXwAsQAES.png"
         },
         {
-          id: 6,
+          id: 5,
           text: "Moving was stress-free thanks to the amazing helpers I found here. Will use again!",
           name: "Michael B.",
           rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=15"
+          avatar: "https://i.pinimg.com/564x/8a/fd/d8/8afdd88e6bc2e9eabd9a4f639d463c31.jpg"
         },
         {
-          id: 7,
-          text: "Got my website designed by a talented freelancer. Exceeded all my expectations!",
-          name: "Emma S.",
-          rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=47"
-        },
-        {
-          id: 8,
+          id: 6,
           text: "Deep cleaning service was incredible. My apartment has never looked this good!",
           name: "Ryan P.",
           rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=33"
-        },
-        {
-          id: 9,
-          text: "Perfect for busy parents! Found a tutor for my kids within hours.",
-          name: "Jessica W.",
-          rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=10"
-        },
-        {
-          id: 10,
-          text: "The plumber arrived on time and fixed everything perfectly. Great experience!",
-          name: "Tom H.",
-          rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=14"
-        },
-        {
-          id: 11,
-          text: "Event planning made easy! Found the perfect coordinator for my party.",
-          name: "Amanda C.",
-          rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=44"
-        },
-        {
-          id: 12,
-          text: "Car repairs done right. The mechanic was skilled and honest about pricing.",
-          name: "Chris D.",
-          rating: 5,
-          avatar: "https://i.pravatar.cc/150?img=52"
+          avatar: "https://i.etsystatic.com/49765647/r/il/8ac30d/5688023580/il_570xN.5688023580_1dwu.jpg"
         }
       ],
       reviewsVisible: false,
@@ -478,13 +436,13 @@ export default {
 }
 
 .changing-word {
-  color: #2563EB;
+  color: #4fb6e1;
   display: inline-block;
   font-weight: 700;
 }
 
 .request-link {
-  color: #2563EB;
+  color: #4fb6e1;
   cursor: pointer;
   text-decoration: underline;
   font-weight: 700;
@@ -492,7 +450,7 @@ export default {
 }
 
 .request-link:hover {
-  color: #1d4ed8;
+  color: #3a9cc9;
   text-decoration: none;
 }
 
@@ -562,7 +520,7 @@ export default {
 /* Reviews Section */
 .reviews-section {
   padding: 5rem 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #4fb6e1;
   position: relative;
   overflow: hidden;
   width: 100%;
@@ -681,8 +639,8 @@ export default {
   height: 80px;
   border-radius: 50%;
   object-fit: cover;
-  border: 4px solid #667eea;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  border: 4px solid #3a9cc9;
+  box-shadow: 0 4px 12px rgba(58, 156, 201, 0.3);
 }
 
 .review-stars-small {
@@ -709,7 +667,7 @@ export default {
 
 .small-reviewer-name {
   font-size: 0.9rem;
-  color: #667eea;
+  color: #2a7a9e;
   font-weight: 700;
   text-align: center;
 }
@@ -821,7 +779,7 @@ export default {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 2rem;
-  max-width: 1200px;
+  max-width: 1100px;
   margin: 0 auto;
 }
 
@@ -857,7 +815,7 @@ export default {
 }
 
 .category-card:hover .category-overlay {
-  background: rgba(37, 99, 235, 0.85);
+  background: rgba(79, 182, 225, 0.85);
 }
 
 .category-content {
@@ -868,7 +826,7 @@ export default {
 
 .category-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 8px 20px rgba(79, 182, 225, 0.3);
 }
 
 .category-name {
@@ -906,7 +864,7 @@ export default {
 .footer-logo {
   font-size: 1.75rem;
   font-weight: 700;
-  color: #2563EB;
+  color: #4fb6e1;
   margin: 0;
 }
 
@@ -918,7 +876,7 @@ export default {
 }
 
 .footer-about:hover {
-  color: #2563EB;
+  color: #4fb6e1;
 }
 
 .footer-copyright {
@@ -936,7 +894,7 @@ export default {
 
 .section-title {
   font-size: 2.8rem;
-  color: #2563EB;
+  color: #4fb6e1;
   text-align: center;
   margin-bottom: 2.5rem;
   font-weight: 700;
@@ -987,15 +945,15 @@ export default {
   width: 60px;
   height: 60px;
   background: white;
-  border: 4px solid #2563EB;
+  border: 4px solid #4fb6e1;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.75rem;
   font-weight: 700;
-  color: #2563EB;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  color: #4fb6e1;
+  box-shadow: 0 4px 12px rgba(79, 182, 225, 0.2);
 }
 
 .step-image {

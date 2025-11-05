@@ -392,10 +392,10 @@ export default {
       
       if (this.formData.payment_type === 'per_person') {
         const total = payment * positions;
-        return `Total cost: $${total.toFixed(2)} ($${payment.toFixed(2)} × ${positions} people)`;
+        return `Total cost: $${total.toFixed(2)} `;
       } else {
         const perPerson = payment / positions;
-        return `Each helper receives: $${perPerson.toFixed(2)} ($${payment.toFixed(2)} ÷ ${positions} people)`;
+        return `Each helper receives: $${perPerson.toFixed(2)} `;
       }
     }
   },
@@ -832,19 +832,20 @@ export default {
 }
 
 .form-title {
-  font-size: 2.5rem;
+  font-size: 2.75rem;
   color: #1a1a1a;
   margin-bottom: 0.5rem;
-  font-weight: 700;
+  font-weight: 600;
   text-align: center;
 }
 
 .form-subtitle {
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   color: #666;
   text-align: center;
   margin-bottom: 3rem;
   line-height: 1.6;
+  font-weight: 400;
 }
 
 .request-form {
@@ -861,8 +862,8 @@ export default {
 }
 
 .form-label {
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.125rem;
+  font-weight: 500;
   color: #1a1a1a;
   display: flex;
   justify-content: space-between;
@@ -877,8 +878,8 @@ export default {
 
 .form-input,
 .form-textarea {
-  padding: 1rem;
-  font-size: 1rem;
+  padding: 1.125rem 1.25rem;
+  font-size: 1.0625rem;
   border: 2px solid #e5e7eb;
   border-radius: 12px;
   transition: all 0.3s ease;
@@ -1035,8 +1036,8 @@ export default {
 }
 
 .section-header {
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 1.25rem;
+  font-weight: 500;
   color: #1a1a1a;
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;
@@ -1223,7 +1224,8 @@ export default {
   border-radius: 8px;
   border: 2px solid #2563EB;
   color: #1e40af;
-  font-weight: 600;
+  font-weight: 400;
+  font-size: 1.25rem;
   margin-top: 0.5rem;
 }
 
@@ -1342,11 +1344,11 @@ select.form-input {
   }
 
   .form-title {
-    font-size: 2rem;
+    font-size: 2.25rem;
   }
 
   .form-subtitle {
-    font-size: 1rem;
+    font-size: 1.125rem;
     margin-bottom: 2rem;
   }
 
@@ -1366,11 +1368,11 @@ select.form-input {
   }
 
   .form-title {
-    font-size: 1.75rem;
+    font-size: 1.875rem;
   }
 
   .form-subtitle {
-    font-size: 0.95rem;
+    font-size: 1rem;
   }
 
   .form-input,
