@@ -140,7 +140,6 @@
                     <h3>{{ skill.name }}</h3>
                     <span class="badge" :class="getBadgeClass(skill.level)">{{ skill.level }}</span>
                   </div>
-                  <p class="skill-jobs">{{ skill.jobs || 0 }} jobs completed</p>
                 </div>
               </div>
 
@@ -1890,7 +1889,7 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
   background: white;
   color: #374151;
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: 1.35rem;  /* Increased from 0.875rem */
   cursor: pointer;
   transition: all 0.2s;
 }
