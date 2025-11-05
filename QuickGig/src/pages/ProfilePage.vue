@@ -815,33 +815,96 @@ async function loadCompletedJobs(uid) {
 
     if (posterJobsError) throw posterJobsError;
 
+    // Around line 815-850, replace the job poster section with this:
     if (posterJobsData && posterJobsData.length > 0) {
       for (const job of posterJobsData) {
         let adventurerNames = [];
         let actualPaidAmount = job.payment;
         
-        const { data: chatData, error: chatError } = await supabase
-          .from('chats')
-          .select('job_seeker_id, payment_amount')
-          .eq('job_id', job.id)
-          .eq('offer_accepted', true);
-
-        if (!chatError && chatData && chatData.length > 0) {
-          const adventurerIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+        console.log('🔍 DEBUG - Processing job:', job.id, job.title);
+        
+        // ✅ FIX: Check BOTH regular chats AND helper_jobs for completed work
+        const [regularChats, helperJobs] = await Promise.all([
+          // Check regular chats (job seekers)
+          supabase
+            .from('chats')
+            .select('job_seeker_id, payment_amount')
+            .eq('job_id', job.id)
+            .eq('offer_accepted', true),
           
+          // Check helper_jobs (adventurers who accepted through helper chat)
+          supabase
+            .from('helper_jobs')
+            .select('helper_id, agreed_amount, status, payment_status')  // ✅ Added status fields for debugging
+            .eq('job_id', job.id)
+        ]);
+
+        console.log('📊 Regular chats result:', {
+          error: regularChats.error,
+          count: regularChats.data?.length || 0,
+          data: regularChats.data
+        });
+        
+        console.log('📊 Helper jobs result (ALL):', {
+          error: helperJobs.error,
+          count: helperJobs.data?.length || 0,
+          data: helperJobs.data
+        });
+
+        // Combine adventurer IDs from both sources
+        const adventurerIds = new Set();
+        
+        if (!regularChats.error && regularChats.data) {
+          regularChats.data.forEach(chat => {
+            console.log('✅ Adding from chats:', chat.job_seeker_id);
+            adventurerIds.add(chat.job_seeker_id);
+            if (chat.payment_amount) actualPaidAmount = chat.payment_amount;
+          });
+        }
+        
+        if (!helperJobs.error && helperJobs.data) {
+          // ✅ REMOVED the .in('status', ...) and .eq('payment_status', 'paid') filters
+          // to see ALL helper_jobs first
+          helperJobs.data.forEach(hjob => {
+            console.log('📝 Helper job status:', {
+              helper_id: hjob.helper_id,
+              status: hjob.status,
+              payment_status: hjob.payment_status,
+              agreed_amount: hjob.agreed_amount
+            });
+            
+            // ✅ Filter in JavaScript instead to see what's being filtered out
+            if (hjob.status === 'completed' || hjob.status === 'accepted' || (hjob.status === 'in-progress' && hjob.payment_status === 'paid')) {
+              console.log('✅ Adding from helper_jobs:', hjob.helper_id);
+              adventurerIds.add(hjob.helper_id);
+              if (hjob.agreed_amount) actualPaidAmount = hjob.agreed_amount;
+            } else {
+              console.log('⚠️ SKIPPED - Status/payment not matching:', hjob.status, hjob.payment_status);
+            }
+          });
+        }
+
+        console.log('👥 Combined adventurer IDs:', Array.from(adventurerIds));
+
+        // Fetch usernames for all adventurers
+        if (adventurerIds.size > 0) {
           const { data: adventurersData, error: adventurersError } = await supabase
             .from('users')
-            .select('username')
-            .in('id', adventurerIds);
+            .select('id, username')  // ✅ Added id for verification
+            .in('id', Array.from(adventurerIds));
+
+          console.log('👤 Adventurers query result:', {
+            error: adventurersError,
+            count: adventurersData?.length || 0,
+            data: adventurersData
+          });
 
           if (!adventurersError && adventurersData) {
             adventurerNames = adventurersData.map(u => u.username || 'Unknown');
           }
-          
-          if (chatData[0]?.payment_amount) {
-            actualPaidAmount = chatData[0].payment_amount;
-          }
         }
+
+        console.log('✅ Final adventurer names:', adventurerNames);
 
         const jobObj = {
           id: `poster-${job.id}`,
@@ -851,13 +914,13 @@ async function loadCompletedJobs(uid) {
           agreed_amount: actualPaidAmount,
           created_at: job.created_at,
           role: 'Job Poster',
-          otherPartyName: adventurerNames.join(', ') || 'Unknown Adventurer'
+          otherPartyName: adventurerNames.length > 0 ? adventurerNames.join(', ') : 'Unknown Adventurer'
         };
         
         const uniqueKey = createUniqueKey(jobObj);
         if (!jobsMap.has(uniqueKey)) {
           jobsMap.set(uniqueKey, jobObj);
-          console.log('✅ Added poster job:', job.title, '- Paid:', actualPaidAmount);
+          console.log('✅ Added poster job:', job.title, '- Adventurers:', adventurerNames.join(', '));
         } else {
           console.log('⚠️ Duplicate skipped (poster):', job.title);
         }

@@ -1086,7 +1086,7 @@ const closeOfferModal = () => {
               </div>
 
               <div class="price-highlight">
-                <span class="price-label">{{ isOwnListing ? 'Your Asking Price' : 'Asking Price' }}</span>
+                <span class="price-label">{{ isOwnListing ? 'Your Current Offer' : 'Current Offer' }}</span>
                 <span class="price-large">{{ job.budget }}</span>
               </div>
 
