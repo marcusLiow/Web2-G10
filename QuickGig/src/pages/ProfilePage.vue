@@ -162,14 +162,16 @@
                     <div class="review-body">
                       <div class="review-header">
                         <div>
-                          <p class="review-author">{{ r.author }}</p>
+                          <p class="review-author">
+                            {{ r.author }}
+                            <span class="reviewer-role-badge">Reviewed by {{ r.reviewerRole }}</span>
+                          </p>
                           <p class="review-date">{{ r.date }}</p>
                         </div>
                         <div class="stars">
                           <span v-for="s in 5" :key="s" :class="s <= r.rating ? 'star-filled' : 'star-empty'">★</span>
                         </div>
                       </div>
-                      <span v-if="r.service" class="service-badge">{{ r.service }}</span>
                       <p class="review-text">{{ r.comment }}</p>
                     </div>
                   </div>
@@ -1175,7 +1177,7 @@ async function loadUserReviews(helperId) {
       if (reviewerIds.length > 0) {
         const { data: reviewersData } = await supabase
           .from('users')
-          .select('id, username, avatar_url')
+          .select('id, username, avatar_url, is_helper')
           .in('id', reviewerIds);
         
         if (reviewersData) {
@@ -1185,6 +1187,17 @@ async function loadUserReviews(helperId) {
 
       user.reviews = reviewsData.map(r => {
         const reviewer = reviewersMap[r.reviewer_id] || {};
+        
+        // Determine reviewer role
+        // If current user is a helper (has reviews as helper), then reviewers are clients
+        // If current user is not a helper (posted jobs), then reviewers are adventurers
+        let reviewerRole = 'Client';
+        if (!user.is_helper || reviewer.id === user.id) {
+          reviewerRole = 'Adventurer';
+        } else if (reviewer.is_helper) {
+          reviewerRole = 'Adventurer';
+        }
+        
         return {
           id: r.id,
           rating: r.rating,
@@ -1192,7 +1205,8 @@ async function loadUserReviews(helperId) {
           service: r.job_title,
           date: r.created_at ? new Date(r.created_at).toLocaleDateString() : '',
           author: reviewer.username || 'Anonymous',
-          avatar: reviewer.avatar_url || ''
+          avatar: reviewer.avatar_url || '',
+          reviewerRole: reviewerRole
         };
       });
     } else {
@@ -1900,8 +1914,8 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 .avatar-placeholder-small { color:#9ca3af; font-weight:700; }
 .review-body { flex:1; }
 .review-header { display:flex; justify-content:space-between; align-items:start; gap:.5rem; }
-.review-author { font-weight:600; font-size: 1.75rem; }
-.service-badge { display:inline-block; padding:.25rem .5rem; background:#eff6ff; color:#2563eb; border-radius:9999px; margin:.5rem 0; }
+.review-author { font-weight:600; font-size: 1.75rem; display: flex; align-items: center; gap: 0.75rem; }
+.reviewer-role-badge { display: inline-block; padding: 0.25rem 0.75rem; background: #eff6ff; color: #2563eb; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; text-transform: capitalize; }
 
 .jobs-list, .listings-list { display:flex; flex-direction:column; gap:1rem; }
 .listings-section { margin-bottom:2rem; }
