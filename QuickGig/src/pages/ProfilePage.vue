@@ -297,8 +297,8 @@
 
     <!-- Empty State -->
     <div v-else class="empty-state">
-                <div class="empty-icon-text">No Listings</div>
-                <p class="empty-title">You haven't posted any jobs yet</p> <p class="empty-text">All jobs you post (open, in-progress, and completed) will appear here.</p> </div>
+                <div class="empty-icon-text">No Reviews</div>
+                <p class="empty-title">No reviews yet</p> <p class="empty-text">Reviews will appear here when someone rates your service</p> </div>
   </div>
 </div>
 <div v-if="activeTab === 'ongoing'" class="tab-content">
@@ -887,7 +887,6 @@ async function loadCompletedJobs(uid) {
         .from('User-Job-Request')
         .select('id, title, status, user_id, created_at')
         .in('id', jobIds)
-        .eq('status', 'completed');
 
       if (!jobsError && jobsData && jobsData.length > 0) {
         const posterIds = [...new Set(jobsData.map(j => j.user_id))];
@@ -1160,25 +1159,34 @@ async function loadAll() {
       user.helper_profile = profileData || null;
     }
 
-if (user.is_helper) {
+    // ✅ FIXED: Properly load stats
+    if (user.is_helper) {
       try {
         const { data: statsData } = await supabase.rpc('get_helper_stats_for', { helper_uuid: uid });
-        // ... (rest of the stats code) ...
+        const row = Array.isArray(statsData) ? statsData[0] : statsData;
+        if (row) {
+          user.rating = Number(row.avg_rating) || 0;
+          user.reviewCount = Number(row.review_count) || 0;
+          user.stats.jobsCompleted = Number(row.completed_jobs) || 0;
+        }
       } catch (e) { console.warn('get_helper_stats_for error', e); }
     }
 
     await loadUserReviews(uid);
     
+    // ✅ FIXED: Fallback for review count
     if (user.reviewCount === 0 && user.reviews && user.reviews.length > 0) {
-      // ... (rest of the review code) ...
+      user.reviewCount = user.reviews.length;
+      const totalRating = user.reviews.reduce((sum, review) => sum + (review.rating || 0), 0);
+      user.rating = totalRating / user.reviews.length;
     }
 
     // Load jobs for both roles
-    await loadUserListings(uid); // <-- For when user is a Poster
-    await loadHelperJobs(uid);   // <-- ADD THIS (For when user is a Helper)
+    await loadUserListings(uid);
+    await loadHelperJobs(uid);
     await loadCompletedJobs(uid);
     
-    // ✅ FIXED: Calculate stats from completed jobs using 'Adventurer' role
+    // ✅ Calculate stats from completed jobs
     const adventurerJobs = completedJobs.value.filter(job => job.role === 'Adventurer');
     
     // Total jobs completed (both as poster and adventurer)
@@ -1192,6 +1200,15 @@ if (user.is_helper) {
     user.stats.rating = user.rating;
     
     await calculateTierInfo(uid);
+    
+    console.log('✅ Final user stats:', {
+      rating: user.rating,
+      reviewCount: user.reviewCount,
+      jobsCompleted: user.stats.jobsCompleted,
+      earnings: user.stats.earnings,
+      reviews: user.reviews.length
+    });
+    
   } catch (err) {
     console.error('loadAll error', err);
     errorMessage.value = String(err.message || err);
