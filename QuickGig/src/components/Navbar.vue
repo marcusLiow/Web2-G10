@@ -439,10 +439,13 @@ export default {
       if (notificationDropdown && !notificationDropdown.contains(event.target)) {
           isNotificationDropdownOpen.value = false;
       }
-      // Close mobile menu when clicking outside
-      const mobileMenu = document.querySelector('.mobile-menu');
+      // Close mobile menu when clicking the overlay (not the content)
+      const mobileMenuContent = document.querySelector('.mobile-menu-content');
       const hamburger = document.querySelector('.hamburger-button');
-      if (isMobileMenuOpen.value && mobileMenu && !mobileMenu.contains(event.target) && !hamburger.contains(event.target)) {
+      if (isMobileMenuOpen.value && 
+          mobileMenuContent && 
+          !mobileMenuContent.contains(event.target) && 
+          !hamburger.contains(event.target)) {
         closeMobileMenu();
       }
     };
@@ -638,7 +641,7 @@ export default {
 
 .nav-link {
   text-decoration: none;
-  color: rgba(0, 0, 0, 0.85);
+  color: #1a3a52;
   font-weight: 500;
   transition: all 0.3s;
   white-space: nowrap;
@@ -648,19 +651,19 @@ export default {
 }
 
 .nav-link:hover {
-  color: #000;
+  color: #0f2942;
   background: rgba(0, 0, 0, 0.1);
 }
 
 .nav-link.router-link-active,
 .nav-link.active {
-  color: #000;
+  color: #0f2942;
   background: rgba(0, 0, 0, 0.15);
 }
 
 .nav-button {
   background: white;
-  color: #000000;
+  color: #1a3a52;
   padding: 0.55rem 1.55rem;
   border-radius: 25px;
   text-decoration: none;
@@ -683,7 +686,7 @@ export default {
 .icon-button {
   position: relative;
   background: white;
-  color: #4fb6e1;
+  color: #2563EB;
   padding: 0.625rem;
   border-radius: 50%;
   border: none;
@@ -943,13 +946,13 @@ export default {
 }
 
 .profile-username {
-  color: #000;
+  color: #1a3a52;
   font-weight: 300;
   font-size: 1.5rem;
 }
 
 .dropdown-arrow {
-  color: #000;
+  color: #1a3a52;
   transition: transform 0.3s ease;
 }
 
@@ -1230,7 +1233,7 @@ export default {
   .mobile-menu {
     display: block;
     position: fixed;
-    top: 87px;
+    top: 75px;
     left: 0;
     right: 0;
     bottom: 0;

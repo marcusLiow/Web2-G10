@@ -1144,7 +1144,7 @@ export default {
 }
 
 .suggestion-main {
-  font-weight: 600;
+  font-weight: 400;
   color: #1a1a1a;
   margin-bottom: 0.25rem;
 }

@@ -2159,9 +2159,10 @@ const navigateToProfile = () => {
 
   .acceptance-text {
     margin: 0 0 0.25rem 0;
-    font-weight: 600;
+    font-weight: 300;
     color: #065f46;
     padding-right: 3rem;
+    font-size: 1.05rem;
   }
 
   .own-message .acceptance-text {
@@ -2688,13 +2689,13 @@ const navigateToProfile = () => {
 
   .review-btn {
     width: 100%;
-    padding: 0.75rem 1.25rem;
+    padding: 0.5rem 1rem;
     background: #8b5cf6;
     color: white;
     border: none;
     border-radius: 0.5rem;
-    font-size: 0.65625rem; /* 0.875rem * 0.75 */
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: 300;
     cursor: pointer;
     transition: all 0.2s;
   }

@@ -624,6 +624,11 @@ function formatSpendingJobDate(dateString) {
   padding-right: 0;
 }
 
+.badge{
+  font-weight: 300;
+  font-size: 0.85rem;
+}
+
 /* --- Color Overrides --- */
 .text-success {
   color: #198754 !important;

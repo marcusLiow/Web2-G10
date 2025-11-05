@@ -181,7 +181,7 @@
 
           <div 
             class="category-card" 
-            style="background-image: url('https://www.metropolbanquet.com/wp-content/uploads/wedding-videographer.jpg');"
+            style="background-image: url('https://www.hockwoldhallnorfolk.com/wp-content/uploads/2017/02/wedding-photographer.jpg');"
             :class="{ 'fade-in-up': categoriesVisible }"
             :style="{ animationDelay: '0.25s' }"
           >
@@ -914,6 +914,8 @@ export default {
   gap: 3rem;
   max-width: 1100px;
   margin: 0 auto;
+  /* Ensure equal column widths */
+  grid-auto-columns: 1fr;
 }
 
 .step-card {
@@ -926,6 +928,12 @@ export default {
   position: relative;
   opacity: 0;
   transform: translateY(30px);
+  /* Force equal widths and heights */
+  width: 100%;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .step-card.fade-in-up {
@@ -958,11 +966,12 @@ export default {
 
 .step-image {
   width: 100%;
-  height: 250px;
+  height: 200px; /* Fixed height for consistency */
   border-radius: 16px;
   overflow: hidden;
   margin: 2rem 0 1.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0; /* Prevent shrinking */
 }
 
 .step-image img {
@@ -976,12 +985,17 @@ export default {
   color: #1a1a1a;
   margin-bottom: 0.75rem;
   font-weight: 700;
+  flex-shrink: 0; /* Prevent shrinking */
 }
 
 .step-description {
   font-size: 1rem;
   color: #666;
   line-height: 1.6;
+  flex-grow: 1; /* Allow description to fill remaining space */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Responsive Design */
@@ -1062,12 +1076,6 @@ export default {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .footer-content {
-    flex-direction: column;
-    gap: 1.5rem;
-    text-align: center;
-  }
-
   .section-title {
     font-size: 2rem;
   }
@@ -1132,11 +1140,7 @@ export default {
     gap: 1.5rem;
   }
 
-  .footer-content {
-    flex-direction: column;
-    gap: 1.5rem;
-    text-align: center;
-  }
+
 
   .section-title {
     font-size: 1.5rem;
