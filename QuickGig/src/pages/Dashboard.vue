@@ -108,10 +108,10 @@
               </div>
               <div v-else class="job-list-container">
                 <ul class="list-group list-group-flush">
-                  <li v-if="!earningsLoading && allFetchedEarnings.length === 0" class="list-group-item text-muted text-center py-3">
-                    No earnings recorded yet.
+                  <li v-if="!earningsLoading && completedEarnings.length === 0" class="list-group-item text-muted text-center py-3">
+                    No completed earnings yet.
                   </li>
-                  <li v-for="job in allFetchedEarnings" :key="job.id" class="list-group-item d-flex justify-content-between align-items-center">
+                  <li v-for="job in completedEarnings" :key="job.id" class="list-group-item d-flex justify-content-between align-items-center">
                     <div>
                       <h6 class="mb-0">{{ job.job_title || 'Job Title Missing' }}</h6>
                       <small class="text-muted">{{ formatEarningsJobDate(job.created_at) }}</small>
@@ -133,7 +133,7 @@
         <div class="col-md-6 mb-3 mb-md-0">
           <div v-if="!spendingLoading" class="text-center stat-box p-3 border rounded">
             <h5 class="text-muted mb-0">Current Month Spending</h5>
-            <h2 class="text-success fw-bold display-6">
+            <h2 class="text-spending fw-bold display-6">
               ${{ currentMonthSpending.toFixed(2) }}
             </h2>
           </div>
@@ -145,7 +145,7 @@
         <div class="col-md-6">
           <div v-if="!spendingLoading" class="text-center stat-box p-3 border rounded">
             <h5 class="text-muted mb-0">All-Time Total Spending</h5>
-            <h2 class="text-success fw-bold display-6">
+            <h2 class="text-spending fw-bold display-6">
               ${{ allTimeSpending.toFixed(2) }}
             </h2>
           </div>
@@ -221,7 +221,7 @@
 
 <script setup>
 // --- IMPORTS ---
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { supabase } from '../supabase/config';
 import { useToast } from '../composables/useToast';
 import jsPDF from 'jspdf';
@@ -278,9 +278,15 @@ const spendingChartOptions = ref({
   stroke: { show: true, width: 2, colors: ['transparent'] },
   xaxis: { categories: [], title: { text: 'Month' } },
   yaxis: { title: { text: 'Spending ($)' }, labels: { formatter: (val) => "$" + val.toFixed(0) } },
-  colors: ['#198754'],
+  colors: ['#EA6A47'],
   fill: { opacity: 1 },
   tooltip: { y: { formatter: (val) => "$ " + val } }
+});
+
+// --- COMPUTED PROPERTIES ---
+// Filter earnings to only show completed ones in the history list
+const completedEarnings = computed(() => {
+  return allFetchedEarnings.value.filter(earning => earning.status === 'completed');
 });
 
 // --- LIFECYCLE HOOKS ---
@@ -669,6 +675,9 @@ function formatSpendingJobDate(dateString) {
 }
 
 /* --- Utility Classes (from Earnings) --- */
+.text-spending {
+  color: #EA6A47 !important;
+}
 .d-flex { display: flex !important; }
 .align-items-center { align-items: center !important; }
 .me-2 { margin-right: 0.5rem !important; }
