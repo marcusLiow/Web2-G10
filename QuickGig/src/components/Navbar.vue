@@ -6,7 +6,16 @@
           <img :src="logoImage" alt="Logo" class="logo-img" />
           <span class="logo-text" @click="navigateToHome">SideQuest</span>
         </div>
-        <div class="nav-links">
+        
+        <!-- Hamburger Icon (Mobile Only) -->
+        <button class="hamburger-button" @click="toggleMobileMenu" :class="{ 'active': isMobileMenuOpen }">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+
+        <!-- Desktop Nav Links -->
+        <div class="nav-links desktop-nav">
           <router-link to="/job-map" class="nav-link" :class="{ active: currentRouteName === 'JobMap' }">Job Map</router-link>
           <router-link to="/jobs" class="nav-link" :class="{ active: currentRouteName === 'JobPage' }">Browse Jobs</router-link>
           <router-link to="/helpers" class="nav-link" :class="{ active: currentRouteName === 'HelpersPage' }">Browse Adventurers</router-link>
@@ -85,6 +94,26 @@
         </div>
       </div>
     </div>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" :class="{ 'open': isMobileMenuOpen }">
+      <div class="mobile-menu-content">
+        <router-link to="/job-map" class="mobile-nav-link" @click="closeMobileMenu">Job Map</router-link>
+        <router-link to="/jobs" class="mobile-nav-link" @click="closeMobileMenu">Browse Jobs</router-link>
+        <router-link to="/helpers" class="mobile-nav-link" @click="closeMobileMenu">Browse Adventurers</router-link>
+        
+        <div v-if="isLoggedIn" class="mobile-user-section">
+          <router-link to="/chats" class="mobile-nav-link" @click="closeMobileMenu">
+            Chats
+            <span v-if="unreadChatsCount > 0" class="mobile-badge">{{ unreadChatsCount }}</span>
+          </router-link>
+          <router-link to="/profile" class="mobile-nav-link" @click="closeMobileMenu">Profile</router-link>
+          <router-link to="/dashboard" class="mobile-nav-link" @click="closeMobileMenu">Dashboard</router-link>
+          <button @click="handleMobileLogout" class="mobile-nav-link logout">Log Out</button>
+        </div>
+        <router-link v-else to="/login" class="mobile-login-button" @click="closeMobileMenu">Log In</router-link>
+      </div>
+    </div>
   </nav>
 </template>
 
@@ -117,6 +146,10 @@ export default {
     const unreadNotificationsCount = ref(0);
     const isNotificationDropdownOpen = ref(false);
     let notificationChannel = null;
+    // --- END NEW ---
+
+    // --- NEW Mobile Menu Refs ---
+    const isMobileMenuOpen = ref(false);
     // --- END NEW ---
 
     // --- Computed Property for Active Route ---
@@ -377,6 +410,26 @@ export default {
       isDropdownOpen.value = false;
     };
 
+    const toggleMobileMenu = () => {
+      isMobileMenuOpen.value = !isMobileMenuOpen.value;
+      // Prevent body scroll when menu is open
+      if (isMobileMenuOpen.value) {
+        document.body.style.overflow = 'hidden';
+      } else {
+        document.body.style.overflow = '';
+      }
+    };
+
+    const closeMobileMenu = () => {
+      isMobileMenuOpen.value = false;
+      document.body.style.overflow = '';
+    };
+
+    const handleMobileLogout = async () => {
+      closeMobileMenu();
+      await handleLogout();
+    };
+
     const handleDocumentClick = (event) => {
       const profileDropdown = document.querySelector('.profile-dropdown');
       if (profileDropdown && !profileDropdown.contains(event.target)) {
@@ -385,6 +438,12 @@ export default {
       const notificationDropdown = document.querySelector('.notification-dropdown');
       if (notificationDropdown && !notificationDropdown.contains(event.target)) {
           isNotificationDropdownOpen.value = false;
+      }
+      // Close mobile menu when clicking outside
+      const mobileMenu = document.querySelector('.mobile-menu');
+      const hamburger = document.querySelector('.hamburger-button');
+      if (isMobileMenuOpen.value && mobileMenu && !mobileMenu.contains(event.target) && !hamburger.contains(event.target)) {
+        closeMobileMenu();
       }
     };
 
@@ -461,12 +520,14 @@ export default {
       document.removeEventListener('click', handleDocumentClick);
       stopUnreadCheck();
       unsubscribeFromNotifications();
+      document.body.style.overflow = ''; // Clean up body scroll lock
     });
 
     watch(route, (to) => {
       isHelpersPage.value = to.path === '/helpers';
       closeDropdown();
       closeNotificationDropdown();
+      closeMobileMenu(); // Close mobile menu on route change
     });
 
     watch(isLoggedIn, (newVal) => {
@@ -498,6 +559,10 @@ export default {
       closeNotificationDropdown,
       formatTimeAgo,
       deleteNotification,
+      isMobileMenuOpen,
+      toggleMobileMenu,
+      closeMobileMenu,
+      handleMobileLogout,
     };
   }
 };
@@ -528,7 +593,7 @@ export default {
 }
 
 .nav-container {
-  max-width: 1400px; /* Increased from 1200px */
+  max-width: 1400px;
   margin: 0 auto;
   padding: 0 2rem;
 }
@@ -537,18 +602,18 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 3rem; /* Added gap for better spacing */
+  gap: 3rem;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 0.75rem; /* Increased from 0.5rem */
+  gap: 0.75rem;
   font-size: 1.5rem;
   font-weight: bold;
   color: #000;
-  flex-shrink: 0; /* Prevent logo from shrinking */
-  margin-right: 2rem; /* Added right margin */
+  flex-shrink: 0;
+  margin-right: 2rem;
 }
 
 .logo-img {
@@ -560,15 +625,15 @@ export default {
 .logo-text {
   font-size: 2.5rem;
   cursor: pointer;
-  white-space: nowrap; /* Prevent text wrapping */
+  white-space: nowrap;
 }
 
 .nav-links {
   display: flex;
   gap: 1.25rem;
   align-items: center;
-  flex: 1; /* Allow nav links to take available space */
-  justify-content: flex-end; /* Push nav links to the right */
+  flex: 1;
+  justify-content: flex-end;
 }
 
 .nav-link {
@@ -631,16 +696,19 @@ export default {
   height: 40px;
   text-decoration: none;
 }
+
 .helpers-page .icon-button {
   color: #6C5B7F;
 }
+
 .icon-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
+
 .icon-button.active {
-   background: rgba(255, 255, 255, 0.9);
-   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .notification-dropdown {
@@ -665,16 +733,12 @@ export default {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   animation: pulse 2s ease-in-out infinite;
 }
+
 @keyframes pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.1); }
 }
 
-.chat-badge {
-}
-
-.chat-button-wrapper {
-}
 .chat-button {
   display: flex;
   align-items: center;
@@ -722,9 +786,11 @@ export default {
   border-bottom: 1px solid #f3f4f6;
   transition: background-color 0.2s;
 }
+
 .notification-item:last-child {
   border-bottom: none;
 }
+
 .notification-item:hover {
   background-color: #f9fafb;
 }
@@ -732,12 +798,14 @@ export default {
 .notification-item.unread {
   background-color: #eff6ff;
 }
+
 .notification-item.unread:hover {
   background-color: #dbeafe;
 }
 
 .notification-content {
   flex: 1;
+  min-width: 0;
 }
 
 .notification-message {
@@ -746,6 +814,7 @@ export default {
   color: #374151;
   line-height: 1.4;
 }
+
 .notification-item.unread .notification-message {
   font-weight: 500;
   color: #1f2937;
@@ -763,26 +832,31 @@ export default {
   font-style: italic;
 }
 
-.notification-footer {
-  padding: 0.5rem 1rem;
-  text-align: center;
-  border-top: 1px solid #e5e7eb;
-  background-color: #f9fafb;
+.notification-delete-btn {
   flex-shrink: 0;
+  background: transparent !important;
+  border: none !important;
+  color: #9ca3af;
+  font-size: 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.5rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  transition: color 0.2s;
+  line-height: 1;
 }
-.notification-footer a {
-  color: #4fb6e1;
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 0.875rem;
-}
-.notification-footer a:hover {
-  text-decoration: underline;
+
+.notification-delete-btn:hover {
+  background: transparent !important;
+  color: #ef4444;
 }
 
 .profile-menu {
-   min-width: 180px;
+  min-width: 180px;
 }
+
 .dropdown-item {
   display: block;
   padding: 0.875rem 1.25rem;
@@ -797,17 +871,21 @@ export default {
   text-align: left;
   font-size: 1.20rem;
 }
+
 .dropdown-item:hover {
   background: #f3f4f6;
 }
+
 .dropdown-divider {
   height: 1px;
   background: #e5e7eb;
   margin: 0;
 }
+
 .logout-item {
   color: #dc2626;
 }
+
 .logout-item:hover {
   background: #fee2e2;
 }
@@ -857,7 +935,7 @@ export default {
 .avatar-placeholder {
   font-size: 1rem;
   font-weight: 700;
-  color: #f3f4f6
+  color: #f3f4f6;
 }
 
 .helpers-page .avatar-placeholder {
@@ -879,123 +957,398 @@ export default {
   transform: rotate(180deg);
 }
 
-@media (max-width: 768px) {
+/* Hamburger Button - Hidden on Desktop */
+.hamburger-button {
+  display: none;
+}
+
+/* Mobile Menu - Hidden on Desktop */
+.mobile-menu {
+  display: none;
+}
+/* Medium screens - Compact desktop layout (993px - 1240px) */
+@media (max-width: 1240px) and (min-width: 993px) {
   .nav-container {
-    padding: 0 1rem;
+    padding: 0 1.5rem;
   }
-  
+
   .nav-content {
-    gap: 1.5rem;
+    gap: 1.2rem;
   }
-  
+
   .logo {
-    gap: 0.5rem;
-    margin-right: 1rem;
+    margin-right: 0.8rem;
   }
 
   .logo-img {
-    height: 35px;
+    height: 50px;
+  }
+
+  .logo-text {
+    font-size: 2.2rem;
   }
 
   .nav-links {
-    gap: 0.75rem;
+    gap: 0.7rem;
   }
 
   .nav-link {
-    font-size: 0.9rem;
+    font-size: 1.5em;
     padding: 0.4rem 0.6rem;
   }
 
   .nav-button {
-    padding: 0.6rem 1.25rem;
-    font-size: 0.9rem;
+    padding: 0.5rem 1.2rem;
+    font-size: 1.1rem;
   }
 
   .icon-button {
     width: 36px;
     height: 36px;
-    padding: 0.5rem;
+  }
+
+  .icon-button svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .profile-username {
+    font-size: 1.3rem;
+  }
+
+  .profile-trigger {
+    padding: 0.4rem 0.8rem;
+  }
+
+  .profile-avatar {
+    width: 28px;
+    height: 28px;
   }
 
   .notification-badge {
     font-size: 0.6rem;
     min-width: 16px;
     height: 16px;
-    top: -3px;
-    right: -3px;
-  }
-
-  .profile-username {
-    display: none;
-  }
-
-  .profile-trigger {
-    padding: 0.5rem;
-  }
-  
-  .notification-menu {
-    min-width: 280px;
   }
 }
 
-@media (max-width: 480px) {
+/* Smaller desktop - More compact (900px - 992px) */
+@media (max-width: 992px) and (min-width: 900px) {
+  .nav-container {
+    padding: 0 1rem;
+  }
+
   .nav-content {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 1rem;
+    gap: 0.8rem;
   }
 
   .logo {
-    width: 100%;
-    justify-content: center;
-    margin-right: 0; /* Remove margin on mobile */
+    margin-right: 0.5rem;
   }
 
   .logo-img {
-    height: 30px;
+    height: 45px;
+  }
+
+  .logo-text {
+    font-size: 2rem;
   }
 
   .nav-links {
-    width: 100%;
-    justify-content: center;
-    flex-wrap: wrap;
     gap: 0.5rem;
   }
 
   .nav-link {
-    font-size: 0.85rem;
+    font-size: 1.3em;
+    padding: 0.35rem 0.5rem;
   }
 
   .nav-button {
-    padding: 0.5rem 1rem;
-    font-size: 0.85rem;
+    padding: 0.45rem 1rem;
+    font-size: 1rem;
   }
-  
-}
-.notification-content {
-  flex: 1;
-  min-width: 0; 
+
+  .icon-button {
+    width: 34px;
+    height: 34px;
+  }
+
+  .icon-button svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .profile-username {
+    font-size: 1.2rem;
+  }
+
+  .profile-trigger {
+    padding: 0.35rem 0.7rem;
+  }
+
+  .profile-avatar {
+    width: 26px;
+    height: 26px;
+  }
+
+  .notification-badge {
+    font-size: 0.55rem;
+    min-width: 15px;
+    height: 15px;
+  }
 }
 
-/* This styles the "x" button to be boxless */
-.notification-delete-btn {
-  flex-shrink: 0;
-  background: transparent !important; /* Forces no background */
-  border: none !important;            /* Forces no border */
-  color: #9ca3af;           
-  font-size: 1.25rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0.5rem;           
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;      
-  transition: color 0.2s; 
-  line-height: 1;          
+/* Extra compact desktop (769px - 899px) - NEW BREAKPOINT */
+@media (max-width: 899px) and (min-width: 769px) {
+  .nav-container {
+    padding: 0 0.75rem;
+  }
+
+  .nav-content {
+    gap: 0.5rem;
+  }
+
+  .logo {
+    margin-right: 0.25rem;
+  }
+
+  .logo-img {
+    height: 40px;
+  }
+
+  .logo-text {
+    font-size: 1.8rem;
+  }
+
+  .nav-links {
+    gap: 0.4rem;
+  }
+
+  .nav-link {
+    font-size: 1.1em;
+    padding: 0.3rem 0.4rem;
+  }
+
+  .nav-button {
+    padding: 0.4rem 0.9rem;
+    font-size: 0.95rem;
+  }
+
+  .icon-button {
+    width: 32px;
+    height: 32px;
+  }
+
+  .icon-button svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .profile-username {
+    font-size: 1.1rem;
+  }
+
+  .profile-trigger {
+    padding: 0.3rem 0.6rem;
+  }
+
+  .profile-avatar {
+    width: 24px;
+    height: 24px;
+  }
+
+  .notification-badge {
+    font-size: 0.5rem;
+    min-width: 14px;
+    height: 14px;
+    padding: 0.1rem 0.25rem;
+  }
 }
 
-.notification-delete-btn:hover {
-  background: transparent !important; /* Forces no background on hover */
-  color: #ef4444;
+/* Mobile Styles - Bootstrap mobile breakpoint (576px and below) */
+@media (max-width: 768px) {
+  .nav-container {
+    padding: 0 1rem;
   }
+
+  .nav-content {
+    gap: 1.5rem;
+    justify-content: space-between;
+  }
+
+  .logo {
+    gap: 0.5rem;
+    margin-right: 0;
+  }
+
+  .logo-img {
+    height: 35px;
+  }
+
+  .logo-text {
+    font-size: 1.8rem;
+  }
+
+  .hamburger-button {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    width: 30px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    z-index: 1001;
+  }
+
+  .hamburger-button span {
+    width: 100%;
+    height: 3px;
+    background-color: #000;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+    transform-origin: center;
+  }
+
+  .hamburger-button.active span:nth-child(1) {
+    transform: translateY(10.5px) rotate(45deg);
+  }
+
+  .hamburger-button.active span:nth-child(2) {
+    opacity: 0;
+  }
+
+  .hamburger-button.active span:nth-child(3) {
+    transform: translateY(-10.5px) rotate(-45deg);
+  }
+
+  .desktop-nav {
+    display: none !important;
+  }
+
+  .mobile-menu {
+    display: block;
+    position: fixed;
+    top: 87px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .mobile-menu.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobile-menu-content {
+    background: white;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-height: calc(100vh - 87px);
+    overflow-y: auto;
+    transform: translateY(-20px);
+    transition: transform 0.3s ease;
+  }
+
+  .mobile-menu.open .mobile-menu-content {
+    transform: translateY(0);
+  }
+
+  .mobile-nav-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    color: #374151;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 1.1rem;
+    border-radius: 8px;
+    background: #f9fafb;
+    transition: background 0.2s ease;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .mobile-nav-link:hover {
+    background: #f3f4f6;
+  }
+
+  .mobile-nav-link.router-link-active {
+    background: #4fb6e1;
+    color: white;
+  }
+
+  .helpers-page .mobile-nav-link.router-link-active {
+    background: #6C5B7F;
+  }
+
+  .mobile-badge {
+    background: #ef4444;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.2rem 0.5rem;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+  }
+
+  .mobile-user-section {
+    border-top: 1px solid #e5e7eb;
+    margin-top: 0.5rem;
+    padding-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .mobile-nav-link.logout {
+    color: #dc2626;
+    background: #fee2e2;
+  }
+
+  .mobile-nav-link.logout:hover {
+    background: #fecaca;
+  }
+
+  .mobile-login-button {
+    display: block;
+    padding: 1rem;
+    background: #4fb6e1;
+    color: white;
+    text-align: center;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1.1rem;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+  }
+
+  .helpers-page .mobile-login-button {
+    background: #6C5B7F;
+  }
+
+  .mobile-login-button:hover {
+    background: #3a9cc9;
+  }
+
+  .helpers-page .mobile-login-button:hover {
+    background: #5a4a6a;
+  }
+
+  .notification-menu {
+    min-width: 280px;
+  }
+}
 </style>

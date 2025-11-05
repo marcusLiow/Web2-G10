@@ -8,7 +8,6 @@ import Dashboard from "../pages/Dashboard.vue";
 import JobPage from "../pages/JobPage.vue"
 import Onboarding from '@/pages/Onboarding.vue'
 import AdventurerSignUp from '@/pages/AdventurerSignUp.vue'
-import maptest from '@/pages/maptest.vue'
 import HelpersPage from '../pages/HelpersPage.vue'
 import editjob from '@/pages/editjob.vue'
 import JobMap from '@/pages/JobMap.vue'
@@ -77,11 +76,6 @@ const router = createRouter({
       path: '/signup/adventurer',
       name: 'AdventurerSignUp',
       component: () => import('../pages/AdventurerSignUp.vue')
-    },
-    {
-      path: '/map-test',
-      name: 'MapTest',
-      component: () => import('@/pages/maptest.vue')
     },
     {
       path: '/chats',
