@@ -1694,26 +1694,10 @@ const navigateToProfile = () => {
   .chat-page {
     display: flex;
     flex-direction: column;
-    /* 
-      This is the key change. We use a dynamic viewport height unit (dvh).
-      100dvh represents 100% of the dynamic viewport height, which adjusts
-      for mobile browser UI like the address bar appearing and disappearing.
-      We then subtract the space taken by the sticky navbar.
-      'var(--navbar-height)' would be ideal, but since we don't have that,
-      we can use a reasonable estimate or set it in a parent component.
-      For now, let's assume a navbar height. A more robust solution is
-      to set this value via JavaScript if it's dynamic.
-      
-      A simpler approach that avoids calc() is to set the container that
-      holds the navbar and router-view to height: 100vh and be a flex-column,
-      but this change is self-contained to the component.
-
-      Let's go back to the most robust, self-contained Flexbox solution.
-    */
-    height: 100dvh; /* Use dynamic viewport height */
+    height: 100dvh;
     max-height: 100dvh;
-    padding-top: 92px; /* Navbar height: logo (60px) + padding (1rem top + 1rem bottom = 32px) = 92px */
-    box-sizing: border-box; /* Ensures padding is included in the height calculation */
+    padding-top: 92px; /* Navbar height for desktop: 60px logo + 32px padding */
+    box-sizing: border-box;
     width: 100%;
     position: fixed;
     top: 0;
@@ -1728,13 +1712,74 @@ const navigateToProfile = () => {
     background: white;
     border-bottom: 1px solid #e5e7eb;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    flex-shrink: 0; /* Prevents the header from shrinking */
-    position: fixed; /* Fix the header to the top of the .chat-page container */
-    top: 92px; /* Position it right below the main navbar (92px) */
+    flex-shrink: 0;
+    position: fixed;
+    top: 92px; /* Position it right below the navbar for desktop */
     left: 0;
     width: 100%;
-    z-index: 20; /* Ensure it's above the messages container */
+    z-index: 20;
     box-sizing: border-box;
+  }
+
+    /* Match navbar breakpoint at 1240px */
+  @media (max-width: 1240px) {
+    .chat-page {
+      padding-top: 82px; /* Navbar: 50px logo + 32px padding = 82px */
+    }
+
+    .chat-header {
+      top: 82px; /* Match the reduced navbar height */
+    }
+  }
+
+  @media (max-width: 768px) {
+    .message-bubble {
+      max-width: 85%;
+    }
+    .modal-content {
+      margin: 1rem;
+      max-height: 75vh !important;
+    }
+
+    .offer-bubble {
+      max-width: 90%;
+    }
+
+    .offer-btn {
+      padding: 0.625rem 1rem;
+      font-size: 0.6375rem;
+    }
+
+    .offer-amount {
+      font-size: 1.125rem;
+    }
+
+    /* Adjust chat positioning for mobile navbar height */
+    .chat-page {
+      padding-top: 67px; /* Mobile navbar: 35px logo + 32px padding = 67px */
+    }
+
+    .chat-header {
+      top: 67px; /* Match the mobile navbar height exactly */
+    }
+
+    .messages-container {
+      padding-top: calc(1.5rem + 80px);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .chat-page {
+      padding-top: 67px; /* Same as 768px breakpoint */
+    }
+
+    .chat-header {
+      top: 67px; /* Same as 768px breakpoint */
+    }
+
+    .messages-container {
+      padding-top: calc(1.5rem + 80px);
+    }
   }
 
   .messages-container {
@@ -1742,10 +1787,8 @@ const navigateToProfile = () => {
     overflow-y: auto;
     background: #f9fafb;
     min-height: 0;
-    /* Add padding to the top to avoid content being hidden by the fixed chat-header */
     padding: 1.5rem;
-    /* We need to calculate the top padding to be the header's height */
-    padding-top: calc(1.5rem + 80px); /* Adjust 80px to your chat-header's actual height */
+    padding-top: calc(1.5rem + 80px);
   }
 
   .message-input-container {
@@ -2195,7 +2238,7 @@ const navigateToProfile = () => {
 
   .cancel-offer-btn {
     width: 100%;
-    padding: 0.75rem 1.25rem;
+    padding: 0.75rem  1.25rem;
     background: white;
     color: #dc2626;
     border: 2px solid #fecaca;
@@ -2341,7 +2384,7 @@ const navigateToProfile = () => {
     border-radius: 1rem;
     max-width: 500px;
     width: 100%;
-    max-height: 68vh;
+    max-height: 85vh; /* Increased from 68vh */
     overflow-y: auto;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
     padding-right: 6px;
@@ -2375,26 +2418,6 @@ const navigateToProfile = () => {
     width: 0;
   }
 
-  .modal-content::-webkit-scrollbar-track {
-    background: transparent; /* Make the track invisible */
-    border-radius: 1rem; /* Match modal's border-radius if possible */
-  }
-
-  .modal-content::-webkit-scrollbar-thumb {
-    background-color: #adb5bd; /* Color of the scrollbar thumb (the bar) */
-    border-radius: 3px; /* Rounded corners for the thumb */
-  }
-
-  .modal-content::-webkit-scrollbar-thumb:hover {
-    background-color: #6c757d; /* Darker color on hover */
-  }
-
-  /* Explicitly hide the scrollbar arrow buttons */
-  .modal-content::-webkit-scrollbar-button {
-    display: none;
-    height: 0;
-    width: 0;
-  }
   .modal-header {
     display: flex;
     justify-content: space-between;
@@ -2405,8 +2428,8 @@ const navigateToProfile = () => {
 
   .modal-title {
     margin: 0;
-    font-size: 1.125rem; /* 1.5rem * 0.75 */
-    font-weight: 700;
+    font-size: 1.5rem; /* Increased from 1.125rem */
+    font-weight: 400; /* Decreased from 700 */
     color: #111827;
   }
 
@@ -2436,6 +2459,38 @@ const navigateToProfile = () => {
     padding: 1.5rem;
   }
 
+  .current-price-section {
+    background: #f9fafb;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e5e7eb;
+  }
+
+  .price-label-row {
+    margin-bottom: 0.5rem;
+  }
+
+  .price-label-text {
+    font-size: 1rem; /* Increased */
+    font-weight: 300; /* Decreased */
+    color: #6b7280;
+  }
+
+  .current-price-display {
+    font-size: 2rem; /* Increased */
+    font-weight: 400; /* Decreased */
+    color: #111827;
+    margin-bottom: 0.5rem;
+  }
+
+  .price-subtext {
+    font-size: 0.875rem; /* Increased */
+    font-weight: 300; /* Decreased */
+    color: #6b7280;
+    margin: 0;
+  }
+
   .current-offer-info,
   .job-info-box {
     background: #f9fafb;
@@ -2445,16 +2500,20 @@ const navigateToProfile = () => {
     border: 1px solid #e5e7eb;
   }
 
+  .job-info-header {
+    margin-bottom: 0.5rem;
+  }
+
   .info-label {
-    font-size: 0.65625rem; /* 0.875rem * 0.75 */
+    font-size: 1rem; /* Increased from 0.65625rem */
     color: #6b7280;
     margin: 0 0 0.25rem 0;
-    font-weight: 500;
+    font-weight: 300; /* Decreased from 500 */
   }
 
   .info-value {
-    font-size: 0.9375rem; /* 1.25rem * 0.75 */
-    font-weight: 700;
+    font-size: 1.5rem; /* Increased from 0.9375rem */
+    font-weight: 400; /* Decreased from 700 */
     color: #111827;
     margin: 0;
   }
@@ -2465,10 +2524,25 @@ const navigateToProfile = () => {
 
   .form-label {
     display: block;
-    font-size: 0.65625rem; /* 0.875rem * 0.75 */
-    font-weight: 600;
+    font-size: 1rem; /* Increased from 0.65625rem */
+    font-weight: 400; /* Decreased from 600 */
     color: #374151;
     margin-bottom: 0.5rem;
+  }
+
+  .offer-amount-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .currency-prefix {
+    position: absolute;
+    left: 1rem;
+    font-size: 1.25rem; /* Increased */
+    font-weight: 300; /* Decreased */
+    color: #6b7280;
+    pointer-events: none;
   }
 
   .offer-input {
@@ -2476,15 +2550,14 @@ const navigateToProfile = () => {
     padding: 0.75rem 1rem;
     border: 2px solid #e5e7eb;
     border-radius: 0.5rem;
-    font-size: 0.75rem; /* 1rem * 0.75 */
+    font-size: 1.125rem; /* Increased from 0.75rem */
+    font-weight: 300; /* Added */
     transition: all 0.2s;
     box-sizing: border-box;
   }
 
-  .offer-input:focus {
-    outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  .offer-amount-input {
+    padding-left: 2rem;
   }
 
   .offer-textarea {
@@ -2492,7 +2565,8 @@ const navigateToProfile = () => {
     padding: 0.75rem 1rem;
     border: 2px solid #e5e7eb;
     border-radius: 0.5rem;
-    font-size: 0.65625rem; /* 0.875rem * 0.75 */
+    font-size: 1rem; /* Increased from 0.65625rem */
+    font-weight: 300; /* Added */
     resize: vertical;
     font-family: inherit;
     transition: all 0.2s;
@@ -2505,10 +2579,22 @@ const navigateToProfile = () => {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
   }
 
-  .modal-actions {
-    display: flex;
-    gap: 0.75rem;
-    margin-top: 1.5rem;
+  .price-difference {
+    margin-top: 0.5rem;
+    font-size: 0.9375rem; /* Increased */
+    font-weight: 300; /* Added */
+  }
+
+  .difference-lower {
+    color: #dc2626;
+  }
+
+  .difference-higher {
+    color: #059669;
+  }
+
+  .difference-equal {
+    color: #6b7280;
   }
 
   .cancel-btn,
@@ -2517,8 +2603,8 @@ const navigateToProfile = () => {
     padding: 0.875rem 1.5rem;
     border: none;
     border-radius: 0.5rem;
-    font-size: 0.75rem; /* 1rem * 0.75 */
-    font-weight: 600;
+    font-size: 1.125rem; /* Increased from 0.75rem */
+    font-weight: 400; /* Decreased from 600 */
     cursor: pointer;
     transition: all 0.2s;
   }
@@ -2645,9 +2731,8 @@ const navigateToProfile = () => {
     }
     .modal-content {
       margin: 1rem;
-      max-height: 55vh !important; /* I limited the height so it doesnt get blocked by navbar on small screen*/
-  }
-
+      max-height: 75vh !important;
+    }
 
     .offer-bubble {
       max-width: 90%;
@@ -2664,22 +2749,29 @@ const navigateToProfile = () => {
 
     /* Adjust chat positioning for mobile navbar height */
     .chat-page {
-      padding-top: 180px !important; /* Increased to account for actual mobile navbar height */
+      padding-top: 67px; /* Mobile navbar: 35px logo + 32px padding = 67px */
     }
 
     .chat-header {
-      top: 180px !important; /* Position chat header right below mobile navbar */
+      top: 67px; /* Match the mobile navbar height exactly */
+    }
+
+    .messages-container {
+      padding-top: calc(1.5rem + 80px);
     }
   }
 
   @media (max-width: 480px) {
-    /* Very small screens where navbar wraps */
     .chat-page {
-      padding-top: 200px !important; /* Account for wrapped navbar content on very small screens */
+      padding-top: 67px; /* Same as 768px breakpoint */
     }
 
     .chat-header {
-      top: 200px !important; /* Position chat header below wrapped navbar */
+      top: 67px; /* Same as 768px breakpoint */
+    }
+
+    .messages-container {
+      padding-top: calc(1.5rem + 80px);
     }
   }
 
@@ -2725,8 +2817,8 @@ const navigateToProfile = () => {
 
 .job-card-title {
   margin: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 1.125rem; /* Increased from 0.875rem */
+  font-weight: 400; /* Decreased from 600 */
   color: #111827;
   flex: 1;
   line-height: 1.4;
@@ -2737,8 +2829,8 @@ const navigateToProfile = () => {
 }
 
 .job-card-price {
-  font-size: 1.125rem;
-  font-weight: 700;
+  font-size: 1.5rem; /* Increased from 1.125rem */
+  font-weight: 500; /* Decreased from 700 */
   color: #2563eb;
   white-space: nowrap;
 }
@@ -2770,7 +2862,8 @@ const navigateToProfile = () => {
 
 .no-jobs-text {
   margin: 0 0 0.75rem 0;
-  font-size: 0.875rem;
+  font-size: 1rem; /* Increased from 0.875rem */
+  font-weight: 300; /* Added */
   color: #6b7280;
 }
 
@@ -2781,8 +2874,8 @@ const navigateToProfile = () => {
   color: white;
   text-decoration: none;
   border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 1rem; /* Increased from 0.875rem */
+  font-weight: 400; /* Decreased from 600 */
   transition: all 0.2s;
 }
 
