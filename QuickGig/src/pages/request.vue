@@ -8,7 +8,7 @@
           
           <form @submit.prevent="handleSubmit" class="request-form">
             <div class="form-group">
-              <label for="title" class="form-label">Title</label>
+              <label for="title" class="form-label">Title<span class="required">*</span></label>
               <input 
                 type="text" 
                 id="title" 
@@ -20,7 +20,7 @@
             </div>
 
             <div class="form-group">
-              <label for="description" class="form-label">Description</label>
+              <label for="description" class="form-label">Description<span class="required">*</span></label>
               <textarea 
                 id="description" 
                 v-model="formData.description"
@@ -94,7 +94,7 @@
             </div>
 
             <div class="form-group">
-              <label for="category" class="form-label">Category</label>
+              <label for="category" class="form-label">Category<span class="required">*</span></label>
               <select 
                 id="category" 
                 v-model="formData.category"
@@ -115,7 +115,7 @@
 
             <!-- GOOGLE PLACES AUTOCOMPLETE LOCATION FIELD -->
             <div class="location-section">
-              <h3 class="section-header">Location Details</h3>
+              <h3 class="section-header">Location Details<span class="required">*</span></h3>
               
               <div class="form-group">
                 <label for="locationSearch" class="form-label">
@@ -244,7 +244,7 @@
             </div>
 
             <div class="form-group">
-              <label for="payment" class="form-label">Willing to Pay</label>
+              <label for="payment" class="form-label">Willing to Pay<span class="required">*</span></label>
               <div class="payment-input-wrapper">
                 <span class="currency-symbol">$</span>
                 <input 
@@ -868,6 +868,11 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.required {
+  color: #dc2626;
+  margin-left: 0.25rem;
 }
 
 .label-hint {
