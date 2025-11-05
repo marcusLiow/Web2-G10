@@ -251,7 +251,8 @@ const filteredHelpers = computed(() => {
       const nameMatch = h.name.toLowerCase().includes(term);
       const titleMatch = h.title.toLowerCase().includes(term);
       const descMatch = h.description.toLowerCase().includes(term);
-      return nameMatch || titleMatch || descMatch;
+      const skillMatch = h.skills.some(sk => sk.name.toLowerCase().includes(term));
+      return nameMatch || titleMatch || descMatch || skillMatch;
     });
   }
   if (selectedSkill.value) {
