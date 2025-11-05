@@ -146,7 +146,7 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
   }
   
  
-  // 3. Create Earnings record for the helper
+  // 3. Create Earnings record for the helper (status: 'paid' - will be 'completed' when job poster marks job complete)
 const platformFee = Number(amount) * 0.10; // 10% platform fee
 const netAmount = Number(amount) - platformFee;
 
@@ -158,14 +158,15 @@ const { error: earningsError } = await supabase
     platform_fee: platformFee,
     net_amount: netAmount,
     job_title: jobTitle || 'Job',
-    status: 'completed'
+    job_id: jobId,
+    status: 'paid'  // Changed from 'completed' - will be updated when job poster marks job complete
     // Removed payment_date - it doesn't exist in the table
   });
 
 if (earningsError) {
   console.error('Error creating Earnings record:', earningsError);
 } else {
-  console.log('✅ Earnings record created for helper');
+  console.log('✅ Earnings record created for helper with status: paid');
 }
   
   // 4. Update chat payment status
@@ -249,7 +250,7 @@ const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
   if (chatError) throw chatError;
 
   // 2. Create helper_jobs record
-  const { error: jobError } = await supabase
+  const { data: helperJobData, error: jobError } = await supabase
     .from('helper_jobs')
     .insert([{
       helper_chat_id: chatId,
@@ -259,11 +260,13 @@ const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
       agreed_amount: amount,
       status: 'in-progress',
       payment_status: 'paid'
-    }]);
+    }])
+    .select('id')
+    .single();
   if (jobError) throw jobError;
 
  
-  // 3. Create Earnings record for the helper
+  // 3. Create Earnings record for the helper (status: 'paid' - will be 'completed' when client marks job complete)
 const platformFee = Number(amount) * 0.10; // 10% platform fee
 const netAmount = Number(amount) - platformFee;
 
@@ -275,14 +278,15 @@ const { error: earningsError } = await supabase
     platform_fee: platformFee,
     net_amount: netAmount,
     job_title: jobTitle || 'Helper Service',
-    status: 'completed'
+    job_id: helperJobData?.id,  // Reference to helper_jobs record
+    status: 'paid'  // Changed from 'completed' - will be updated when client marks job complete
     // Removed payment_date - it doesn't exist in the table
   });
 
 if (earningsError) {
   console.error('Error creating Earnings record:', earningsError);
 } else {
-  console.log('✅ Earnings record created for helper');
+  console.log('✅ Earnings record created for helper with status: paid');
 }
 
   // 4. Send payment confirmation message *to the chat*

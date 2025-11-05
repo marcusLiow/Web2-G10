@@ -894,12 +894,12 @@ async function loadCompletedJobs(uid) {
     };
 
     console.log('📋 Querying helper_jobs table...');
-    // 🔥 CHANGED: Query for both 'completed' AND 'in-progress' with paid status
+    // Query only for truly completed helper jobs
     const { data: helperJobsData, error: helperJobsError } = await supabase
       .from('helper_jobs')
       .select('id, job_title, agreed_amount, client_id, created_at, status, payment_status')
       .eq('helper_id', uid)
-      .or('status.eq.completed,and(status.eq.in-progress,payment_status.eq.paid)')
+      .eq('status', 'completed')  // Only show completed jobs in job history
       .order('created_at', { ascending: false });
 
     console.log('📊 helper_jobs query result:', { count: helperJobsData?.length || 0 });
@@ -1453,10 +1453,24 @@ async function markAsCompleted(jobId) {
       adventurerNames = usersData ? usersData.map(u => u.username || 'Unknown') : [];
     }
 
+    // Update Earnings table status from 'paid' to 'completed' - this releases the payment to adventurer(s)
+    const { error: earningsUpdateError } = await supabase
+      .from('Earnings')
+      .update({ status: 'completed' })
+      .eq('job_id', jobId)
+      .eq('status', 'paid');  // Only update records that are 'paid' (not already completed)
+
+    if (earningsUpdateError) {
+      console.error('Error updating Earnings status:', earningsUpdateError);
+      toast.error('Job marked complete but earnings update failed. Please contact support.', 'Warning', 8000);
+    } else {
+      console.log('✅ Earnings updated to completed status - payment released to adventurer(s)');
+    }
+
     if (adventurerIds.length > 0) {
       const notifications = adventurerIds.map(adventurerId => ({
         user_id: adventurerId,
-        message: `Job '${jobTitle}' has been marked as completed. Payment should be processed shortly.`,
+        message: `Job '${jobTitle}' has been marked as completed. Your payment has been released!`,
         link: '/wallet'
       }));
 
@@ -1476,7 +1490,7 @@ async function markAsCompleted(jobId) {
       userListings.value[jobIndex].completedBy = adventurerNames;
     }
 
-    toast.success('Job marked as completed successfully! Adventurer(s) notified.', 'Job Completed', 8000);
+    toast.success('Job marked as completed successfully! Payment released to adventurer(s).', 'Job Completed', 8000);
 
     await loadUserListings(userId);
     await loadCompletedJobs(userId);
