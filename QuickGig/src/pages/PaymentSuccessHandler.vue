@@ -161,6 +161,7 @@ const { error: earningsError } = await supabase
     job_id: jobId,
     status: 'paid'  // Changed from 'completed' - will be updated when job poster marks job complete
     // Removed payment_date - it doesn't exist in the table
+    
   });
 
 if (earningsError) {
