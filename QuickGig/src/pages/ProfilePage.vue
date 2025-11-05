@@ -140,7 +140,6 @@
                     <h3>{{ skill.name }}</h3>
                     <span class="badge" :class="getBadgeClass(skill.level)">{{ skill.level }}</span>
                   </div>
-                  <p class="skill-jobs">{{ skill.jobs || 0 }} jobs completed</p>
                 </div>
               </div>
 
@@ -1396,6 +1395,7 @@ async function markAsCompleted(jobId) {
       .eq('id', jobId)
       .eq('user_id', userId);
 
+    if (updateError) throw update
     if (updateError) throw updateError;
 
     // Get helper usernames for display
