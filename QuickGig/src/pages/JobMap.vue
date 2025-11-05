@@ -230,15 +230,6 @@
       <div v-else class="no-jobs-container">
         <p>No job listings available at the moment</p>
       </div>
-
-      <!-- Search This Area Button -->
-      <button
-        v-if="jobs.length > 0 && !isSidebarCollapsed"
-        class="search-area-btn"
-        @click="searchCurrentArea"
-      >
-        🔍 Search this area
-      </button>
     </div>
   </div>
   </div>
@@ -631,12 +622,6 @@ export default {
       };
     };
 
-    const searchCurrentArea = () => {
-      // This would typically search based on current map bounds
-      // For now, it applies current filters
-      console.log('Searching current area...');
-    };
-
     const truncateText = (text, maxLength) => {
       if (!text) return '';
       if (text.length <= maxLength) return text;
@@ -684,7 +669,6 @@ export default {
       highlightMarker,
       unhighlightMarker,
       getMarkerIcon,
-      searchCurrentArea,
       truncateText
     };
   }
@@ -1273,30 +1257,6 @@ export default {
   background: #b91c1c;
 }
 
-/* Search Area Button */
-.search-area-btn {
-  position: absolute;
-  top: 1.25rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: white;
-  color: #1f2937;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 24px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  cursor: pointer;
-  transition: all 0.2s;
-  z-index: 10;
-}
-
-.search-area-btn:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  background: #f9fafb;
-}
-
 /* Loading State */
 .loading-container,
 .no-jobs-container {
@@ -1447,15 +1407,6 @@ export default {
   
   .map-container {
     width: 100%;
-  }
-  
-  .search-area-btn {
-    top: auto;
-    bottom: 5.5rem;
-    left: 1rem;
-    transform: none;
-    font-size: 0.85rem;
-    padding: 0.625rem 1.25rem;
   }
   
   /* Improve touch targets for mobile */
