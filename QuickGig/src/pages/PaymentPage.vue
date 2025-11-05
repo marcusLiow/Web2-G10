@@ -1,17 +1,6 @@
 <template>
   <div class="payment-page">
     <div class="container">
-      <!-- Debug Info (remove in production) -->
-      <div v-if="showDebug" class="debug-card">
-        <h3>Debug Info</h3>
-        <p>Job ID: {{ jobId }}</p>
-        <p>Amount: ${{ amount }}</p>
-        <p>Job Title: {{ jobTitle }}</p>
-        <p>Chat ID: {{ chatId }}</p>
-        <p>Stripe Key Loaded: {{ !!stripe }}</p>
-        <p>Client Secret: {{ clientSecret ? 'Loaded' : 'Not loaded' }}</p>
-      </div>
-
       <div class="summary-card">
         <h2>Order Summary</h2>
         <p>Job: {{ jobTitle || 'Loading...' }}</p>
@@ -68,7 +57,6 @@ const clientSecret = ref('');
 const paymentError = ref('');
 const isProcessing = ref(false);
 const paymentSuccessful = ref(false);
-const showDebug = ref(true); // Set to false in production
 
 // --- Data from Route ---
 const jobId = ref(route.params.jobId);
@@ -261,24 +249,6 @@ const retryPayment = () => {
 .container {
   max-width: 500px;
   width: 100%;
-}
-
-.debug-card {
-  background: #fff3cd;
-  border: 1px solid #ffc107;
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  font-size: 0.875rem;
-}
-
-.debug-card h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-}
-
-.debug-card p {
-  margin: 0.25rem 0;
 }
 
 .summary-card, .payment-card, .success-card {

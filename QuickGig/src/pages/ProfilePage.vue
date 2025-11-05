@@ -692,6 +692,191 @@ function removeHelperSkill(i) { editForm.helper_skills.splice(i, 1); }
 function addExperience() { editForm.experience.push(''); }
 function removeExperience(i) { editForm.experience.splice(i, 1); }
 
+// async function loadCompletedJobs(uid) {
+//   try {
+//     if (!uid) {
+//       console.log('❌ loadCompletedJobs: No user ID provided');
+//       completedJobs.value = [];
+//       return;
+//     }
+
+//     console.log('🔍 loadCompletedJobs: Starting for user:', uid);
+//     const jobsMap = new Map();
+
+//     const createUniqueKey = (job) => {
+//       const dateStr = job.created_at ? new Date(job.created_at).toISOString().split('T')[0] : '';
+//       return `${job.job_title || job.title}-${job.agreed_amount || job.payment || 0}-${dateStr}-${job.role}`;
+//     };
+
+//     console.log('📋 Querying helper_jobs table...');
+//     const { data: helperJobsData, error: helperJobsError } = await supabase
+//       .from('helper_jobs')
+//       .select('id, job_title, agreed_amount, client_id, created_at, status')
+//       .eq('helper_id', uid)
+//       .eq('status', 'completed')
+//       .order('created_at', { ascending: false });
+
+//     console.log('📊 helper_jobs query result:', { count: helperJobsData?.length || 0 });
+
+//     if (helperJobsError) throw helperJobsError;
+
+//     if (helperJobsData && helperJobsData.length > 0) {
+//       const clientIds = [...new Set(helperJobsData.map(job => job.client_id))];
+      
+//       const { data: clientsData, error: clientsError } = await supabase
+//         .from('users')
+//         .select('id, username')
+//         .in('id', clientIds);
+
+//       if (clientsError) throw clientsError;
+
+//       const clientMap = new Map(clientsData.map(user => [user.id, user.username]));
+
+//       helperJobsData.forEach(job => {
+//         const jobObj = {
+//           id: `helper-${job.id}`,
+//           job_title: job.job_title,
+//           agreed_amount: job.agreed_amount,
+//           created_at: job.created_at,
+//           role: 'Adventurer',
+//           otherPartyName: clientMap.get(job.client_id) || 'Unknown Poster'
+//         };
+        
+//         const uniqueKey = createUniqueKey(jobObj);
+//         if (!jobsMap.has(uniqueKey)) {
+//           jobsMap.set(uniqueKey, jobObj);
+//           console.log('✅ Added adventurer job:', job.job_title);
+//         } else {
+//           console.log('⚠️ Duplicate skipped (helper_jobs):', job.job_title);
+//         }
+//       });
+//     }
+
+//     console.log('📋 Querying regular chats for completed jobs...');
+//     const { data: chatsData, error: chatsError } = await supabase
+//       .from('chats')
+//       .select('id, job_id, job_poster_id, payment_amount, created_at')
+//       .eq('job_seeker_id', uid)
+//       .eq('offer_accepted', true)
+//       .eq('payment_status', 'paid');
+
+//     console.log('💬 Chats result:', { count: chatsData?.length || 0 });
+
+//     if (!chatsError && chatsData && chatsData.length > 0) {
+//       const jobIds = [...new Set(chatsData.map(chat => chat.job_id))];
+      
+//       const { data: jobsData, error: jobsError } = await supabase
+//         .from('User-Job-Request')
+//         .select('id, title, status, user_id, created_at')
+//         .in('id', jobIds)
+//         .eq('status', 'completed');
+
+//       if (!jobsError && jobsData && jobsData.length > 0) {
+//         const posterIds = [...new Set(jobsData.map(j => j.user_id))];
+//         const { data: postersData } = await supabase
+//           .from('users')
+//           .select('id, username')
+//           .in('id', posterIds);
+
+//         const posterMap = new Map(postersData?.map(u => [u.id, u.username]) || []);
+
+//         jobsData.forEach(job => {
+//           const chat = chatsData.find(c => c.job_id === job.id);
+//           const jobObj = {
+//             id: `regular-${job.id}`,
+//             job_title: job.title,
+//             agreed_amount: chat?.payment_amount || 0,
+//             created_at: chat?.created_at || job.created_at,
+//             role: 'Adventurer',
+//             otherPartyName: posterMap.get(job.user_id) || 'Unknown Poster'
+//           };
+          
+//           const uniqueKey = createUniqueKey(jobObj);
+//           if (!jobsMap.has(uniqueKey)) {
+//             jobsMap.set(uniqueKey, jobObj);
+//             console.log('✅ Added regular job:', job.title);
+//           } else {
+//             console.log('⚠️ Duplicate skipped (chats):', job.title);
+//           }
+//         });
+//       }
+//     }
+
+//     console.log('📋 Querying User-Job-Request table...');
+//     const { data: posterJobsData, error: posterJobsError } = await supabase
+//       .from('User-Job-Request')
+//       .select('id, title, payment, created_at, status')
+//       .eq('user_id', uid)
+//       .eq('status', 'completed')
+//       .order('created_at', { ascending: false });
+
+//     console.log('📊 User-Job-Request query result:', { count: posterJobsData?.length || 0 });
+
+//     if (posterJobsError) throw posterJobsError;
+
+//     if (posterJobsData && posterJobsData.length > 0) {
+//       for (const job of posterJobsData) {
+//         let adventurerNames = [];
+//         let actualPaidAmount = job.payment;
+        
+//         const { data: chatData, error: chatError } = await supabase
+//           .from('chats')
+//           .select('job_seeker_id, payment_amount')
+//           .eq('job_id', job.id)
+//           .eq('offer_accepted', true);
+
+//         if (!chatError && chatData && chatData.length > 0) {
+//           const adventurerIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+          
+//           const { data: adventurersData, error: adventurersError } = await supabase
+//             .from('users')
+//             .select('username')
+//             .in('id', adventurerIds);
+
+//           if (!adventurersError && adventurersData) {
+//             adventurerNames = adventurersData.map(u => u.username || 'Unknown');
+//           }
+          
+//           if (chatData[0]?.payment_amount) {
+//             actualPaidAmount = chatData[0].payment_amount;
+//           }
+//         }
+
+//         const jobObj = {
+//           id: `poster-${job.id}`,
+//           job_title: job.title,
+//           title: job.title,
+//           payment: actualPaidAmount,
+//           agreed_amount: actualPaidAmount,
+//           created_at: job.created_at,
+//           role: 'Job Poster',
+//           otherPartyName: adventurerNames.join(', ') || 'Unknown Adventurer'
+//         };
+        
+//         const uniqueKey = createUniqueKey(jobObj);
+//         if (!jobsMap.has(uniqueKey)) {
+//           jobsMap.set(uniqueKey, jobObj);
+//           console.log('✅ Added poster job:', job.title, '- Paid:', actualPaidAmount);
+//         } else {
+//           console.log('⚠️ Duplicate skipped (poster):', job.title);
+//         }
+//       }
+//     }
+
+//     const deduplicatedJobs = Array.from(jobsMap.values());
+//     deduplicatedJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+//     console.log('✅ Total UNIQUE completed jobs:', deduplicatedJobs.length);
+//     console.log('📦 Final jobs list:', deduplicatedJobs);
+    
+//     completedJobs.value = deduplicatedJobs;
+
+//   } catch (e) {
+//     console.error('❌ loadCompletedJobs error', e);
+//     completedJobs.value = [];
+//   }
+// }
+
 async function loadCompletedJobs(uid) {
   try {
     if (!uid) {
@@ -709,11 +894,12 @@ async function loadCompletedJobs(uid) {
     };
 
     console.log('📋 Querying helper_jobs table...');
+    // 🔥 CHANGED: Query for both 'completed' AND 'in-progress' with paid status
     const { data: helperJobsData, error: helperJobsError } = await supabase
       .from('helper_jobs')
-      .select('id, job_title, agreed_amount, client_id, created_at, status')
+      .select('id, job_title, agreed_amount, client_id, created_at, status, payment_status')
       .eq('helper_id', uid)
-      .eq('status', 'completed')
+      .or('status.eq.completed,and(status.eq.in-progress,payment_status.eq.paid)')
       .order('created_at', { ascending: false });
 
     console.log('📊 helper_jobs query result:', { count: helperJobsData?.length || 0 });
