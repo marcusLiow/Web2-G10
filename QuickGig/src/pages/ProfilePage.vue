@@ -1732,6 +1732,7 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 .review-card { padding-bottom:1rem; border-bottom:1px solid #e5e7eb; }
 .review-content { display:flex; gap:1rem; }
 .review-avatar { width:40px; height:40px; border-radius:50%; overflow:hidden; background:#e5e7eb; display:flex; align-items:center; justify-content:center; }
+.review-avatar img { width:100%; height:100%; object-fit:cover; }
 .avatar-placeholder-small { color:#9ca3af; font-weight:700; }
 .review-body { flex:1; }
 .review-header { display:flex; justify-content:space-between; align-items:start; gap:.5rem; }

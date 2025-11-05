@@ -40,6 +40,14 @@
                     <p class="notification-message">{{ notification.message }}</p>
                     <span class="notification-time">{{ formatTimeAgo(notification.created_at) }}</span>
                   </div>
+                  
+                  <button 
+                    @click.stop="deleteNotification(notification.id, !notification.read)" 
+                    class="notification-delete-btn"
+                    title="Delete notification"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
               </div>
@@ -69,7 +77,6 @@
             </button>
             <div class="dropdown-menu profile-menu" :style="{ display: isDropdownOpen ? 'block' : 'none' }">
               <router-link to="/profile" class="dropdown-item" @click="closeDropdown">Profile</router-link>
-              <router-link to="/wallet" class="dropdown-item" @click="closeDropdown">Wallet</router-link>
               <router-link to="/dashboard" class="dropdown-item" @click="closeDropdown">Dashboard</router-link>
               <div class="dropdown-divider"></div>
               <button @click="handleLogout" class="dropdown-item logout-item">Log Out</button>
@@ -125,37 +132,59 @@ export default {
     };
 
     const checkSupabaseSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        isLoggedIn.value = true;
-        localStorage.setItem('isLoggedIn', 'true');
-        await loadUserData();
-        await fetchUnreadChatsCount();
-        await fetchNotifications();
-        subscribeToNotifications();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    isLoggedIn.value = true;
+    localStorage.setItem('isLoggedIn', 'true');
+    
+    // Fetch fresh user data from database
+    try {
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('username, email, avatar_url')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (!error && userData) {
+        // Update localStorage with fresh data
+        localStorage.setItem('username', userData.username || 'User');
+        localStorage.setItem('userEmail', userData.email || '');
+        localStorage.setItem('avatarUrl', userData.avatar_url || '');
+        localStorage.setItem('userId', session.user.id);
+        
+        // Load into component
+        username.value = userData.username || 'User';
+        userEmail.value = userData.email || '';
+        avatarUrl.value = userData.avatar_url || '';
+        
+        console.log('✅ Navbar - User data loaded:', {
+          username: username.value,
+          avatar: avatarUrl.value
+        });
       } else {
-        logoutCleanup();
-      }
-    };
-
-    const checkLoginStatus = () => {
-      const loggedInStatus = localStorage.getItem('isLoggedIn') === 'true';
-      if (loggedInStatus && !isLoggedIn.value) {
-        isLoggedIn.value = true;
         loadUserData();
-        fetchUnreadChatsCount();
-        fetchNotifications();
-        subscribeToNotifications();
-      } else if (!loggedInStatus && isLoggedIn.value) {
-        logoutCleanup();
       }
-    };
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      loadUserData();
+    }
+    
+    await fetchUnreadChatsCount();
+    await fetchNotifications();
+    subscribeToNotifications();
+  } else {
+    logoutCleanup();
+  }
+};
 
     const loadUserData = () => {
-      username.value = localStorage.getItem('username') || 'User';
-      userEmail.value = localStorage.getItem('userEmail') || '';
-      avatarUrl.value = localStorage.getItem('avatarUrl') || '';
-    };
+  const storedUsername = localStorage.getItem('username');
+  console.log('🔍 Navbar - Loading username from localStorage:', storedUsername);
+  username.value = storedUsername || 'User';
+  userEmail.value = localStorage.getItem('userEmail') || '';
+  avatarUrl.value = localStorage.getItem('avatarUrl') || '';
+  console.log('✅ Navbar - Username set to:', username.value);
+};
 
     const fetchUnreadChatsCount = async () => {
       if (!isLoggedIn.value) return;
@@ -289,7 +318,26 @@ export default {
         console.error('Error marking notifications as read:', error);
       }
     };
+    const deleteNotification = async (notificationId, isUnread) => {
+      try {
+        const { error } = await supabase
+          .from('notifications')
+          .delete()
+          .eq('id', notificationId);
 
+        if (error) throw error;
+
+        notifications.value = notifications.value.filter(n => n.id !== notificationId);
+
+        if (isUnread) {
+          unreadNotificationsCount.value = Math.max(0, unreadNotificationsCount.value - 1);
+        }
+
+      } catch (error) {
+        console.error('Error deleting notification:', error);
+        toast.error('Failed to delete notification', 'Error');
+      }
+    };
     const formatTimeAgo = (timestamp) => {
         if (!timestamp) return '';
         const now = new Date();
@@ -339,6 +387,18 @@ export default {
           isNotificationDropdownOpen.value = false;
       }
     };
+
+    const checkLoginStatus = async () => {
+  const loggedInStatus = localStorage.getItem('isLoggedIn') === 'true';
+  if (loggedInStatus && !isLoggedIn.value) {
+    isLoggedIn.value = true;
+    // Wait a bit for localStorage to be fully updated by AuthCallback
+    await new Promise(resolve => setTimeout(resolve, 150));
+    await checkSupabaseSession(); // Fetch fresh data from database
+  } else if (!loggedInStatus && isLoggedIn.value) {
+    logoutCleanup();
+  }
+};
 
     const handleLogout = async () => {
       const confirmed = await toast.confirm({
@@ -437,6 +497,7 @@ export default {
       toggleNotificationDropdown,
       closeNotificationDropdown,
       formatTimeAgo,
+      deleteNotification,
     };
   }
 };
@@ -909,5 +970,32 @@ export default {
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
   }
+  
 }
+.notification-content {
+  flex: 1;
+  min-width: 0; 
+}
+
+/* This styles the "x" button to be boxless */
+.notification-delete-btn {
+  flex-shrink: 0;
+  background: transparent !important; /* Forces no background */
+  border: none !important;            /* Forces no border */
+  color: #9ca3af;           
+  font-size: 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.5rem;           
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;      
+  transition: color 0.2s; 
+  line-height: 1;          
+}
+
+.notification-delete-btn:hover {
+  background: transparent !important; /* Forces no background on hover */
+  color: #ef4444;
+  }
 </style>

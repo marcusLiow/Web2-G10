@@ -86,25 +86,27 @@ function normalizeSkills(raw) {
 }
 
 /* --- Helpers fetching --- */
+/* --- Helpers fetching --- */
 const fetchHelpers = async () => {
   try {
     isLoading.value = true;
 
+    // 1. Fetch users (same as before)
     const { data: usersData, error: usersError } = await supabase
       .from('users')
       .select('*')
       .eq('is_helper', true);
 
     if (usersError) throw usersError;
-    if (!usersData || usersData.length === 0) { helpers.value = []; isLoading.value = false; return; }
+    if (!usersData || usersData.length === 0) { 
+      helpers.value = []; 
+      isLoading.value = false; 
+      return; 
+    }
 
     const userIds = usersData.map(u => u.id);
 
-    const { data: statsData, error: statsError } = await supabase.rpc('get_helper_stats');
-    if (statsError) console.warn('get_helper_stats error', statsError);
-    const statsMap = {};
-    if (Array.isArray(statsData)) statsData.forEach(s => { statsMap[String(s.helper_id)] = s; });
-
+    // 2. Fetch profiles (same as before)
     const { data: profiles, error: profilesError } = await supabase
       .from('helper_profiles')
       .select('*')
@@ -114,6 +116,7 @@ const fetchHelpers = async () => {
     const profilesMap = {};
     (profiles || []).forEach(p => { profilesMap[String(p.user_id)] = p; });
 
+    // 3. Fetch all reviews for these helpers (this replaces the rpc call)
     const { data: reviewsData, error: reviewsError } = await supabase
       .from('reviews')
       .select('helper_id, rating, comment, created_at, reviewer_id')
@@ -122,10 +125,14 @@ const fetchHelpers = async () => {
     
     if (reviewsError) console.warn('reviews fetch error', reviewsError);
     
+    // --- NEW: Process reviews to calculate stats AND get latest review ---
+    const statsMap = {};
+    const latestReviewMap = {};
     let reviewersMap = {};
+
     if (reviewsData && reviewsData.length > 0) {
+      // 3a. Get all reviewer details first
       const reviewerIds = [...new Set(reviewsData.map(r => r.reviewer_id).filter(Boolean))];
-      
       if (reviewerIds.length > 0) {
         const { data: reviewersData } = await supabase
           .from('users')
@@ -136,28 +143,47 @@ const fetchHelpers = async () => {
           reviewersMap = Object.fromEntries(reviewersData.map(u => [u.id, u]));
         }
       }
+
+      // 3b. Loop through all reviews to build both maps
+      (reviewsData || []).forEach(r => {
+        const hid = String(r.helper_id);
+
+        // First, build the statsMap for average rating and count
+        if (!statsMap[hid]) {
+          statsMap[hid] = { total_rating: 0, review_count: 0 };
+        }
+        statsMap[hid].total_rating += (r.rating || 0);
+        statsMap[hid].review_count += 1;
+
+        // Second, get the latest review (since list is pre-sorted)
+        if (!latestReviewMap[hid]) {
+          const reviewer = reviewersMap[r.reviewer_id] || {};
+          latestReviewMap[hid] = {
+            comment: r.comment,
+            rating: r.rating,
+            reviewerName: reviewer.username || 'Anonymous',
+            reviewerAvatar: reviewer.avatar_url || '',
+            createdAt: r.created_at
+          };
+        }
+      });
     }
+    // --- END OF NEW PROCESSING ---
 
-    const latestReviewMap = {};
-    (reviewsData || []).forEach(r => {
-      const hid = String(r.helper_id);
-      if (!latestReviewMap[hid]) {
-        const reviewer = reviewersMap[r.reviewer_id] || {};
-        latestReviewMap[hid] = {
-          comment: r.comment,
-          rating: r.rating,
-          reviewerName: reviewer.username || 'Anonymous',
-          reviewerAvatar: reviewer.avatar_url || '',
-          createdAt: r.created_at
-        };
-      }
-    });
-
+    // 4. Merge all data
     const merged = usersData
       .filter(user => profilesMap[user.id])
       .map(user => {
         const profile = profilesMap[user.id];
-        const stats = statsMap[user.id] || { avg_rating: 0, review_count: 0, completed_jobs: 0 };
+        
+        // --- USE OUR NEW LIVE STATS ---
+        const liveStats = statsMap[user.id] || { total_rating: 0, review_count: 0 };
+        const avg_rating = liveStats.review_count > 0 
+          ? (liveStats.total_rating / liveStats.review_count) 
+          : 0;
+        const review_count = liveStats.review_count;
+        // --- END ---
+
         const rawSkills = profile.skills || user.skills || [];
         return {
           id: user.id,
@@ -171,8 +197,12 @@ const fetchHelpers = async () => {
           location: profile.location || user.location || 'Not specified',
           availability: profile.availability || 'Contact for availability',
           responseTime: profile.response_time || 'Usually responds within 24 hours',
-          rating: Math.round(Number(stats.avg_rating) * 10) / 10 || 0,
-          reviewCount: Number(stats.review_count) || 0,
+
+          // --- APPLY THE NEW LIVE VALUES HERE ---
+          rating: Math.round(Number(avg_rating) * 10) / 10 || 0,
+          reviewCount: Number(review_count) || 0,
+          // --- END ---
+
           completedJobs: profile.jobs_completed || 0,
           bio: profile.bio || user.helper_bio || user.bio || '',
           experience: profile.experience || ['Contact for details'],
@@ -195,7 +225,22 @@ const fetchHelpers = async () => {
 
 // Navigate directly to helper profile page
 const viewHelperProfile = (helper) => {
-  router.push(`/helper/${helper.userId}`);
+  console.log('Navigating to helper profile:', {
+    userId: helper.userId,
+    username: helper.username,
+    fullHelper: helper
+  });
+  
+  if (!helper.userId) {
+    console.error('No userId found for helper:', helper);
+    return;
+  }
+  
+  // Use named route for more reliable navigation
+  router.push({ 
+    name: 'HelperProfile', 
+    params: { id: helper.userId } 
+  });
 };
 
 const filteredHelpers = computed(() => {
@@ -385,7 +430,11 @@ onUnmounted(() => {
         </div>
 
         <!-- View Profile Button -->
-        <button @click="viewHelperProfile(helper)" class="view-profile-btn">
+        <button 
+          @click="viewHelperProfile(helper)" 
+          class="view-profile-btn"
+          type="button"
+        >
           View Profile
         </button>
       </div>
