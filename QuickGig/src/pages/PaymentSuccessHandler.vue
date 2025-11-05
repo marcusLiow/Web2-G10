@@ -238,7 +238,7 @@ if (earningsError) {
 };
 
 const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
-  console.log('Creating helper job record for chat:', chatId);
+  console.log('Updating helper job payment for chat:', chatId);
   
   // 1. Get chat info
   const { data: chatData, error: chatError } = await supabase
@@ -248,44 +248,42 @@ const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
     .single();
   if (chatError) throw chatError;
 
-  // 2. Create helper_jobs record
+  // 2. UPDATE existing helper_jobs record instead of inserting
   const { error: jobError } = await supabase
     .from('helper_jobs')
-    .insert([{
-      helper_chat_id: chatId,
-      helper_id: chatData.helper_id,
-      client_id: chatData.client_id,
-      job_title: jobTitle || 'Helper Service',
-      agreed_amount: amount,
+    .update({
       status: 'in-progress',
       payment_status: 'paid'
-    }]);
+    })
+    .eq('helper_chat_id', chatId)
+    .eq('status', 'accepted')
+    .eq('payment_status', 'pending');
+    
   if (jobError) throw jobError;
+  console.log('✅ Helper job payment status updated');
 
- 
   // 3. Create Earnings record for the helper
-const platformFee = Number(amount) * 0.10; // 10% platform fee
-const netAmount = Number(amount) - platformFee;
+  const platformFee = Number(amount) * 0.10; // 10% platform fee
+  const netAmount = Number(amount) - platformFee;
 
-const { error: earningsError } = await supabase
-  .from('Earnings')
-  .insert({
-    user_id: chatData.helper_id,
-    gross_amount: Number(amount),
-    platform_fee: platformFee,
-    net_amount: netAmount,
-    job_title: jobTitle || 'Helper Service',
-    status: 'completed'
-    // Removed payment_date - it doesn't exist in the table
-  });
+  const { error: earningsError } = await supabase
+    .from('Earnings')
+    .insert({
+      user_id: chatData.helper_id,
+      gross_amount: Number(amount),
+      platform_fee: platformFee,
+      net_amount: netAmount,
+      job_title: jobTitle || 'Helper Service',
+      status: 'completed'
+    });
 
-if (earningsError) {
-  console.error('Error creating Earnings record:', earningsError);
-} else {
-  console.log('✅ Earnings record created for helper');
-}
+  if (earningsError) {
+    console.error('Error creating Earnings record:', earningsError);
+  } else {
+    console.log('✅ Earnings record created for helper');
+  }
 
-  // 4. Send payment confirmation message *to the chat*
+  // 4. Send payment confirmation message to the chat
   const currentUserId = localStorage.getItem('userId');
   await supabase
     .from('helper_messages')
@@ -321,7 +319,6 @@ if (earningsError) {
     console.log('Payment notification sent to helper:', chatData.helper_id);
   }
 };
-
 const goToChat = () => {
   const chatId = route.query.chatId;
   const isHelperJob = route.query.isHelperJob === 'true';
