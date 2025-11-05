@@ -336,6 +336,10 @@ async function fetchEarningsData() {
       .order('created_at', { ascending: false });
     if (fetchError) throw fetchError;
     allFetchedEarnings.value = earningsData || [];
+
+    // 🐛 DEBUG: Log the raw data
+    console.log('🔍 RAW EARNINGS DATA:', JSON.stringify(earningsData, null, 2));
+    console.log('📅 Today is:', new Date().toISOString());
   } catch (err) {
     console.error('Error fetching earnings data:', err);
     earningsError.value = `Failed to load earnings data: ${err.message}`;
