@@ -1241,15 +1241,10 @@ const cancelOffer = async (acceptanceMessage) => {
     }
 
     // Reset chat status
+        
+    // ...existing code...
     if (isHelperChat.value) {
-      // For helper chats, also create a helper_jobs entry
-      const { error: chatError } = await supabase
-        .from('helper_chats')
-        .update({ offer_accepted: false })
-        .eq('id', chatId);
-      if (chatError) throw chatError;
-
-      // Update or delete helper_jobs entry
+      // For helper chats, update helper_jobs entry
       const { error: helperJobError } = await supabase
         .from('helper_jobs')
         .update({ 
@@ -1261,81 +1256,66 @@ const cancelOffer = async (acceptanceMessage) => {
 
       if (helperJobError) throw helperJobError;
 
-      // Get the job to update positions
-      const { data: helperJobData } = await supabase
+      // ✅ FIX: Get the job_id from the ACCEPTED helper_job ONLY
+      const { data: helperJobData, error: helperJobFetchError } = await supabase
         .from('helper_jobs')
         .select('job_id')
         .eq('helper_chat_id', chatId)
+        .eq('status', 'cancelled') // ← We JUST set it to 'cancelled' above
+        .order('cancelled_at', { ascending: false }) // ← Get the most recently cancelled one
+        .limit(1)
+        .single(); // ← Now safe to use .single() because we're limiting to 1
+
+      if (helperJobFetchError) {
+        console.error('Error fetching helper job:', helperJobFetchError);
+        throw helperJobFetchError;
+      }
+
+      if (!helperJobData || !helperJobData.job_id) {
+        console.error('No helper job data found for chat:', chatId);
+        throw new Error('Could not find job associated with this chat');
+      }
+
+      console.log('📌 Found job_id:', helperJobData.job_id);
+
+
+      const { data: jobData, error: jobFetchError } = await supabase
+        .from('User-Job-Request')
+        .select('multiple_positions, positions_filled, status')
+        .eq('id', helperJobData.job_id)
         .single();
-
-      if (helperJobData?.job_id) {
-        const { data: jobData, error: jobFetchError } = await supabase
-          .from('User-Job-Request')
-          .select('multiple_positions, positions_filled')
-          .eq('id', helperJobData.job_id)
-          .single();
-        
-        if (!jobFetchError && jobData) {
-          const positionsFilled = jobData.positions_filled || 0;
-          const newPositionsFilled = Math.max(0, positionsFilled - 1);
-          
-          const { error: jobUpdateError } = await supabase
-            .from('User-Job-Request')
-            .update({ 
-              status: 'open',
-              positions_filled: newPositionsFilled
-            })
-            .eq('id', helperJobData.job_id);
-          
-          if (jobUpdateError) throw jobUpdateError;
-        }
+      
+      if (jobFetchError) {
+        console.error('Error fetching job data:', jobFetchError);
+        throw jobFetchError;
       }
-    } else {
-      // Regular chat cancellation logic
-      const { error } = await supabase
-        .from('chats')
+
+      if (!jobData) {
+        console.error('No job data found for job_id:', helperJobData.job_id);
+        throw new Error('Could not find job details');
+      }
+
+      console.log('📌 Current job status:', jobData.status, 'positions_filled:', jobData.positions_filled); // Debug log
+
+      const positionsFilled = jobData.positions_filled || 0;
+      const newPositionsFilled = Math.max(0, positionsFilled - 1);
+      
+      console.log('📌 Updating job to status: open, positions_filled:', newPositionsFilled); // Debug log
+
+      const { error: jobUpdateError } = await supabase
+        .from('User-Job-Request')
         .update({ 
-          offer_accepted: false,
-          accepted_at: null,
-          payment_amount: null
+          status: 'open',
+          positions_filled: newPositionsFilled
         })
-        .eq('id', chatId);
-      if (error) throw error;
-
-      // Handle job update logic for regular chats
-      if (chatInfo.value?.job_id) {
-        const { data: jobData, error: jobFetchError } = await supabase
-          .from('User-Job-Request')
-          .select('multiple_positions, positions_available, positions_filled, status')
-          .eq('id', chatInfo.value.job_id)
-          .single();
-        
-        if (jobFetchError) throw jobFetchError;
-
-        const requiresMultipleHelpers = jobData?.multiple_positions || false;
-        const positionsFilled = jobData?.positions_filled || 0;
-
-        if (requiresMultipleHelpers && positionsFilled > 0) {
-          const newPositionsFilled = Math.max(0, positionsFilled - 1);
-          
-          const { error: jobUpdateError } = await supabase
-            .from('User-Job-Request')
-            .update({ 
-              status: 'open',
-              positions_filled: newPositionsFilled
-            })
-            .eq('id', chatInfo.value.job_id);
-          
-          if (jobUpdateError) throw jobUpdateError;
-        } else {
-          const { error: jobUpdateError } = await supabase
-            .from('User-Job-Request')
-            .update({ status: 'open' })
-            .eq('id', chatInfo.value.job_id);
-          
-          if (jobUpdateError) throw jobUpdateError;
-        }
+        .eq('id', helperJobData.job_id);
+      
+      if (jobUpdateError) {
+        console.error('Error updating job:', jobUpdateError);
+        throw jobUpdateError;
       }
+
+      console.log('✅ Job updated successfully'); // Debug log
     }
 
     // 3. Send cancellation message
