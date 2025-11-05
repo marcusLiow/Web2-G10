@@ -709,12 +709,12 @@ async function loadCompletedJobs(uid) {
     };
 
     console.log('📋 Querying helper_jobs table...');
-    // 🔥 CHANGED: Query for both 'completed' AND 'in-progress' with paid status
+    // Query only for truly completed helper jobs
     const { data: helperJobsData, error: helperJobsError } = await supabase
       .from('helper_jobs')
       .select('id, job_title, agreed_amount, client_id, created_at, status, payment_status')
       .eq('helper_id', uid)
-      .or('status.eq.completed,and(status.eq.in-progress,payment_status.eq.paid)')
+      .eq('status', 'completed')  // Only show completed jobs in job history
       .order('created_at', { ascending: false });
 
     console.log('📊 helper_jobs query result:', { count: helperJobsData?.length || 0 });
@@ -1298,43 +1298,143 @@ async function markAsCompleted(jobId) {
   try {
     const userId = currentUserId.value;
 
-    const { data: updatedJob, error: updateError } = await supabase
+    console.log('🔄 Marking job as completed:', jobId);
+    console.log('👤 Current user ID:', userId);
+
+    // Get the job title first
+    const { data: jobData, error: jobError } = await supabase
       .from('User-Job-Request')
-      .update({ status: 'completed' })
+      .select('title')
       .eq('id', jobId)
       .eq('user_id', userId)
-      .select('title')
       .single();
 
-    if (updateError) throw updateError;
-    const jobTitle = updatedJob.title || 'your recent job';
+    if (jobError || !jobData) {
+      console.error('❌ Error fetching job:', jobError);
+      toast.error('Could not find job.', 'Error', 5000);
+      return;
+    }
 
-    let adventurerNames = [];
-    let adventurerIds = [];
+    const jobTitle = jobData.title;
+    console.log('� Job title:', jobTitle);
+
+    // Find all helpers who worked on this job (accepted offers)
     const { data: chatData, error: chatError } = await supabase
       .from('chats')
       .select('job_seeker_id')
       .eq('job_id', jobId)
       .eq('offer_accepted', true);
 
-    if (chatError) throw chatError;
-
-    if (chatData && chatData.length > 0) {
-      adventurerIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
-
-      const { data: usersData, error: userError } = await supabase
-        .from('users')
-        .select('username')
-        .in('id', adventurerIds);
-      
-      if (userError) throw userError;
-      adventurerNames = usersData ? usersData.map(u => u.username || 'Unknown') : [];
+    if (chatError) {
+      console.error('❌ Error fetching helpers:', chatError);
+      toast.error('Could not verify helpers.', 'Error', 5000);
+      return;
     }
 
-    if (adventurerIds.length > 0) {
-      const notifications = adventurerIds.map(adventurerId => ({
+    if (!chatData || chatData.length === 0) {
+      console.warn('⚠️ No helpers found for this job');
+      toast.error('Cannot mark job as completed. No helpers found for this job.', 'Error', 8000);
+      return;
+    }
+
+    const helperIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+    console.log('👥 Helper IDs:', helperIds);
+    console.log('🔍 Job ID type:', typeof jobId, 'Value:', jobId);
+
+    // Search by job_id (requires proper RLS policy to allow job posters to see earnings for their jobs)
+    const { data: earningsData, error: earningsCheckError } = await supabase
+      .from('Earnings')
+      .select('id, status, job_id, user_id, job_title')
+      .eq('job_id', parseInt(jobId));
+
+    console.log('📊 Earnings Query Results (by job_id):');
+    console.log('  - Job ID searched:', jobId);
+    console.log('  - Job title:', jobTitle);
+    console.log('  - Earnings found:', earningsData);
+    console.log('  - Number of earnings:', earningsData?.length || 0);
+    console.log('  - Query error:', earningsCheckError);
+
+    if (earningsCheckError) {
+      console.error('❌ Error checking earnings status:', earningsCheckError);
+      toast.error('Unable to verify payment status. Please try again.', 'Error', 8000);
+      return;
+    }
+
+    if (!earningsData || earningsData.length === 0) {
+      console.warn('⚠️ No earnings records found for job_id:', jobId);
+      toast.error('Cannot mark job as completed. No earnings record found for this job.', 'Payment Required', 8000);
+      return;
+    }
+
+    console.log('📋 Earnings details:');
+    earningsData.forEach((earning, index) => {
+      console.log(`  Earning ${index + 1}:`, {
+        id: earning.id,
+        status: earning.status,
+        job_id: earning.job_id,
+        user_id: earning.user_id
+      });
+    });
+
+    // If there are no earnings records with 'paid' status, don't allow completion
+    const hasPaidEarnings = earningsData && earningsData.some(earning => earning.status === 'paid');
+    
+    console.log('✅ Has paid earnings?', hasPaidEarnings);
+
+    if (!hasPaidEarnings) {
+      console.error('❌ No paid earnings found. Blocking completion.');
+      toast.error('Cannot mark job as completed. Payment must be processed first before completing the job.', 'Payment Required', 8000);
+      return;
+    }
+
+    console.log('✅ Payment verified. Proceeding with completion...');
+
+    // Update the job status to completed
+    const { error: updateError } = await supabase
+      .from('User-Job-Request')
+      .update({ status: 'completed' })
+      .eq('id', jobId)
+      .eq('user_id', userId);
+
+    if (updateError) throw updateError;
+
+    // Get helper usernames for display
+    const { data: usersData, error: userError } = await supabase
+      .from('users')
+      .select('username')
+      .in('id', helperIds);
+    
+    if (userError) {
+      console.error('Error fetching usernames:', userError);
+    }
+    
+    const adventurerNames = usersData ? usersData.map(u => u.username || 'Unknown') : [];
+
+    // Update Earnings table status from 'paid' to 'completed' - this releases the payment to adventurer(s)
+    // Use the earning IDs we found
+    const paidEarningIds = earningsData
+      .filter(earning => earning.status === 'paid')
+      .map(earning => earning.id);
+
+    if (paidEarningIds.length > 0) {
+      const { error: earningsUpdateError } = await supabase
+        .from('Earnings')
+        .update({ status: 'completed' })
+        .in('id', paidEarningIds);  // Update by earning IDs
+
+      if (earningsUpdateError) {
+        console.error('Error updating Earnings status:', earningsUpdateError);
+        toast.error('Job marked complete but earnings update failed. Please contact support.', 'Warning', 8000);
+      } else {
+        console.log('✅ Earnings updated to completed status - payment released to adventurer(s)');
+      }
+    }
+
+    // Send notifications to helpers
+    if (helperIds.length > 0) {
+      const notifications = helperIds.map(adventurerId => ({
         user_id: adventurerId,
-        message: `Job '${jobTitle}' has been marked as completed. Payment should be processed shortly.`,
+        message: `Job '${jobTitle}' has been marked as completed. Your payment has been released!`,
         link: '/wallet'
       }));
 
@@ -1354,7 +1454,7 @@ async function markAsCompleted(jobId) {
       userListings.value[jobIndex].completedBy = adventurerNames;
     }
 
-    toast.success('Job marked as completed successfully! Adventurer(s) notified.', 'Job Completed', 8000);
+    toast.success('Job marked as completed successfully! Payment released to adventurer(s).', 'Job Completed', 8000);
 
     await loadUserListings(userId);
     await loadCompletedJobs(userId);
