@@ -11,6 +11,7 @@ import AdventurerSignUp from '@/pages/AdventurerSignUp.vue'
 import HelpersPage from '../pages/HelpersPage.vue'
 import editjob from '@/pages/editjob.vue'
 import JobMap from '@/pages/JobMap.vue'
+import request from '../pages/request.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -26,7 +27,7 @@ const router = createRouter({
     {
       path: '/request',
       name: 'request',
-      component: import('../pages/request.vue')
+      component: request  // Use the imported component
     },
     {
       path: '/login',
