@@ -1,5 +1,7 @@
 README
 
+**Important:** This repository contains multiple projects. The QuickGig application is located in the `QuickGig` folder. **Please ignore all folders outside the QuickGig directory** as they are unrelated to this project.
+
 Problem Statement:
 There is a lack of affordable and accessible options for everyday tasks such as cleaning, tutoring,
 or simple repairs. Many existing service platforms charge high fees or cater to professionals only,
