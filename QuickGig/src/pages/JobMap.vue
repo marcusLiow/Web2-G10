@@ -269,6 +269,9 @@ export default {
     const mapCenter = ref({ lat: 1.3521, lng: 103.8198 }); // Singapore center
     const mapZoom = ref(12);
 
+    // ✅ NEW: Store accepted offer counts for each job
+    const acceptedOfferCounts = ref({});
+
     const categories = [
       'Construction',
       'Tech',
@@ -280,9 +283,86 @@ export default {
       'Other'
     ];
 
-    // Filtered jobs based on all filters
+    // ✅ NEW: Fetch accepted offer counts for all jobs
+    const fetchAcceptedOfferCounts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('chats')
+          .select('job_id, job_seeker_id')
+          .eq('offer_accepted', true);
+        
+        if (error) throw error;
+        
+        // Count unique job seekers per job
+        const counts = {};
+        data.forEach(chat => {
+          if (!counts[chat.job_id]) {
+            counts[chat.job_id] = new Set();
+          }
+          counts[chat.job_id].add(chat.job_seeker_id);
+        });
+        
+        // Convert Sets to counts
+        const result = {};
+        Object.keys(counts).forEach(jobId => {
+          result[jobId] = counts[jobId].size;
+        });
+        
+        acceptedOfferCounts.value = result;
+        console.log('Map - Accepted offer counts:', result);
+      } catch (error) {
+        console.error('Map - Error fetching accepted offer counts:', error);
+      }
+    };
+
+    // ✅ NEW: Check if a job is fully filled
+    const isJobFullyFilled = (job) => {
+      const acceptedCount = acceptedOfferCounts.value[job.id] || 0;
+      const requiresMultiple = job.requiresMultipleHelpers || job.multiple_positions;
+      const requiredCount = job.numberOfHelpers || job.positions_available || 1;
+      
+      console.log('Map - Job Fill Check:', {
+        jobId: job.id,
+        jobName: job.title,
+        requiresMultiple,
+        requiredCount,
+        acceptedCount
+      });
+      
+      let isFilled = false;
+      
+      // If job doesn't require multiple helpers
+      if (!requiresMultiple) {
+        // Hide if ANY offer accepted
+        isFilled = acceptedCount > 0;
+      } else {
+        // For jobs requiring multiple helpers
+        // Only hide if ALL positions filled
+        isFilled = acceptedCount >= requiredCount;
+      }
+      
+      console.log('Map - Hide job?', isFilled);
+      
+      return isFilled;
+    };
+
+    // Filtered jobs based on all filters INCLUDING fill status
     const filteredJobs = computed(() => {
       let filtered = jobs.value;
+
+      console.log('=== MAP FILTERING JOBS ===');
+      console.log('Total jobs before filtering:', filtered.length);
+
+      // ✅ CRITICAL: Filter out fully filled jobs FIRST
+      filtered = filtered.filter(job => {
+        const shouldKeep = !isJobFullyFilled(job);
+        if (!shouldKeep) {
+          console.log(`Map - Filtering OUT completed job: ${job.title} (ID: ${job.id})`);
+        }
+        return shouldKeep;
+      });
+      
+      console.log('Jobs after fill status filter:', filtered.length);
 
       // Search query filter (searches title, description, location)
       if (searchQuery.value) {
@@ -293,11 +373,13 @@ export default {
           job.location.toLowerCase().includes(query) ||
           job.category.toLowerCase().includes(query)
         );
+        console.log('Jobs after search filter:', filtered.length);
       }
 
       // Category filter
       if (selectedCategory.value) {
         filtered = filtered.filter(job => job.category === selectedCategory.value);
+        console.log('Jobs after category filter:', filtered.length);
       }
 
       // Location filter
@@ -307,6 +389,7 @@ export default {
           job.location.toLowerCase().includes(locQuery) ||
           (job.postal_code && job.postal_code.toLowerCase().includes(locQuery))
         );
+        console.log('Jobs after location filter:', filtered.length);
       }
 
       // Budget filter
@@ -316,6 +399,9 @@ export default {
       if (maxBudget.value !== null && maxBudget.value !== '') {
         filtered = filtered.filter(job => parseFloat(job.payment) <= maxBudget.value);
       }
+
+      console.log('Final filtered jobs count:', filtered.length);
+      console.log('=========================');
 
       return filtered;
     });
@@ -355,15 +441,24 @@ export default {
     // Fetch jobs from database
     const fetchJobs = async () => {
       try {
+        console.log('Map - Fetching jobs from Supabase...');
+        
+        // ✅ Fetch accepted offer counts FIRST
+        await fetchAcceptedOfferCounts();
+        
         const { data, error } = await supabase
           .from('User-Job-Request')
-          .select('*');
+          .select('*')
+          .eq('status', 'open')
+          .order('created_at', { ascending: false });
 
         if (error) throw error;
         if (!data || data.length === 0) {
           jobs.value = [];
           return;
         }
+
+        console.log('Map - Jobs fetched from database:', data.length);
 
         const jobPromises = data.map(async (job) => {
           let coordinates = null;
@@ -426,11 +521,23 @@ export default {
             postedBy: postedBy,
             skills: skills,
             postal_code: job.postal_code || '',
-            expiration_date: job.expiration_date || null
+            expiration_date: job.expiration_date || null,
+            status: job.status,
+            
+            // ✅ Multiple helpers fields
+            multiple_positions: job.multiple_positions || false,
+            requiresMultipleHelpers: job.requiresMultipleHelpers || job.multiple_positions || false,
+            positions_available: job.positions_available || 1,
+            numberOfHelpers: job.numberOfHelpers || job.positions_available || 1,
+            positions_filled: job.positions_filled || 0,
+            payment_type: job.payment_type || 'per_person'
           };
         });
 
         jobs.value = await Promise.all(jobPromises);
+
+        console.log('Map - Total transformed jobs:', jobs.value.length);
+        console.log('Map - Jobs with multiple helpers:', jobs.value.filter(j => j.requiresMultipleHelpers).length);
 
         if (jobs.value.length > 0) {
           const avgLat = jobs.value.reduce((sum, job) => sum + job.coordinates.lat, 0) / jobs.value.length;
@@ -439,7 +546,7 @@ export default {
         }
 
       } catch (error) {
-        console.error('Error in fetchJobs:', error);
+        console.error('Map - Error in fetchJobs:', error);
       }
     };
 
