@@ -454,8 +454,7 @@ const generateEarningsPDF = async () => {
       tableRows.push([
         formatEarningsJobDate(earning.created_at),
         earning.job_title || 'N/A',
-        (Number(earning.net_amoumt) || 0).toFixed(2), // Original file had a typo here, fixed
-        (Number(earning.net_amount) || 0).toFixed(2),
+        (Number(earning.net_amount) || 0).toFixed(2), // Original file had a typo here, fixed
       ]);
     });
 

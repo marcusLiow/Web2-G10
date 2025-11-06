@@ -147,25 +147,26 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
   
  
   // 3. Create Earnings record for the helper
-const platformFee = Number(amount) * 0.10; // 10% platform fee
-const netAmount = Number(amount) - platformFee;
+const platformFee = 0; // Platform fee disabled
+const netAmount = Number(amount);
 
 const { error: earningsError } = await supabase
   .from('Earnings')
   .insert({
     user_id: currentChatData.job_seeker_id,
+    job_id: jobId,
     gross_amount: Number(amount),
     platform_fee: platformFee,
     net_amount: netAmount,
     job_title: jobTitle || 'Job',
-    status: 'completed'
-    // Removed payment_date - it doesn't exist in the table
+    status: 'paid',
+    created_at: new Date().toISOString()
   });
 
 if (earningsError) {
   console.error('Error creating Earnings record:', earningsError);
 } else {
-  console.log('✅ Earnings record created for helper');
+  console.log('✅ Earnings record created with status: paid');
 }
   
   // 4. Update chat payment status
