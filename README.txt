@@ -35,6 +35,14 @@ Test Payment Details - Use these details when testing the payment form (in Strip
 - ZIP/Postal Code: Any 5 digits (e.g., 12345)
 These details are for testing only and will not process real payments.
 
+How to run:
+- clone the repository
+- npm install
+- npm install vue3-apexcharts apexcharts
+- Set up environment variables 
+Create a .env file in the QuickGig folder and add the following environment variables: VITE_SUPABASE_URL=https://tlgvoqyldznsvrwugedl.supabase.co VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsZ3ZvcXlsZHpuc3Zyd3VnZWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAyNTczODIsImV4cCI6MjA3NTgzMzM4Mn0.hQ5uuw38DgIpNSqXO86TEBprBx9wdQnWUCBp71bTgqI VITE_GOOGLE_MAPS_API_KEY=AIzaSyAxgA1lecOeQ1b9CifEuQ6iXe-t594FZG0 VITE_GOOGLE_GEOCODING_API_KEY=AIzaSyAxgA1lecOeQ1b9CifEuQ6iXe-t594FZG0 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_51SLRo95raSCHfjZYIvKDDEvmxhB804Am8ELSSuSSRuvcx3upuBnPuPcY0PLXV2ZHlNPveLBlAHMUZQ9OHG6SyYPn005qmB9M8n
+- npm run dev
+
 Key Features:
 - Browse and hire local service providers
 - Post job listings for everyday tasks
@@ -49,3 +57,4 @@ Development Team: Web2 Group 10 (G10)
 - Lesley Tan
 - Joseph
 - Jiayu
+
