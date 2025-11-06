@@ -94,7 +94,7 @@
             <div v-if="shouldShowPaymentButton && message.offer_amount && !isPaymentCompleted && offerAcceptedInThisChat"
                  class="payment-action">
               <button @click="proceedToPayment(message)" class="payment-btn">
-                Proceed to Payment
+                Proceed to Pay SideQuest
               </button>
             </div>
 
