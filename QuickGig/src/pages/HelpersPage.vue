@@ -4,6 +4,11 @@ import { useRouter } from 'vue-router';
 import { supabase } from '../supabase/config';
 import Reviews from './Reviews.vue';
 
+import silverImg from '@/assets/silver.png';
+import goldImg from '@/assets/gold.png';
+import emeraldImg from '@/assets/emerald.png';
+import diamondImg from '@/assets/diamond.png';
+
 const router = useRouter();
 
 const helpers = ref([]);
@@ -34,11 +39,17 @@ const skillsList = [
   'Photography','Cooking','Other'
 ];
 
+const tiers = [
+  { name: 'Silver', min: 0, max: 600, image: silverImg },
+  { name: 'Gold', min: 600, max: 1200, image: goldImg },
+  { name: 'Emerald', min: 1200, max: 1800, image: emeraldImg },
+  { name: 'Diamond', min: 1800, max: Infinity, image: diamondImg }
+];
+
 // Tier order for sorting (highest to lowest)
 const tierOrder = {
-  'Ruby': 5,
-  'Emerald': 4,
-  'Diamond': 3,
+  'Diamond': 4,
+  'Emerald': 3,
   'Gold': 2,
   'Silver': 1,
   '': 0,
@@ -48,18 +59,16 @@ const tierOrder = {
 // ✅ NEW: Tier information with XP requirements
 const tierInfo = {
   'Silver': { xp: '0 - 599 XP', description: 'Starting tier' },
-  'Gold': { xp: '600 - 1,199 XP', description: 'Experienced helper' },
-  'Diamond': { xp: '1,200 - 1,799 XP', description: 'Elite helper' },
-  'Emerald': { xp: '1,800 - 2,399 XP', description: 'Master helper' },
-  'Ruby': { xp: '2,400+ XP', description: 'Legendary helper' }
+  'Gold': { xp: '600 - 1,199 XP', description: 'Experienced adventurer' },
+  'Emerald': { xp: '1,200 - 1,799 XP', description: 'Elite adventurer' },
+  'Diamond': { xp: '1,800+ XP', description: 'Master adventurer' }
 };
 
-// Get tier image path
+// ✅ UPDATED: Get tier image using imported images
 function getTierImage(tier) {
   if (!tier) return null;
-  const tierLower = tier.toLowerCase();
-  // You should have these images in your assets folder
-  return `/src/assets/${tierLower}.png`;
+  const tierObj = tiers.find(t => t.name === tier);
+  return tierObj ? tierObj.image : null;
 }
 
 /* --- Skill normalization utilities --- */
