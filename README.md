@@ -36,6 +36,7 @@ These details are for testing only and will not process real payments.
 How to run:
 - clone the repository
 - npm install
+- npm install vue3-apexcharts apexcharts
 - Set up environment variables
 Create a .env file in the QuickGig folder and add the following environment variables:
 VITE_SUPABASE_URL=https://tlgvoqyldznsvrwugedl.supabase.co
