@@ -110,8 +110,7 @@
             <div class="stat-content">
               <div>
                 <p class="stat-number">{{ activeListingsCount }}</p>
-                <p class="stat-label">Active Listings</p>
-              </div>
+                <p class="stat-label">Total Listings</p> </div>
             </div>
           </div>
         </section>
@@ -140,6 +139,7 @@
                     <h3>{{ skill.name }}</h3>
                     <span class="badge" :class="getBadgeClass(skill.level)">{{ skill.level }}</span>
                   </div>
+                  <p class="skill-jobs">{{ skill.jobs || 0 }} jobs completed</p>
                 </div>
               </div>
 
@@ -179,9 +179,9 @@
               </div>
 
               <div v-else class="empty-state">
-                <div class="empty-icon-text">No Reviews</div>
-                <p class="empty-title">No reviews yet</p>
-                <p class="empty-text">Reviews will appear here when customers rate your service</p>
+                <div class="empty-icon-text">No Listings</div>
+                <p class="empty-title">You haven't posted any jobs yet</p>
+                <p class="empty-text">All jobs you post (open, in-progress, and completed) will appear here.</p>
               </div>
             </div>
           </div>
@@ -262,13 +262,12 @@
             </div>
           </div>
 
-          <div v-if="activeTab === 'listings'" class="tab-content">
-  <div class="content-body">
-    <h2>My Job Listings</h2>
+        <div v-if="activeTab === 'listings'" class="tab-content">
+            <div class="content-body">
+              <h2>My Job Listings</h2>
 
     <!-- Active & In Progress Listings -->
-    <div v-if="activeAndInProgressListings && activeAndInProgressListings.length" class="listings-list">
-      <div v-for="listing in activeAndInProgressListings" :key="listing.id" class="listing-card">
+      <div v-if="userListings && userListings.length" class="listings-list"> <div v-for="listing in userListings" :key="listing.id" class="listing-card">
         <div class="listing-main">
           <div class="listing-header-row">
             <h3>{{ listing.title }}</h3>
@@ -298,47 +297,35 @@
 
     <!-- Empty State -->
     <div v-else class="empty-state">
-      <div class="empty-icon-text">No Listings</div>
-      <p class="empty-title">No active job listings</p>
-      <p class="empty-text">Your active and in-progress job listings will appear here. Completed jobs can be found in the Job History tab.</p>
-    </div>
+                <div class="empty-icon-text">No Reviews</div>
+                <p class="empty-title">No reviews yet</p> <p class="empty-text">Reviews will appear here when someone rates your service</p> </div>
   </div>
-          </div>
-
-          <div v-if="activeTab === 'ongoing'" class="tab-content">
+</div>
+<div v-if="activeTab === 'ongoing'" class="tab-content">
             <div class="content-body">
-              <h2>My Ongoing Jobs</h2>
-              
-              <div v-if="ongoingJobs && ongoingJobs.length" class="listings-list">
-                <div v-for="listing in ongoingJobs" :key="listing.id" class="listing-card">
+                           
+              <div v-if="activeListings && activeListings.length" class="listings-list">
+                <div v-for="listing in activeListings" :key="listing.id" class="listing-card">
                   <div class="listing-main">
                     <div class="listing-header-row">
                       <h3>{{ listing.title }}</h3>
-                      <span :class="['listing-status-badge', getStatusClass(listing.status || 'in-progress')]">
-                        {{ (listing.status || 'in-progress').toUpperCase() }}
-                      </span>
+                      <span :class="['listing-status-badge', getStatusClass(listing.status)]">{{ (listing.status || '').toUpperCase() }}</span>
                     </div>
                     <p class="listing-description">{{ listing.description }}</p>
                     
                     <div class="listing-details">
                       <div class="listing-detail-item">
-                        <span class="detail-label">Accepted:</span>
+                        <span class="detail-label">Posted:</span>
                         <span>{{ formatDateShort(listing.created_at) }}</span>
                       </div>
                     </div>
                   </div>
 
                   <div class="listing-footer">
-                    <p class="listing-payment">${{ listing.payment || listing.agreed_amount }}</p>
+                    <p class="listing-payment">${{ listing.payment }}</p>
                     
                     <div class="listing-actions">
-                      <button v-if="!user.is_helper" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">
-                        Mark as Completed
-                      </button>
-                      
-                      <span v-else class="btn-action-placeholder">
-                        In Progress
-                      </span>
+                      <span v-if="!user.is_helper" class="btn-action-placeholder">Waiting for Payment</span> <span v-else class="btn-action-placeholder">Waiting for Poster to Pay</span>
                     </div>
                   </div>
                 </div>
@@ -347,14 +334,9 @@
               <div v-else class="empty-state">
                 <div class="empty-icon-text">No Jobs</div>
                 <p class="empty-title">No ongoing jobs</p>
-                <p class="empty-text">Jobs you've accepted or posted that are 'in-progress' will appear here.</p>
-              </div>
+                <p class="empty-text">Jobs that are accepted but not yet paid will appear here.</p> </div>
             </div>
           </div>
-
-
-
-
         </section>
       </template>
     </main>
@@ -649,7 +631,7 @@ const availabilityDayOptions = [
 ];
 
 const userListings = ref([]);
-const helperOngoingJobs = ref([]);
+const helperJobs = ref([]);
 const completedJobs = ref([]);
 const userIdFromSession = ref(null);
 
@@ -671,8 +653,90 @@ const tiers = [
   { name: 'Diamond', min: 1800, max: Infinity, image: new URL('@/assets/diamond.png', import.meta.url).href }
 ];
 
-const activeListings = computed(() => userListings.value.filter(l => l.status === 'open'));
-const activeListingsCount = computed(() => activeListings.value.length);
+// NEW FUNCTION TO LOAD HELPER'S ONGOING JOBS
+async function loadHelperJobs(uid) {
+  if (!uid) {
+    helperJobs.value = [];
+    return;
+  }
+  try {
+    let allHelperJobs = [];
+
+    // 1. Get 'in-progress' jobs from 'helper_jobs' table
+    const { data: directHelperJobs, error: directError } = await supabase
+      .from('helper_jobs')
+      .select('id, job_title, agreed_amount, created_at, status, payment_status, client_id')
+      .eq('helper_id', uid)
+      .eq('status', 'in-progress');
+
+    if (directError) throw directError;
+
+    if (directHelperJobs) {
+      allHelperJobs.push(...directHelperJobs.map(j => ({
+        ...j,
+        title: j.job_title,
+        payment: j.agreed_amount,
+        // Ensure payment_status is 'pending' if null
+        payment_status: j.payment_status || 'pending' 
+      })));
+    }
+
+    // 2. Get 'in-progress' jobs from regular 'chats'
+    const { data: chatJobs, error: chatError } = await supabase
+      .from('chats')
+      .select('job_id, payment_status, job_poster_id')
+      .eq('job_seeker_id', uid)
+      .eq('offer_accepted', true); // 'offer_accepted' = in-progress
+
+    if (chatError) throw chatError;
+
+    if (chatJobs && chatJobs.length > 0) {
+      const jobIds = chatJobs.map(c => c.job_id);
+      
+      const { data: jobDetails, error: jobDetailsError } = await supabase
+        .from('User-Job-Request')
+        .select('id, title, description, payment, created_at, status')
+        .in('id', jobIds)
+        .eq('status', 'in-progress'); // Make sure job is still 'in-progress'
+
+      if (jobDetailsError) throw jobDetailsError;
+
+      if (jobDetails) {
+        allHelperJobs.push(...jobDetails.map(job => {
+          const correspondingChat = chatJobs.find(c => c.job_id === job.id);
+          return {
+            ...job,
+            payment_status: correspondingChat?.payment_status || 'pending'
+          };
+        }));
+      }
+    }
+    
+    helperJobs.value = allHelperJobs;
+
+  } catch (e) {
+    console.error('Error loading helper jobs:', e);
+    helperJobs.value = [];
+  }
+}
+
+// This property is used by the "Ongoing Jobs" tab
+const activeListings = computed(() => {
+  if (user.is_helper) {
+    // For a Helper: Filter helperJobs for 'in-progress' and 'pending' payment
+    return helperJobs.value.filter(j => j.status === 'in-progress' && j.payment_status !== 'paid');
+  } else {
+    // For a Poster: Filter userListings for 'in-progress' and 'pending' payment
+    return userListings.value.filter(l => l.status === 'in-progress' && l.payment_status !== 'paid');
+  }
+});
+const openListings = computed(() => {
+  return userListings.value.filter(l => l.status === 'open');
+});
+const activeListingsCount = computed(() => userListings.value.length);
+const ongoingJobs = computed(() => {
+  return userListings.value.filter(l => l.status === 'in-progress');
+});
 
 const activeAndInProgressListings = computed(() => {
   return userListings.value.filter(l => l.status === 'open' || l.status === 'in-progress');
@@ -746,88 +810,6 @@ function removeHelperSkill(i) { editForm.helper_skills.splice(i, 1); }
 function addExperience() { editForm.experience.push(''); }
 function removeExperience(i) { editForm.experience.splice(i, 1); }
 
-const posterOngoingJobs = computed(() => {
-  return userListings.value.filter(l => l.status === 'in-progress');
-});
-
-// This is what the new tab will display
-const ongoingJobs = computed(() => {
-  if (user.is_helper) {
-    return helperOngoingJobs.value; // Use the new list we fetched
-  } else {
-    return posterOngoingJobs.value; // Use the filtered poster's list
-  }
-});
-
-async function loadHelperOngoingJobs(uid) {
-  if (!uid) {
-    helperOngoingJobs.value = [];
-    return;
-  }
-  
-  try {
-    let allHelperJobs = [];
-
-    // 1. Get 'in-progress' jobs from 'helper_jobs' table (Direct Helper Chats)
-    // These are jobs that are 'accepted' (not paid) or 'in-progress' (paid)
-    const { data: directHelperJobs, error: directError } = await supabase
-      .from('helper_jobs')
-      .select('id, job_title, agreed_amount, created_at, status, payment_status, client_id')
-      .eq('helper_id', uid)
-      .in('status', ['accepted', 'in-progress']); // <-- Accepted but not completed
-
-    if (directError) throw directError;
-
-    if (directHelperJobs) {
-      allHelperJobs.push(...directHelperJobs.map(j => ({
-        ...j,
-        title: j.job_title,
-        payment: j.agreed_amount,
-        payment_status: j.payment_status || 'pending' 
-      })));
-    }
-
-    // 2. Get 'in-progress' jobs from regular 'chats' (Job Page Listings)
-    const { data: chatJobs, error: chatError } = await supabase
-      .from('chats')
-      .select('job_id, payment_status, job_poster_id')
-      .eq('job_seeker_id', uid)
-      .eq('offer_accepted', true); // <-- Accepted
-
-    if (chatError) throw chatError;
-
-    if (chatJobs && chatJobs.length > 0) {
-      const jobIds = chatJobs.map(c => c.job_id);
-      
-      const { data: jobDetails, error: jobDetailsError } = await supabase
-        .from('User-Job-Request')
-        .select('id, title, description, payment, created_at, status')
-        .in('id', jobIds)
-        .eq('status', 'in-progress'); // <-- Not completed
-
-      if (jobDetailsError) throw jobDetailsError;
-
-      if (jobDetails) {
-        allHelperJobs.push(...jobDetails.map(job => {
-          const correspondingChat = chatJobs.find(c => c.job_id === job.id);
-          return {
-            ...job,
-            payment_status: correspondingChat?.payment_status || 'pending'
-          };
-        }));
-      }
-    }
-    
-    // Sort by most recent
-    allHelperJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    helperOngoingJobs.value = allHelperJobs;
-
-  } catch (e) {
-    console.error('Error loading helper ongoing jobs:', e);
-    helperOngoingJobs.value = [];
-  }
-}
-
 async function loadCompletedJobs(uid) {
   try {
     if (!uid) {
@@ -845,15 +827,13 @@ async function loadCompletedJobs(uid) {
     };
 
     console.log('📋 Querying helper_jobs table...');
-    // ✅ FIXED: Only query for completed jobs
     const { data: helperJobsData, error: helperJobsError } = await supabase
-  .from('helper_jobs')
-  .select('id, job_title, agreed_amount, client_id, created_at, status, payment_status')
-  .eq('helper_id', uid)
-  .in('status', ['completed', 'in-progress'])  // ← SHOW BOTH COMPLETED AND IN-PROGRESS
-  .eq('payment_status', 'paid')  // ← ONLY SHOW PAID JOBS
-  .order('created_at', { ascending: false });
-  
+      .from('helper_jobs')
+      .select('id, job_title, agreed_amount, client_id, created_at, status')
+      .eq('helper_id', uid)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false });
+
     console.log('📊 helper_jobs query result:', { count: helperJobsData?.length || 0 });
 
     if (helperJobsError) throw helperJobsError;
@@ -907,7 +887,6 @@ async function loadCompletedJobs(uid) {
         .from('User-Job-Request')
         .select('id, title, status, user_id, created_at')
         .in('id', jobIds)
-        .eq('status', 'completed');
 
       if (!jobsError && jobsData && jobsData.length > 0) {
         const posterIds = [...new Set(jobsData.map(j => j.user_id))];
@@ -952,96 +931,58 @@ async function loadCompletedJobs(uid) {
 
     if (posterJobsError) throw posterJobsError;
 
-    // Around line 815-850, replace the job poster section with this:
     if (posterJobsData && posterJobsData.length > 0) {
       for (const job of posterJobsData) {
         let adventurerNames = [];
         let actualPaidAmount = job.payment;
         
-        console.log('🔍 DEBUG - Processing job:', job.id, job.title);
-        
-        // ✅ FIX: Check BOTH regular chats AND helper_jobs for completed work
-        const [regularChats, helperJobs] = await Promise.all([
-          // Check regular chats (job seekers)
-          supabase
-            .from('chats')
-            .select('job_seeker_id, payment_amount')
-            .eq('job_id', job.id)
-            .eq('offer_accepted', true),
+        // First, check helper_jobs table
+        const { data: helperJobData, error: helperJobError } = await supabase
+          .from('helper_jobs')
+          .select('helper_id')
+          .eq('job_title', job.title)
+          .eq('client_id', uid)
+          .eq('status', 'completed');
+
+        if (!helperJobError && helperJobData && helperJobData.length > 0) {
+          const helperIds = [...new Set(helperJobData.map(hj => hj.helper_id))];
           
-          // Check helper_jobs (adventurers who accepted through helper chat)
-          supabase
-            .from('helper_jobs')
-            .select('helper_id, agreed_amount, status, payment_status')  // ✅ Added status fields for debugging
-            .eq('job_id', job.id)
-        ]);
+          const { data: helpersData, error: helpersError } = await supabase
+            .from('users')
+            .select('username')
+            .in('id', helperIds);
 
-        console.log('📊 Regular chats result:', {
-          error: regularChats.error,
-          count: regularChats.data?.length || 0,
-          data: regularChats.data
-        });
-        
-        console.log('📊 Helper jobs result (ALL):', {
-          error: helperJobs.error,
-          count: helperJobs.data?.length || 0,
-          data: helperJobs.data
-        });
-
-        // Combine adventurer IDs from both sources
-        const adventurerIds = new Set();
-        
-        if (!regularChats.error && regularChats.data) {
-          regularChats.data.forEach(chat => {
-            console.log('✅ Adding from chats:', chat.job_seeker_id);
-            adventurerIds.add(chat.job_seeker_id);
-            if (chat.payment_amount) actualPaidAmount = chat.payment_amount;
-          });
+          if (!helpersError && helpersData) {
+            adventurerNames.push(...helpersData.map(u => u.username || 'Unknown'));
+          }
         }
         
-        if (!helperJobs.error && helperJobs.data) {
-          // ✅ REMOVED the .in('status', ...) and .eq('payment_status', 'paid') filters
-          // to see ALL helper_jobs first
-          helperJobs.data.forEach(hjob => {
-            console.log('📝 Helper job status:', {
-              helper_id: hjob.helper_id,
-              status: hjob.status,
-              payment_status: hjob.payment_status,
-              agreed_amount: hjob.agreed_amount
-            });
-            
-            // ✅ Filter in JavaScript instead to see what's being filtered out
-            if (hjob.status === 'completed' || hjob.status === 'accepted' || (hjob.status === 'in-progress' && hjob.payment_status === 'paid')) {
-              console.log('✅ Adding from helper_jobs:', hjob.helper_id);
-              adventurerIds.add(hjob.helper_id);
-              if (hjob.agreed_amount) actualPaidAmount = hjob.agreed_amount;
-            } else {
-              console.log('⚠️ SKIPPED - Status/payment not matching:', hjob.status, hjob.payment_status);
-            }
-          });
-        }
+        // Then check chats table
+        const { data: chatData, error: chatError } = await supabase
+          .from('chats')
+          .select('job_seeker_id, payment_amount')
+          .eq('job_id', job.id)
+          .eq('offer_accepted', true);
 
-        console.log('👥 Combined adventurer IDs:', Array.from(adventurerIds));
-
-        // Fetch usernames for all adventurers
-        if (adventurerIds.size > 0) {
+        if (!chatError && chatData && chatData.length > 0) {
+          const adventurerIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+          
           const { data: adventurersData, error: adventurersError } = await supabase
             .from('users')
-            .select('id, username')  // ✅ Added id for verification
-            .in('id', Array.from(adventurerIds));
-
-          console.log('👤 Adventurers query result:', {
-            error: adventurersError,
-            count: adventurersData?.length || 0,
-            data: adventurersData
-          });
+            .select('username')
+            .in('id', adventurerIds);
 
           if (!adventurersError && adventurersData) {
-            adventurerNames = adventurersData.map(u => u.username || 'Unknown');
+            adventurerNames.push(...adventurersData.map(u => u.username || 'Unknown'));
+          }
+          
+          if (chatData[0]?.payment_amount) {
+            actualPaidAmount = chatData[0].payment_amount;
           }
         }
 
-        console.log('✅ Final adventurer names:', adventurerNames);
+        // Remove duplicates
+        adventurerNames = [...new Set(adventurerNames)];
 
         const jobObj = {
           id: `poster-${job.id}`,
@@ -1057,12 +998,14 @@ async function loadCompletedJobs(uid) {
         const uniqueKey = createUniqueKey(jobObj);
         if (!jobsMap.has(uniqueKey)) {
           jobsMap.set(uniqueKey, jobObj);
-          console.log('✅ Added poster job:', job.title, '- Adventurers:', adventurerNames.join(', '));
+          console.log('✅ Added poster job:', job.title, '- Paid:', actualPaidAmount);
         } else {
           console.log('⚠️ Duplicate skipped (poster):', job.title);
         }
       }
     }
+
+// ...existing code...
 
     const deduplicatedJobs = Array.from(jobsMap.values());
     deduplicatedJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -1243,6 +1186,7 @@ async function loadAll() {
       user.helper_profile = profileData || null;
     }
 
+    // ✅ FIXED: Properly load stats
     if (user.is_helper) {
       try {
         const { data: statsData } = await supabase.rpc('get_helper_stats_for', { helper_uuid: uid });
@@ -1257,17 +1201,19 @@ async function loadAll() {
 
     await loadUserReviews(uid);
     
+    // ✅ FIXED: Fallback for review count
     if (user.reviewCount === 0 && user.reviews && user.reviews.length > 0) {
       user.reviewCount = user.reviews.length;
       const totalRating = user.reviews.reduce((sum, review) => sum + (review.rating || 0), 0);
       user.rating = totalRating / user.reviews.length;
     }
 
+    // Load jobs for both roles
     await loadUserListings(uid);
-    await loadHelperOngoingJobs(uid);
+    await loadHelperJobs(uid);
     await loadCompletedJobs(uid);
     
-    // ✅ FIXED: Calculate stats from completed jobs using 'Adventurer' role
+    // ✅ Calculate stats from completed jobs
     const adventurerJobs = completedJobs.value.filter(job => job.role === 'Adventurer');
     
     // Total jobs completed (both as poster and adventurer)
@@ -1281,6 +1227,15 @@ async function loadAll() {
     user.stats.rating = user.rating;
     
     await calculateTierInfo(uid);
+    
+    console.log('✅ Final user stats:', {
+      rating: user.rating,
+      reviewCount: user.reviewCount,
+      jobsCompleted: user.stats.jobsCompleted,
+      earnings: user.stats.earnings,
+      reviews: user.reviews.length
+    });
+    
   } catch (err) {
     console.error('loadAll error', err);
     errorMessage.value = String(err.message || err);
@@ -1366,6 +1321,7 @@ async function loadUserListings(uid) {
   try {
     if (!uid) return;
 
+    // 1. Fetch all listings for the user
     const { data: listingsData, error } = await supabase
       .from('User-Job-Request')
       .select('*')
@@ -1382,39 +1338,63 @@ async function loadUserListings(uid) {
       return;
     }
 
+    // 2. Get all job IDs
+    const jobIds = listingsData.map(l => l.id);
+    if (jobIds.length === 0) {
+      userListings.value = [];
+      return;
+    }
+
+    // 3. Find all chats for those jobs that have been paid
+    const { data: paidChats, error: chatError } = await supabase
+      .from('chats')
+      .select('job_id, payment_status')
+      .in('job_id', jobIds)
+      .eq('payment_status', 'paid');
+    
+    if (chatError) {
+      console.warn('Error fetching payment status:', chatError);
+    }
+
+    // 4. Create a Set of paid job IDs for fast lookup
+    const paidJobIds = new Set(paidChats ? paidChats.map(c => c.job_id) : []);
+
+    // 5. Enrich listings with payment_status and completedBy
     const enrichedListings = await Promise.all(listingsData.map(async (listing) => {
-      if (listing.status !== 'completed') {
-        return listing;
-      }
+      // Add our new payment_status property
+      const payment_status = paidJobIds.has(listing.id) ? 'paid' : 'pending';
 
       let completedBy = [];
-      try {
-        const { data: chatData, error: chatError } = await supabase
-          .from('chats')
-          .select('job_seeker_id')
-          .eq('job_id', listing.id)
-          .eq('offer_accepted', true);
+      if (listing.status === 'completed') {
+        try {
+          const { data: chatData, error: cError } = await supabase
+            .from('chats')
+            .select('job_seeker_id')
+            .eq('job_id', listing.id)
+            .eq('offer_accepted', true);
 
-        if (chatError) throw chatError;
+          if (cError) throw cError;
 
-        if (chatData && chatData.length > 0) {
-          const adventurerIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
-          
-          const { data: usersData, error: userError } = await supabase
-            .from('users')
-            .select('username')
-            .in('id', adventurerIds);
+          if (chatData && chatData.length > 0) {
+            const adventurerIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
+            
+            const { data: usersData, error: uError } = await supabase
+              .from('users')
+              .select('username')
+              .in('id', adventurerIds);
 
-          if (userError) throw userError;
-          completedBy = usersData ? usersData.map(u => u.username || 'Unknown') : [];
+            if (uError) throw uError;
+            completedBy = usersData ? usersData.map(u => u.username || 'Unknown') : [];
+          }
+        } catch (enrichError) {
+          console.error(`Error fetching adventurer for listing ${listing.id}:`, enrichError);
+          completedBy = ['Error fetching adventurer'];
         }
-      } catch (enrichError) {
-        console.error(`Error fetching adventurer for listing ${listing.id}:`, enrichError);
-        completedBy = ['Error fetching adventurer'];
       }
 
       return {
         ...listing,
+        payment_status, // <-- The new property
         completedBy: completedBy
       };
     }));
@@ -1428,90 +1408,58 @@ async function loadUserListings(uid) {
 }
 
 async function markAsCompleted(jobId) {
-  if (!jobId) {
-    toast.error('Invalid job ID', 'Error', 8000);
-    return;
-  }
-
-  const confirmed = await toast.confirm({
-    message: 'Are you sure you want to mark this job as completed? This will notify the adventurer(s) and move the job to history.',
-    title: 'Mark Job as Completed',
-    confirmText: 'Yes, Mark Completed',
-    cancelText: 'Cancel',
-    type: 'warning'
-  });
-
-  if (!confirmed) {
-    return;
-  }
-
   try {
-    const userId = currentUserId.value;
-
-    const { data: updatedJob, error: updateError } = await supabase
+    console.log('🔄 Marking job as completed:', jobId);
+    
+    // Step 1: Update User-Job-Request table
+    const { error: jobError } = await supabase
       .from('User-Job-Request')
       .update({ status: 'completed' })
-      .eq('id', jobId)
-      .eq('user_id', userId)
+      .eq('id', jobId);
+
+    if (jobError) throw jobError;
+
+    // Step 2: Get the job title to match in helper_jobs
+    const { data: jobData, error: fetchError } = await supabase
+      .from('User-Job-Request')
       .select('title')
+      .eq('id', jobId)
       .single();
 
-    if (updateError) throw updateError;
-    const jobTitle = updatedJob.title || 'your recent job';
+    if (fetchError) throw fetchError;
 
-    let adventurerNames = [];
-    let adventurerIds = [];
-    const { data: chatData, error: chatError } = await supabase
+    // Step 3: Update helper_jobs table using job_title
+    const { error: helperJobError } = await supabase
+      .from('helper_jobs')
+      .update({ status: 'completed' })
+      .eq('job_title', jobData.title)
+      .eq('client_id', currentUserId.value);
+
+    if (helperJobError) {
+      console.warn('⚠️ Could not update helper_jobs:', helperJobError);
+      // Don't throw - job might not be in helper_jobs table
+    } else {
+      console.log('✅ Updated helper_jobs status to completed');
+    }
+
+    // Step 4: Also update any associated chats
+    const { error: chatError } = await supabase
       .from('chats')
-      .select('job_seeker_id')
+      .update({ payment_status: 'paid' })
       .eq('job_id', jobId)
       .eq('offer_accepted', true);
 
-    if (chatError) throw chatError;
-
-    if (chatData && chatData.length > 0) {
-      adventurerIds = [...new Set(chatData.map(chat => chat.job_seeker_id))];
-
-      const { data: usersData, error: userError } = await supabase
-        .from('users')
-        .select('username')
-        .in('id', adventurerIds);
-      
-      if (userError) throw userError;
-      adventurerNames = usersData ? usersData.map(u => u.username || 'Unknown') : [];
+    if (chatError) {
+      console.warn('⚠️ Could not update chats:', chatError);
+    } else {
+      console.log('✅ Updated chat payment_status to paid');
     }
 
-    if (adventurerIds.length > 0) {
-      const notifications = adventurerIds.map(adventurerId => ({
-        user_id: adventurerId,
-        message: `Job '${jobTitle}' has been marked as completed. Payment should be processed shortly.`,
-        link: '/wallet'
-      }));
-
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert(notifications);
-
-      if (notificationError) {
-        console.error('Error sending notifications:', notificationError);
-      }
-    }
-
-    const jobIndex = userListings.value.findIndex(job => job.id === jobId);
-    
-    if (jobIndex !== -1) {
-      userListings.value[jobIndex].status = 'completed';
-      userListings.value[jobIndex].completedBy = adventurerNames;
-    }
-
-    toast.success('Job marked as completed successfully! Adventurer(s) notified.', 'Job Completed', 8000);
-
-    await loadUserListings(userId);
-    await loadCompletedJobs(userId);
-
-  } catch (error) {
-    console.error('Unexpected error marking job as completed:', error);
-    toast.error('An unexpected error occurred. Please try again.', 'Error', 8000);
+    toast.success('Job marked as completed!');
+    await loadAll();
+  } catch (err) {
+    console.error('❌ Error marking job as completed:', err);
+    toast.error('Failed to mark job as completed');
   }
 }
 
@@ -1783,6 +1731,15 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 </script>
 
 <style scoped>
+.btn-action-placeholder {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+  padding: .5rem .75rem;
+  font-style: italic;
+  text-align: right;
+  flex: 1;
+}
 /* All previous styles remain the same, plus these additions: */
 .container { max-width:1200px; margin:0 auto; padding:2rem 1rem; }
 .loading-container, .not-logged-in, .error-banner { text-align:center; padding:2rem; }
