@@ -576,42 +576,26 @@ const loadChatData = async () => {
     
     // For helper chats, check helper_jobs table instead of chat.offer_accepted
     if (isHelperChat.value) {
-      // Get the MOST RECENT helper_job for this chat that's PENDING payment
-      const { data: helperJobs, error: hjError } = await supabase
-        .from('helper_jobs')
-        .select('id, status, payment_status, created_at')
-        .eq('helper_chat_id', chatId)
-        .in('status', ['accepted', 'in-progress'])
-        .eq('payment_status', 'pending') // ✅ ONLY look for pending payments
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      console.log('📊 Pending helper jobs found:', helperJobs);
-      
-      if (!hjError && helperJobs && helperJobs.length > 0) {
-        const latestJob = helperJobs[0];
-        console.log('📌 Latest job payment_status:', latestJob.payment_status);
-        offerAcceptedInThisChat.value = true;
-        isPaymentCompleted.value = false; // It's pending, so not completed
-      } else {
-        // Check if there's a PAID job (for after payment)
-        const { data: paidJobs, error: paidError } = await supabase
-          .from('helper_jobs')
-          .select('id, status, payment_status')
-          .eq('helper_chat_id', chatId)
-          .eq('payment_status', 'paid')
-          .order('created_at', { ascending: false})
-          .limit(1);
-        
-        if (!paidError && paidJobs && paidJobs.length > 0) {
-          offerAcceptedInThisChat.value = true;
-          isPaymentCompleted.value = true;
-        } else {
-          offerAcceptedInThisChat.value = false;
-          isPaymentCompleted.value = false;
-        }
-      }
-    } else {
+  // Get the MOST RECENT helper_job for this chat
+  const { data: helperJobs, error: hjError } = await supabase
+    .from('helper_jobs')
+    .select('id, status, payment_status, created_at')
+    .eq('helper_chat_id', chatId)
+    .in('status', ['accepted', 'in-progress', 'completed'])
+    .order('created_at', { ascending: false }) // ✅ Get most recent first
+    .limit(1); // ✅ Only get the latest one
+  
+  if (!hjError && helperJobs && helperJobs.length > 0) {
+    const latestJob = helperJobs[0];
+    offerAcceptedInThisChat.value = true;
+    // ✅ Check payment status of ONLY the latest job
+    isPaymentCompleted.value = latestJob.payment_status === 'paid';
+  } else {
+    offerAcceptedInThisChat.value = false;
+    isPaymentCompleted.value = false;
+  }
+}
+     else {
       // For regular job chats, use the old logic
       offerAcceptedInThisChat.value = chat.offer_accepted === true;
       isPaymentCompleted.value = chat.payment_status === 'paid';
@@ -777,6 +761,7 @@ const offerJobTitle = ref('');
 const userJobListings = ref([]); // New: store user's job listings
 const selectedJobId = ref(null); // New: track selected job
 
+// New: Load user's job listings for helper chats
 // New: Load user's job listings for helper chats
 const loadUserJobListings = async () => {
   try {
@@ -1054,40 +1039,7 @@ const acceptOffer = async (offerMessage) => {
     // 2. Mark chat as accepted and handle job updates
 
     if (isHelperChat.value) {
-      // ✅ Cancel ALL old helper_jobs for this chat FIRST
-      const { error: cancelOldJobsError } = await supabase
-        .from('helper_jobs')
-        .update({ 
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString()
-        })
-        .eq('helper_chat_id', chatId)
-        .neq('payment_status', 'paid');
-
-      if (cancelOldJobsError) {
-        console.error('❌ Error cancelling old helper jobs:', cancelOldJobsError);
-      } else {
-        console.log('✅ Cancelled all old helper jobs before creating new one');
-      }
-
-      // ✅ FIX: Get job_title from offer message OR find it from ANY previous offer
-      let jobTitle = offerMessage.job_title;
-      
-      if (!jobTitle) {
-        console.log('⚠️ Counter offer has no job_title, searching all messages...');
-        // Find ANY offer or counter_offer that has job_title (search backwards from newest)
-        const offersWithTitle = messages.value
-          .filter(m => 
-            (m.message_type === 'offer' || m.message_type === 'counter_offer') && 
-            m.job_title
-          )
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        
-        if (offersWithTitle.length > 0) {
-          jobTitle = offersWithTitle[0].job_title;
-          console.log('✅ Found job_title from previous offer:', jobTitle);
-        }
-      }
+      const jobTitle = offerMessage.job_title;
       
       if (jobTitle) {
         // Find the job ID
@@ -1100,14 +1052,11 @@ const acceptOffer = async (offerMessage) => {
           .single();
         
         if (jobFetchError || !jobData) {
-          console.error('❌ Could not find job:', jobFetchError);
           throw new Error(`Could not find job with title "${jobTitle}"`);
         }
 
-        console.log('📌 Creating helper_jobs record for chat:', chatId, 'job:', jobData.id);
-
-        // Create NEW helper_jobs entry
-        const { data: newHelperJob, error: helperJobError } = await supabase
+        // Create helper_jobs entry FIRST
+        const { error: helperJobError } = await supabase
           .from('helper_jobs')
           .insert([{
             helper_chat_id: chatId,
@@ -1118,24 +1067,12 @@ const acceptOffer = async (offerMessage) => {
             payment_amount: offerMessage.offer_amount,
             agreed_amount: offerMessage.offer_amount,
             job_title: jobTitle,
-            payment_status: 'pending',
             accepted_at: new Date().toISOString()
-          }])
-          .select();
+          }]);
         
-        if (helperJobError) {
-          console.error('❌ Failed to create helper_jobs:', helperJobError);
-          throw helperJobError;
-        }
-        
-        if (!newHelperJob || newHelperJob.length === 0) {
-          console.error('❌ Helper job was not created - no data returned');
-          throw new Error('Failed to create helper job record');
-        }
-        
-        console.log('✅ Successfully created helper_jobs:', newHelperJob[0]);
+        if (helperJobError) throw helperJobError;
 
-        // Update job status
+        // Now update the job - SAME LOGIC AS NORMAL CHATS
         const requiresMultipleHelpers = jobData.multiple_positions || false;
         const positionsAvailable = jobData.positions_available || 1;
         const positionsFilled = jobData.positions_filled || 0;
@@ -1168,9 +1105,6 @@ const acceptOffer = async (offerMessage) => {
             })
             .eq('id', jobData.id);
         }
-      } else {
-        console.error('❌ No job_title found - cannot create helper_jobs');
-        throw new Error('Cannot find job title for this offer');
       }
     } else {
       // Regular job chat logic (unchanged)
@@ -1179,7 +1113,7 @@ const acceptOffer = async (offerMessage) => {
         .update({ 
           offer_accepted: true,
           accepted_at: new Date().toISOString(),
-          payment_amount: parseFloat(offerMessage.offer_amount)
+          payment_amount: offerMessage.offer_amount
         })
         .eq('id', chatId);
       if (error) throw error;
@@ -1473,11 +1407,11 @@ const proceedToPayment = (acceptanceMessage) => {
   let jobTitle = '';
   if (isHelperChat.value) {
     const offerMessages = messages.value.filter(m =>
-      (m.message_type === 'offer' || m.message_type === 'counter_offer') &&
-      m.job_title
+      m.message_type === 'offer' &&
+      m.offer_amount === acceptanceMessage.offer_amount
     );
-    jobTitle = offerMessages.length > 0 
-      ? offerMessages[offerMessages.length - 1].job_title 
+    jobTitle = offerMessages.length > 0 && offerMessages[offerMessages.length - 1].message
+      ? offerMessages[offerMessages.length - 1].message.split(' for ')[1] || 'Adventurer Service'
       : 'Adventurer Service';
   } else {
     jobTitle = jobInfo.value?.title || 'Job Service';
@@ -1522,49 +1456,12 @@ const submitCounterOffer = async () => {
     isProcessing.value = true;
     const chatId = route.params.id;
 
-    // 1. Update original offer status
     const { error: updateError } = await supabase
       .from(messagesTable.value)
       .update({ offer_status: 'countered' })
       .eq('id', selectedOffer.value.id);
 
     if (updateError) throw updateError;
-
-    // 2. ✅ Cancel any existing helper_jobs records when countering
-    if (isHelperChat.value) {
-      const { error: cancelJobError } = await supabase
-        .from('helper_jobs')
-        .update({ 
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString()
-        })
-        .eq('helper_chat_id', chatId)
-        .in('status', ['accepted', 'in-progress'])
-        .neq('payment_status', 'paid'); // Don't cancel if already paid
-
-      if (cancelJobError) {
-        console.error('Error cancelling old helper job:', cancelJobError);
-      } else {
-        console.log('✅ Old helper job cancelled due to counter offer');
-      }
-    }
-
-    // 3. ✅ FIX: Preserve job_title from original offer if this is a helper chat
-    let jobTitle = null;
-    if (isHelperChat.value) {
-      // Find the job_title from the original offer or any previous offer
-      const originalOffer = messages.value
-        .filter(m => 
-          (m.message_type === 'offer' || m.message_type === 'counter_offer') && 
-          m.job_title
-        )
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-      
-      if (originalOffer) {
-        jobTitle = originalOffer.job_title;
-        console.log('✅ Preserving job_title in counter offer:', jobTitle);
-      }
-    }
 
     const counterOfferText = `Counter Offer: $${counterAmount.value}`;
 
@@ -1577,11 +1474,6 @@ const submitCounterOffer = async () => {
       offer_status: 'pending',
       read: false
     };
-
-    // ✅ Add job_title to counter offer if found
-    if (jobTitle) {
-      counterData.job_title = jobTitle;
-    }
 
     const { data: counterMsg, error: counterError } = await supabase
       .from(messagesTable.value)
