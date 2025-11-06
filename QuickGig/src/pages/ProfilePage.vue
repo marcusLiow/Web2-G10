@@ -303,7 +303,58 @@
       <p class="empty-text">Your active and in-progress job listings will appear here. Completed jobs can be found in the Job History tab.</p>
     </div>
   </div>
-</div>
+          </div>
+
+          <div v-if="activeTab === 'ongoing'" class="tab-content">
+            <div class="content-body">
+              <h2>My Ongoing Jobs</h2>
+              
+              <div v-if="ongoingJobs && ongoingJobs.length" class="listings-list">
+                <div v-for="listing in ongoingJobs" :key="listing.id" class="listing-card">
+                  <div class="listing-main">
+                    <div class="listing-header-row">
+                      <h3>{{ listing.title }}</h3>
+                      <span :class="['listing-status-badge', getStatusClass(listing.status || 'in-progress')]">
+                        {{ (listing.status || 'in-progress').toUpperCase() }}
+                      </span>
+                    </div>
+                    <p class="listing-description">{{ listing.description }}</p>
+                    
+                    <div class="listing-details">
+                      <div class="listing-detail-item">
+                        <span class="detail-label">Accepted:</span>
+                        <span>{{ formatDateShort(listing.created_at) }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="listing-footer">
+                    <p class="listing-payment">${{ listing.payment || listing.agreed_amount }}</p>
+                    
+                    <div class="listing-actions">
+                      <button v-if="!user.is_helper" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">
+                        Mark as Completed
+                      </button>
+                      
+                      <span v-else class="btn-action-placeholder">
+                        In Progress
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else class="empty-state">
+                <div class="empty-icon-text">No Jobs</div>
+                <p class="empty-title">No ongoing jobs</p>
+                <p class="empty-text">Jobs you've accepted or posted that are 'in-progress' will appear here.</p>
+              </div>
+            </div>
+          </div>
+
+
+
+
         </section>
       </template>
     </main>
@@ -519,7 +570,8 @@ const tabs = [
   { label: 'Skills & Expertise', value: 'skills' },
   { label: 'Reviews', value: 'reviews' },
   { label: 'Job History', value: 'jobs' },
-  { label: 'My Listings', value: 'listings' }
+  { label: 'My Listings', value: 'listings' },
+  { label: 'Ongoing Jobs', value: 'ongoing' }
 ];
 
 function changeTab(val) {
@@ -597,6 +649,7 @@ const availabilityDayOptions = [
 ];
 
 const userListings = ref([]);
+const helperOngoingJobs = ref([]);
 const completedJobs = ref([]);
 const userIdFromSession = ref(null);
 
@@ -692,6 +745,88 @@ function addHelperSkill() { editForm.helper_skills.push({ name: '', level: 'Begi
 function removeHelperSkill(i) { editForm.helper_skills.splice(i, 1); }
 function addExperience() { editForm.experience.push(''); }
 function removeExperience(i) { editForm.experience.splice(i, 1); }
+
+const posterOngoingJobs = computed(() => {
+  return userListings.value.filter(l => l.status === 'in-progress');
+});
+
+// This is what the new tab will display
+const ongoingJobs = computed(() => {
+  if (user.is_helper) {
+    return helperOngoingJobs.value; // Use the new list we fetched
+  } else {
+    return posterOngoingJobs.value; // Use the filtered poster's list
+  }
+});
+
+async function loadHelperOngoingJobs(uid) {
+  if (!uid) {
+    helperOngoingJobs.value = [];
+    return;
+  }
+  
+  try {
+    let allHelperJobs = [];
+
+    // 1. Get 'in-progress' jobs from 'helper_jobs' table (Direct Helper Chats)
+    // These are jobs that are 'accepted' (not paid) or 'in-progress' (paid)
+    const { data: directHelperJobs, error: directError } = await supabase
+      .from('helper_jobs')
+      .select('id, job_title, agreed_amount, created_at, status, payment_status, client_id')
+      .eq('helper_id', uid)
+      .in('status', ['accepted', 'in-progress']); // <-- Accepted but not completed
+
+    if (directError) throw directError;
+
+    if (directHelperJobs) {
+      allHelperJobs.push(...directHelperJobs.map(j => ({
+        ...j,
+        title: j.job_title,
+        payment: j.agreed_amount,
+        payment_status: j.payment_status || 'pending' 
+      })));
+    }
+
+    // 2. Get 'in-progress' jobs from regular 'chats' (Job Page Listings)
+    const { data: chatJobs, error: chatError } = await supabase
+      .from('chats')
+      .select('job_id, payment_status, job_poster_id')
+      .eq('job_seeker_id', uid)
+      .eq('offer_accepted', true); // <-- Accepted
+
+    if (chatError) throw chatError;
+
+    if (chatJobs && chatJobs.length > 0) {
+      const jobIds = chatJobs.map(c => c.job_id);
+      
+      const { data: jobDetails, error: jobDetailsError } = await supabase
+        .from('User-Job-Request')
+        .select('id, title, description, payment, created_at, status')
+        .in('id', jobIds)
+        .eq('status', 'in-progress'); // <-- Not completed
+
+      if (jobDetailsError) throw jobDetailsError;
+
+      if (jobDetails) {
+        allHelperJobs.push(...jobDetails.map(job => {
+          const correspondingChat = chatJobs.find(c => c.job_id === job.id);
+          return {
+            ...job,
+            payment_status: correspondingChat?.payment_status || 'pending'
+          };
+        }));
+      }
+    }
+    
+    // Sort by most recent
+    allHelperJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    helperOngoingJobs.value = allHelperJobs;
+
+  } catch (e) {
+    console.error('Error loading helper ongoing jobs:', e);
+    helperOngoingJobs.value = [];
+  }
+}
 
 async function loadCompletedJobs(uid) {
   try {
@@ -1129,6 +1264,7 @@ async function loadAll() {
     }
 
     await loadUserListings(uid);
+    await loadHelperOngoingJobs(uid);
     await loadCompletedJobs(uid);
     
     // ✅ FIXED: Calculate stats from completed jobs using 'Adventurer' role
