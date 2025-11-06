@@ -253,7 +253,8 @@ const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
   const { data: existingJobs, error: checkError } = await supabase
     .from('helper_jobs')
     .select('id, job_id')
-    .eq('helper_chat_id', chatId);
+    .eq('helper_chat_id', chatId)
+    .eq('job_title', jobTitle);
 
   if (checkError) {
     console.error('Error checking for existing helper_jobs:', checkError);
