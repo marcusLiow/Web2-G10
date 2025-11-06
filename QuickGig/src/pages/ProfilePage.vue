@@ -537,6 +537,11 @@ import { supabase } from '../supabase/config';
 import { useRouter } from 'vue-router';
 import { useToast } from '../composables/useToast';
 
+import silverImg from '@/assets/silver.png';
+import goldImg from '@/assets/gold.png';
+import emeraldImg from '@/assets/emerald.png';
+import diamondImg from '@/assets/diamond.png';
+
 const router = useRouter();
 const toast = useToast();
 
@@ -639,7 +644,7 @@ const tierInfo = reactive({
   isHelper: false,
   currentXP: 0,
   name: 'Silver',
-  image: '/src/assets/silver.png',
+  image: silverImg,
   progress: 0,
   nextTier: 'Gold',
   nextTierXP: 600,
@@ -647,10 +652,10 @@ const tierInfo = reactive({
 });
 
 const tiers = [
-  { name: 'Silver', min: 0, max: 600, image: new URL('@/assets/silver.png', import.meta.url).href },
-  { name: 'Gold', min: 600, max: 1200, image: new URL('@/assets/gold.png', import.meta.url).href },
-  { name: 'Emerald', min: 1200, max: 1800, image: new URL('@/assets/emerald.png', import.meta.url).href },
-  { name: 'Diamond', min: 1800, max: Infinity, image: new URL('@/assets/diamond.png', import.meta.url).href }
+  { name: 'Silver', min: 0, max: 600, image: silverImg },  // ✅ Simplified
+  { name: 'Gold', min: 600, max: 1200, image: goldImg },
+  { name: 'Emerald', min: 1200, max: 1800, image: emeraldImg },
+  { name: 'Diamond', min: 1800, max: Infinity, image: diamondImg }
 ];
 
 // NEW FUNCTION TO LOAD HELPER'S ONGOING JOBS
