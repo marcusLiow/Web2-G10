@@ -262,50 +262,13 @@
             </div>
           </div>
 
-        <div v-if="activeTab === 'listings'" class="tab-content">
+          <div v-if="activeTab === 'listings'" class="tab-content">
             <div class="content-body">
               <h2>My Job Listings</h2>
 
-    <!-- Active & In Progress Listings -->
-      <div v-if="userListings && userListings.length" class="listings-list"> <div v-for="listing in userListings" :key="listing.id" class="listing-card">
-        <div class="listing-main">
-          <div class="listing-header-row">
-            <h3>{{ listing.title }}</h3>
-            <span :class="['listing-status-badge', getStatusClass(listing.status)]">{{ (listing.status || '').toUpperCase() }}</span>
-          </div>
-          <p class="listing-description">{{ listing.description }}</p>
-          
-          <div class="listing-details">
-            <div class="listing-detail-item">
-              <span class="detail-label">Posted:</span>
-              <span>{{ formatDateShort(listing.created_at) }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="listing-footer">
-          <p class="listing-payment">${{ listing.payment }}</p>
-          
-          <div class="listing-actions">
-            <button v-if="listing.status === 'open' || listing.status === 'in-progress'" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">Mark as Completed</button>
-            <button v-if="listing.status === 'open'" @click="editListing(listing)" class="btn-action btn-action-edit" type="button">Edit</button>
-            <button v-if="listing.status === 'open'" @click="deleteListing(listing.id)" class="btn-action btn-action-delete" type="button">Cancel Listing</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Empty State -->
-    <div v-else class="empty-state">
-                <div class="empty-icon-text">No Reviews</div>
-                <p class="empty-title">No reviews yet</p> <p class="empty-text">Reviews will appear here when someone rates your service</p> </div>
-  </div>
-</div>
-<div v-if="activeTab === 'ongoing'" class="tab-content">
-            <div class="content-body">
-                           
-              <div v-if="activeListings && activeListings.length" class="listings-list">
-                <div v-for="listing in activeListings" :key="listing.id" class="listing-card">
+              <!-- Active & In Progress Listings -->
+              <div v-if="userListings && userListings.length" class="listings-list">
+                <div v-for="listing in userListings" :key="listing.id" class="listing-card">
                   <div class="listing-main">
                     <div class="listing-header-row">
                       <h3>{{ listing.title }}</h3>
@@ -325,16 +288,20 @@
                     <p class="listing-payment">${{ listing.payment }}</p>
                     
                     <div class="listing-actions">
-                      <span v-if="!user.is_helper" class="btn-action-placeholder">Waiting for Payment</span> <span v-else class="btn-action-placeholder">Waiting for Poster to Pay</span>
+                      <button v-if="listing.status === 'open' || listing.status === 'in-progress'" @click="markAsCompleted(listing.id)" class="btn-action btn-action-complete" type="button">Mark as Completed</button>
+                      <button v-if="listing.status === 'open'" @click="editListing(listing)" class="btn-action btn-action-edit" type="button">Edit</button>
+                      <button v-if="listing.status === 'open'" @click="deleteListing(listing.id)" class="btn-action btn-action-delete" type="button">Cancel Listing</button>
                     </div>
                   </div>
                 </div>
               </div>
 
+              <!-- Empty State -->
               <div v-else class="empty-state">
-                <div class="empty-icon-text">No Jobs</div>
-                <p class="empty-title">No ongoing jobs</p>
-                <p class="empty-text">Jobs that are accepted but not yet paid will appear here.</p> </div>
+                <div class="empty-icon-text">No Listings</div>
+                <p class="empty-title">You haven't posted any jobs yet</p>
+                <p class="empty-text">All jobs you post (open, in-progress, and completed) will appear here.</p>
+              </div>
             </div>
           </div>
         </section>
@@ -557,8 +524,7 @@ const tabs = [
   { label: 'Skills & Expertise', value: 'skills' },
   { label: 'Reviews', value: 'reviews' },
   { label: 'Job History', value: 'jobs' },
-  { label: 'My Listings', value: 'listings' },
-  { label: 'Ongoing Jobs', value: 'ongoing' }
+  { label: 'My Listings', value: 'listings' }
 ];
 
 function changeTab(val) {
@@ -1009,8 +975,6 @@ async function loadCompletedJobs(uid) {
         }
       }
     }
-
-// ...existing code...
 
     const deduplicatedJobs = Array.from(jobsMap.values());
     deduplicatedJobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -1736,16 +1700,6 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
 </script>
 
 <style scoped>
-.btn-action-placeholder {
-  font-size: 0.875rem;
-  color: #6b7280;
-  font-weight: 500;
-  padding: .5rem .75rem;
-  font-style: italic;
-  text-align: right;
-  flex: 1;
-}
-/* All previous styles remain the same, plus these additions: */
 .container { max-width:1200px; margin:0 auto; padding:2rem 1rem; }
 .loading-container, .not-logged-in, .error-banner { text-align:center; padding:2rem; }
 .spinner { width:48px; height:48px; border:4px solid #eee; border-top-color:#6C5B7F; border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 1rem; }
@@ -1953,7 +1907,7 @@ function getStatusClass(status) { if (!status) return ''; const s = String(statu
   background: white;
   color: #6b7280;
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: 1.35rem;  /* Increased from 0.875rem */
   cursor: pointer;
   transition: all 0.2s;
 }
