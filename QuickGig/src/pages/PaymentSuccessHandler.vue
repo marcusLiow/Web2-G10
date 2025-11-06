@@ -147,25 +147,26 @@ const handleRegularJobPayment = async (jobId, chatId, amount, jobTitle) => {
   
  
   // 3. Create Earnings record for the helper
-const platformFee = Number(amount) * 0.10; // 10% platform fee
-const netAmount = Number(amount) - platformFee;
+const platformFee = 0; // Platform fee disabled
+const netAmount = Number(amount);
 
 const { error: earningsError } = await supabase
   .from('Earnings')
   .insert({
     user_id: currentChatData.job_seeker_id,
+    job_id: jobId,
     gross_amount: Number(amount),
     platform_fee: platformFee,
     net_amount: netAmount,
     job_title: jobTitle || 'Job',
-    status: 'completed'
-    // Removed payment_date - it doesn't exist in the table
+    status: 'paid',
+    created_at: new Date().toISOString()
   });
 
 if (earningsError) {
   console.error('Error creating Earnings record:', earningsError);
 } else {
-  console.log('✅ Earnings record created for helper');
+  console.log('✅ Earnings record created with status: paid');
 }
   
   // 4. Update chat payment status
@@ -248,41 +249,97 @@ const handleHelperJobPayment = async (chatId, amount, jobTitle) => {
     .single();
   if (chatError) throw chatError;
 
-  // 2. Create helper_jobs record
-  const { error: jobError } = await supabase
+  // 2. Check if helper_jobs record already exists
+  const { data: existingJobs, error: checkError } = await supabase
     .from('helper_jobs')
-    .insert([{
-      helper_chat_id: chatId,
-      helper_id: chatData.helper_id,
-      client_id: chatData.client_id,
-      job_title: jobTitle || 'Helper Service',
-      agreed_amount: amount,
-      status: 'in-progress',
-      payment_status: 'paid'
-    }]);
-  if (jobError) throw jobError;
+    .select('id, job_id')
+    .eq('helper_chat_id', chatId);
+
+  if (checkError) {
+    console.error('Error checking for existing helper_jobs:', checkError);
+    throw checkError;
+  }
+
+  const existingJob = existingJobs && existingJobs.length > 0 ? existingJobs[0] : null;
+  let finalJobId = existingJob?.job_id || null;
+
+  // 3. If no job_id exists yet, try to find it
+  if (!finalJobId) {
+    const { data: jobData, error: jobFetchError } = await supabase
+      .from('User-Job-Request')
+      .select('id')
+      .eq('user_id', chatData.client_id)
+      .eq('title', jobTitle)
+      .in('status', ['open', 'in-progress', 'accepted'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    if (!jobFetchError && jobData && jobData.length > 0) {
+      finalJobId = jobData[0].id;
+      console.log('✅ Found matching job_id:', finalJobId);
+    } else {
+      console.warn('⚠️ Could not find matching job for title:', jobTitle);
+    }
+  }
+
+  // 4. Update existing or insert new helper_jobs record
+  if (existingJob) {
+    // Update existing
+    console.log('Updating existing helper_jobs record, ID:', existingJob.id);
+    const { error: updateError } = await supabase
+      .from('helper_jobs')
+      .update({
+        job_id: finalJobId,
+        status: 'in-progress',
+        payment_status: 'paid',
+        agreed_amount: amount
+      })
+      .eq('id', existingJob.id);
+    
+    if (updateError) throw updateError;
+    console.log('✅ Updated existing helper_jobs record');
+  } else {
+    // Insert new
+    console.log('Inserting new helper_jobs record for chat:', chatId);
+    const { error: insertError } = await supabase
+      .from('helper_jobs')
+      .insert([{
+        helper_chat_id: chatId,
+        job_id: finalJobId,
+        helper_id: chatData.helper_id,
+        client_id: chatData.client_id,
+        job_title: jobTitle || 'Helper Service',
+        agreed_amount: amount,
+        status: 'in-progress',
+        payment_status: 'paid',
+        created_at: new Date().toISOString()
+      }]);
+    if (insertError) throw insertError;
+    console.log('✅ Created new helper_jobs record');
+  }
 
  
-  // 3. Create Earnings record for the helper
-const platformFee = Number(amount) * 0.10; // 10% platform fee
-const netAmount = Number(amount) - platformFee;
+  // 4. Create Earnings record for the helper
+const platformFee = 0; // Platform fee disabled
+const netAmount = Number(amount);
 
 const { error: earningsError } = await supabase
   .from('Earnings')
   .insert({
     user_id: chatData.helper_id,
+    job_id: finalJobId,
     gross_amount: Number(amount),
     platform_fee: platformFee,
     net_amount: netAmount,
     job_title: jobTitle || 'Helper Service',
-    status: 'completed'
-    // Removed payment_date - it doesn't exist in the table
+    status: 'paid',
+    created_at: new Date().toISOString()
   });
 
 if (earningsError) {
   console.error('Error creating Earnings record:', earningsError);
 } else {
-  console.log('✅ Earnings record created for helper');
+  console.log('✅ Earnings record created with status: paid');
 }
 
   // 4. Send payment confirmation message *to the chat*
