@@ -665,10 +665,10 @@ const tierInfo = reactive({
 });
 
 const tiers = [
-  { name: 'Silver', min: 0, max: 600, image: '/src/assets/silver.png' },
-  { name: 'Gold', min: 600, max: 1200, image: '/src/assets/gold.png' },
-  { name: 'Emerald', min: 1200, max: 1800, image: '/src/assets/emerald.png' },
-  { name: 'Diamond', min: 1800, max: Infinity, image: '/src/assets/diamond.png' }
+  { name: 'Silver', min: 0, max: 600, image: new URL('@/assets/silver.png', import.meta.url).href },
+  { name: 'Gold', min: 600, max: 1200, image: new URL('@/assets/gold.png', import.meta.url).href },
+  { name: 'Emerald', min: 1200, max: 1800, image: new URL('@/assets/emerald.png', import.meta.url).href },
+  { name: 'Diamond', min: 1800, max: Infinity, image: new URL('@/assets/diamond.png', import.meta.url).href }
 ];
 
 const activeListings = computed(() => userListings.value.filter(l => l.status === 'open'));
